@@ -54,19 +54,20 @@ transaction but must preserve visible ordering and register semantics.
 ## v0 executable CPU adapter
 
 `rtl/cpu/omcu_picorv32_system.sv` turns the portable blocks into an executable
-RV32I system. It keeps PicoRV32 behind the memory-map adapter and connects:
+RV32IMC system. It keeps PicoRV32 behind the memory-map adapter and connects:
 
 ```text
 PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric -> GPIO0 + TIMER0
 ```
 
-The adapter intentionally has compressed instructions, multiply/divide, PCPI
-and PicoRV32's non-standard interrupt facility disabled. GPIO and timer IRQ
-signals are exposed for validation, but no third-party interrupt ABI is claimed
-until the CPU/debug architecture and startup code are specified. Invalid or
-ROM-write transactions are acknowledged and surfaced as a simulation/bring-up
-diagnostic; the minimal adapter does not yet turn them into a RISC-V access
-fault.
+The adapter enables the ratified `M` and `C` instruction extensions and a
+barrel shifter, but intentionally does **not** claim `Zicsr`, privileged machine
+mode, debug support, atomics, floating point, or PicoRV32's non-standard
+interrupt facility. GPIO and timer IRQ signals are exposed for validation, but
+no third-party interrupt ABI is claimed until the CPU/debug architecture and
+startup code are specified. Invalid or ROM-write transactions are acknowledged
+and surfaced as a simulation/bring-up diagnostic; the minimal adapter does not
+yet turn them into a RISC-V access fault.
 
 The ROM initialization file is a simulation/FPGA-bring-up mechanism, not the
 final update solution. The product boot path remains: immutable loader ->

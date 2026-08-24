@@ -5,7 +5,7 @@ bring-up configuration:
 
 - `omcu_tn9k_bringup_top.sv` runs the portable SoC directly at the board's
   27 MHz input and synchronizes reset deassertion;
-- `firmware/gpio_bringup.hex` is a five-instruction RV32I image that enables
+- `firmware/gpio_bringup.hex` is a five-instruction RISC-V image that enables
   GPIO0[0] and lights LED0;
 - `project/omcu_tn9k_bringup.gprj` selects `GW1NR-LV9QN88PC6/I5`;
 - `project/*.cst` and `project/*.sdc` record the bring-up pins, USB-UART pins

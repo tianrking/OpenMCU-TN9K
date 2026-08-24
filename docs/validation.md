@@ -25,8 +25,12 @@ bring-up and an ATE or production test strategy.
 
 On 2026-08-25 this workspace exposes Git, CMake and Ninja, but not a Verilog
 simulator, Yosys, Gowin EDA, openFPGALoader or a RISC-V cross compiler on
-`PATH`. A temporary, workspace-local Icarus Verilog 11.0 copy was used for the
-first portable RTL smoke tests:
+`PATH`. A workspace-local Icarus Verilog 11.0 copy and a workspace-local xPack
+GNU RISC-V Embedded GCC 15.2.0-1 package were used for these checks. The xPack
+Windows archive SHA-256 matched the pinned value in
+[`toolchains/riscv-none-elf-gcc-15.2.0-1.lock.json`](../toolchains/riscv-none-elf-gcc-15.2.0-1.lock.json).
+
+The following directed RTL smoke tests passed:
 
 - `omcu_timer_tb`: passed;
 - `omcu_gpio_tb`: passed;
@@ -42,13 +46,18 @@ first portable RTL smoke tests:
   through the real MMIO fabric and emitted a checked serial byte.
 - `omcu_tn9k_bringup_top_tb`: passed; it added the 27 MHz reset release and
   active-low LED mapping around the same executable system.
+- `omcu_rv32imc_sdk_tb`: passed; xPack GCC built the SDK with
+  `-march=rv32imc -mabi=ilp32`, GNU `objcopy` generated the ROM image, and the
+  image executed through the real PicoRV32, startup `.data` copy, MMIO fabric
+  and GPIO peripheral. Its disassembly contains compressed instructions plus
+  `mul`, `div`, `divu`, `rem`, and `remu` operations.
 - `scripts/generate-sdk.ps1 -Check`: passed; generated C register definitions
   match `spec/omcu-v0.json`.
 
 Icarus emitted informational limitations about `unique case` and constant
 select sensitivity in `always_comb`; it did not report a compilation failure.
-Those checks establish only directed RTL behavior. Gowin synthesis,
-place-and-route, RISC-V firmware compilation, programmer integration and a
+Those checks establish only directed RTL behavior and local compiler/simulator
+integration. Gowin synthesis, place-and-route, programmer integration and a
 physical-board test remain unvalidated.
 
 The repository includes a GitHub Actions workflow that installs Icarus and a

@@ -26,6 +26,7 @@ directory, run from the repository root:
 .\scripts\run-rtl-smoke.ps1 -Test sysctrl
 .\scripts\run-rtl-smoke.ps1 -Test system
 .\scripts\run-rtl-smoke.ps1 -Test system-uart
+.\scripts\run-rtl-smoke.ps1 -Test sdk-isa
 .\scripts\run-rtl-smoke.ps1 -Test tn9k
 ```
 
@@ -43,6 +44,12 @@ parameterized correctly.
 `system-uart` is a second CPU integration gate: a hand-audited RV32I image
 writes UART0 control, divider and data through the real PicoRV32/MMIO path,
 then the testbench checks the serialized byte.
+
+`sdk-isa` is the compiler-to-hardware gate.  Build `build/sdk` first, then the
+test loads the generated `omcu_isa_smoke.hex`, which has been compiled with
+`-march=rv32imc`.  It validates startup `.data` relocation, compressed
+instruction decoding, and signed/unsigned multiply/divide/remainder through
+the real CPU, bus and GPIO peripheral path.
 
 `tn9k` adds the 27 MHz reset-release and active-low six-LED board adapter to
 the same firmware path. It verifies logic-level behavior only; it does not

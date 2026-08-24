@@ -1,7 +1,7 @@
 # OpenMCU SDK bring-up build
 
 This is the first compiler-facing SDK route for the current 4 KiB ROM / 32 KiB
-SRAM Tang Nano 9K prototype configuration. It targets RV32I with the ILP32
+SRAM Tang Nano 9K prototype configuration. It targets RV32IMC with the ILP32
 ABI, links a minimal startup routine, emits an ELF and asks GNU `objcopy` for a
 32-bit Verilog ROM image.
 
@@ -23,11 +23,13 @@ cmake -S sdk -B build/sdk -G Ninja `
 cmake --build build/sdk
 ```
 
-The outputs include `omcu_blink.elf` / `.map` / `.hex` and
-`omcu_uart_hello.elf` / `.map` / `.hex`. The final ROM image format must be
-rechecked with the selected GNU toolchain before it is used to program a board:
-no RISC-V toolchain is installed in this workspace, so this path has not yet
-been compiled or flashed here.
+The outputs include `omcu_blink.elf` / `.map` / `.hex`,
+`omcu_uart_hello.elf` / `.map` / `.hex`, and the compiled
+`omcu_isa_smoke.elf` / `.map` / `.hex` integration test. The final ROM image
+format must be rechecked with the selected GNU toolchain before it is used to
+program a board: the checked configuration is
+`-DOMCU_MARCH=rv32imc -DOMCU_MABI=ilp32`. The SDK firmware build is
+simulator-validated; it is not yet a flashed-board claim.
 
 `omcu_fpga_bringup.ld` is only for the current 4 KiB/32 KiB FPGA ROM/RAM
 configuration. A public SDK release will select a target-specific memory file

@@ -1,6 +1,6 @@
 `default_nettype none
 
-// v0 executable OpenMCU system. PicoRV32 is a deliberately replaceable CPU
+// v1 executable OpenMCU system. PicoRV32 is a deliberately replaceable CPU
 // adapter: peripherals see only the portable OpenMCU MMIO contract below.
 // The simple ROM/SRAM models are suitable for simulation and an FPGA bring-up
 // image. An ASIC implementation replaces them with macro wrappers.
@@ -154,16 +154,20 @@ module omcu_picorv32_system #(
     .ENABLE_REGS_DUALPORT(1'b1),
     .LATCHED_MEM_RDATA(1'b0),
     .TWO_STAGE_SHIFT(1'b1),
-    .BARREL_SHIFTER(1'b0),
+    // The Tang Nano 9K profile intentionally spends LUTs on a barrel shifter
+    // and a fast multiplier instead of presenting a minimal RV32I demo.  The
+    // selected ISA remains the ratified unprivileged RV32IMC profile; it does
+    // not claim privileged CSRs or PicoRV32's non-standard IRQ instructions.
+    .BARREL_SHIFTER(1'b1),
     .TWO_CYCLE_COMPARE(1'b0),
     .TWO_CYCLE_ALU(1'b0),
-    .COMPRESSED_ISA(1'b0),
+    .COMPRESSED_ISA(1'b1),
     .CATCH_MISALIGN(1'b1),
     .CATCH_ILLINSN(1'b1),
     .ENABLE_PCPI(1'b0),
     .ENABLE_MUL(1'b0),
-    .ENABLE_FAST_MUL(1'b0),
-    .ENABLE_DIV(1'b0),
+    .ENABLE_FAST_MUL(1'b1),
+    .ENABLE_DIV(1'b1),
     .ENABLE_IRQ(1'b0),
     .ENABLE_TRACE(1'b0),
     .PROGADDR_RESET(32'h0000_0000),

@@ -29,13 +29,14 @@ This repository is at the executable architecture-foundation stage. It contains
 the v0 memory-map contract, portable GPIO/UART/timer/SYSCTRL RTL, a PicoRV32
 CPU adapter, an SDK header/examples, and the Tang Nano 9K/ASIC separation
 rules. Its first
-end-to-end simulation executes RV32I firmware from ROM and verifies that it
+end-to-end simulation executes RISC-V firmware from ROM and verifies that it
 enables and drives GPIO. It does **not** yet claim that a bitstream, firmware
 upload, or ASIC layout has been validated on hardware.
 
 The workstation has no globally installed Verilog simulator, RISC-V cross
-compiler, Gowin EDA or openFPGALoader on `PATH`. A workspace-local Icarus
-Verilog copy has nevertheless run the directed RTL smoke tests. See
+compiler, Gowin EDA or openFPGALoader on `PATH`. Workspace-local Icarus Verilog
+and a SHA-256-verified xPack GNU RISC-V toolchain nevertheless run the directed
+RTL and compiled-SDK smoke tests. See
 [`docs/validation.md`](docs/validation.md).
 
 For portable RTL smoke tests, install Icarus Verilog or point the test runner
@@ -45,7 +46,7 @@ at an unpacked copy: `$env:OMCU_IVERILOG_BIN = 'C:\path\to\iverilog\bin'`.
 
 | Implemented in the current prototype | Reserved ABI / next implementation | Deliberately deferred |
 | --- | --- | --- |
-| RV32I bring-up adapter, ROM/SRAM model | QSPI XIP and external-flash loader | Internal Flash / eFlash |
+| RV32IMC bring-up adapter, ROM/SRAM model | QSPI XIP and external-flash loader | Internal Flash / eFlash |
 | GPIO0, UART0, TIMER0, SYSCTRL | SPI0, I2C0, watchdog, public interrupt ABI | ADC, DAC, analogue reference |
 | Generated C register header and starter SDK | JTAG/serial-debug and programmer tooling | USB PHY, Ethernet PHY, radio |
 | Tang 27 MHz / LED / UART board target source | Reproducible Gowin P&R and board release | Low-power sign-off, production packaging and ATE |
@@ -98,7 +99,7 @@ assessment. The usable v0 peripheral details are in
 
 ## Current CPU implementation record
 
-The first executable adapter uses the RV32I configuration of
+The first executable adapter uses the ratified unprivileged RV32IMC configuration of
 [PicoRV32](https://github.com/YosysHQ/picorv32), pinned as a submodule at
 `a473fc8fca393771d83b0ffcf0b14db3393339d8`. It is a bring-up choice rather
 than a public peripheral dependency: the CPU only sees the OpenMCU memory map
@@ -108,7 +109,7 @@ and portable MMIO fabric. Its exact licence and provenance are in
 ## Reproducibility scaffold
 
 The repository now contains a machine-readable register specification, a
-checked generator for the C register header, a CMake RV32I firmware build path,
+checked generator for the C register header, a CMake RV32IMC firmware build path,
 and a CI workflow that exercises both. These are deliberately distinguished
 from release evidence: the workflow has not run until this local repository is
 pushed, and no Gowin synthesis or board programming result exists yet.

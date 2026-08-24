@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('timer', 'gpio', 'uart', 'sysctrl', 'system', 'system-uart', 'tn9k')]
+    [ValidateSet('timer', 'gpio', 'uart', 'sysctrl', 'system', 'system-uart', 'sdk-isa', 'tn9k')]
     [string]$Test = 'timer'
 )
 
@@ -118,6 +118,33 @@ switch ($Test) {
         Push-Location $projectRoot
         try {
             & $iverilogPath -g2012 -s omcu_picorv32_uart_system_tb -o $output @sources
+            if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+            & $vvpPath $output
+            if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+        } finally {
+            Pop-Location
+        }
+    }
+    'sdk-isa' {
+        $firmware = Join-Path $projectRoot 'build\sdk\omcu_isa_smoke.hex'
+        if (-not (Test-Path -LiteralPath $firmware -PathType Leaf)) {
+            throw "Compiled SDK image is required for sdk-isa: $firmware. Build it with cmake -S sdk -B build/sdk first."
+        }
+        $output = Join-Path $buildDir 'omcu_rv32imc_sdk_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'third_party\picorv32\picorv32.v'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
+            (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_rv32imc_sdk_tb.sv')
+        )
+        Push-Location $projectRoot
+        try {
+            & $iverilogPath -g2012 -s omcu_rv32imc_sdk_tb -o $output @sources
             if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
             & $vvpPath $output
             if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }

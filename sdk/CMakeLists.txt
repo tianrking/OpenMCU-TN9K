@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(OpenMCU_SDK LANGUAGES C ASM)
 
-set(OMCU_MARCH "rv32i" CACHE STRING "RISC-V ISA for the selected OpenMCU target")
+set(OMCU_MARCH "rv32imc" CACHE STRING "RISC-V ISA for the selected OpenMCU target")
 set(OMCU_MABI "ilp32" CACHE STRING "RISC-V ABI for the selected OpenMCU target")
 
 if (NOT DEFINED OMCU_RISCV_PREFIX)
@@ -20,6 +20,7 @@ function(omcu_add_firmware target)
   target_compile_options(${target} PRIVATE
     -march=${OMCU_MARCH}
     -mabi=${OMCU_MABI}
+    -Os
     -ffreestanding
     -fno-common
     -ffunction-sections
@@ -50,3 +51,4 @@ endfunction()
 
 omcu_add_firmware(omcu_blink examples/blink/main.c)
 omcu_add_firmware(omcu_uart_hello examples/uart_hello/main.c)
+omcu_add_firmware(omcu_isa_smoke examples/isa_smoke/main.c)
