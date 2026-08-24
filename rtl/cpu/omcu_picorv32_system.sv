@@ -21,6 +21,14 @@ module omcu_picorv32_system #(
   output logic                  uart_tx_o,
   output logic                  uart_irq_o,
   output logic                  timer_irq_o,
+  input  logic                  spi_miso_i,
+  output logic                  spi_mosi_o,
+  output logic                  spi_sck_o,
+  output logic                  spi_cs_n_o,
+  output logic                  spi_irq_o,
+  output logic                  wdt_irq_o,
+  output logic                  wdt_reset_req_o,
+  output logic                  pwm_o,
 
   output logic                  cpu_trap_o,
   output logic                  bus_error_o
@@ -125,7 +133,15 @@ module omcu_picorv32_system #(
     .uart_rx_i(uart_rx_i),
     .uart_tx_o(uart_tx_o),
     .uart_irq_o(uart_irq_o),
-    .timer_irq_o(timer_irq_o)
+    .timer_irq_o(timer_irq_o),
+    .spi_miso_i(spi_miso_i),
+    .spi_mosi_o(spi_mosi_o),
+    .spi_sck_o(spi_sck_o),
+    .spi_cs_n_o(spi_cs_n_o),
+    .spi_irq_o(spi_irq_o),
+    .wdt_irq_o(wdt_irq_o),
+    .wdt_reset_req_o(wdt_reset_req_o),
+    .pwm_o(pwm_o)
   );
 
   always_comb begin

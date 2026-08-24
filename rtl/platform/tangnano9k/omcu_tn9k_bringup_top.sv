@@ -19,10 +19,11 @@ module omcu_tn9k_bringup_top #(
   logic [5:0] gpio_oe;
   logic       cpu_trap;
   logic       bus_error;
+  logic       watchdog_reset_request;
 
   // Assert asynchronously; deassert after three clean 27 MHz clock edges.
   always_ff @(posedge clk_27m_i or negedge resetn_i) begin
-    if (!resetn_i) begin
+    if (!resetn_i || watchdog_reset_request) begin
       reset_release_q <= 3'b000;
     end else begin
       reset_release_q <= {reset_release_q[1:0], 1'b1};
@@ -47,6 +48,14 @@ module omcu_tn9k_bringup_top #(
     .uart_tx_o(uart_tx_o),
     .uart_irq_o(),
     .timer_irq_o(),
+    .spi_miso_i(1'b1),
+    .spi_mosi_o(),
+    .spi_sck_o(),
+    .spi_cs_n_o(),
+    .spi_irq_o(),
+    .wdt_irq_o(),
+    .wdt_reset_req_o(watchdog_reset_request),
+    .pwm_o(),
     .cpu_trap_o(cpu_trap),
     .bus_error_o(bus_error)
   );

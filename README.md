@@ -26,7 +26,7 @@ contracts must not change silently:
 ## Status
 
 This repository is at the executable architecture-foundation stage. It contains
-the v0 memory-map contract, portable GPIO/UART/timer/SYSCTRL RTL, a PicoRV32
+the v0 memory-map contract, portable GPIO/UART/timer/SPI/watchdog/PWM/SYSCTRL RTL, a PicoRV32
 CPU adapter, an SDK header/examples, and the Tang Nano 9K/ASIC separation
 rules. Its first
 end-to-end simulation executes RISC-V firmware from ROM and verifies that it
@@ -47,7 +47,7 @@ at an unpacked copy: `$env:OMCU_IVERILOG_BIN = 'C:\path\to\iverilog\bin'`.
 | Implemented in the current prototype | Reserved ABI / next implementation | Deliberately deferred |
 | --- | --- | --- |
 | RV32IMC bring-up adapter, ROM/SRAM model | QSPI XIP and external-flash loader | Internal Flash / eFlash |
-| GPIO0, UART0, TIMER0, SYSCTRL | SPI0, I2C0, watchdog, public interrupt ABI | ADC, DAC, analogue reference |
+| GPIO0, UART0, TIMER0, SPI0, WDT0, PWM0, SYSCTRL | I2C0 and public interrupt ABI | ADC, DAC, analogue reference |
 | Generated C register header and starter SDK | JTAG/serial-debug and programmer tooling | USB PHY, Ethernet PHY, radio |
 | Tang 27 MHz / LED / UART board target source | Reproducible Gowin P&R and board release | Low-power sign-off, production packaging and ATE |
 

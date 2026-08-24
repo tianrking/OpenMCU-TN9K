@@ -25,6 +25,9 @@ jobs:
           ./scripts/run-rtl-smoke.ps1 -Test gpio
           ./scripts/run-rtl-smoke.ps1 -Test timer
           ./scripts/run-rtl-smoke.ps1 -Test uart
+          ./scripts/run-rtl-smoke.ps1 -Test spi
+          ./scripts/run-rtl-smoke.ps1 -Test wdt
+          ./scripts/run-rtl-smoke.ps1 -Test pwm
           ./scripts/run-rtl-smoke.ps1 -Test sysctrl
           ./scripts/run-rtl-smoke.ps1 -Test system
           ./scripts/run-rtl-smoke.ps1 -Test system-uart
@@ -49,4 +52,7 @@ jobs:
       - run: cmake --build build/sdk
       - name: Execute compiled RV32IMC SDK firmware in SoC simulation
         shell: pwsh
-        run: ./scripts/run-rtl-smoke.ps1 -Test sdk-isa
+        run: |
+          ./scripts/run-rtl-smoke.ps1 -Test sdk-isa
+          ./scripts/run-rtl-smoke.ps1 -Test sdk-peripherals
+          ./scripts/run-rtl-smoke.ps1 -Test tn9k-wdt

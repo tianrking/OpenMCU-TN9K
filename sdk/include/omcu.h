@@ -28,6 +28,10 @@ static inline bool omcu_hw_abi_is_compatible(uint16_t expected_major) {
            expected_major;
 }
 
+static inline bool omcu_hw_has_feature(uint32_t feature) {
+  return (OMCU_SYSCTRL->features & feature) == feature;
+}
+
 static inline void omcu_gpio_enable_output(uint32_t mask) {
   OMCU_GPIO0->oe_set = mask;
 }
@@ -88,6 +92,74 @@ static inline void omcu_timer_start_periodic(
   OMCU_TIMER0->ctrl = OMCU_TIMER_CTRL_ENABLE |
                       OMCU_TIMER_CTRL_IRQ_ENABLE |
                       OMCU_TIMER_CTRL_AUTO_RELOAD;
+}
+
+static inline void omcu_spi0_init(uint16_t clkdiv, bool enable_done_irq) {
+  OMCU_SPI0->ctrl = 0u;
+  OMCU_SPI0->clkdiv = clkdiv;
+  OMCU_SPI0->status = OMCU_SPI_STATUS_DONE;
+  OMCU_SPI0->ctrl = OMCU_SPI_CTRL_ENABLE |
+                     (enable_done_irq ? OMCU_SPI_CTRL_IRQ_ENABLE : 0u);
+}
+
+static inline bool omcu_spi0_transfer(uint8_t tx, uint8_t *rx) {
+  uint32_t status;
+
+  if ((OMCU_SPI0->ctrl & OMCU_SPI_CTRL_ENABLE) == 0u) {
+    return false;
+  }
+  while ((OMCU_SPI0->status & OMCU_SPI_STATUS_BUSY) != 0u) {
+  }
+  OMCU_SPI0->status = OMCU_SPI_STATUS_DONE;
+  OMCU_SPI0->data = tx;
+  OMCU_SPI0->start = 1u;
+  do {
+    status = OMCU_SPI0->status;
+  } while ((status & OMCU_SPI_STATUS_BUSY) != 0u);
+  if ((status & OMCU_SPI_STATUS_DONE) == 0u) {
+    return false;
+  }
+  if (rx != 0) {
+    *rx = (uint8_t)OMCU_SPI0->data;
+  }
+  OMCU_SPI0->status = OMCU_SPI_STATUS_DONE;
+  return true;
+}
+
+static inline void omcu_wdt0_start(
+  uint32_t timeout,
+  bool request_reset,
+  bool enable_expiry_irq
+) {
+  OMCU_WDT0->ctrl = 0u;
+  OMCU_WDT0->timeout = timeout;
+  OMCU_WDT0->status = OMCU_WDT_STATUS_EXPIRED;
+  OMCU_WDT0->feed = OMCU_WDT_FEED_MAGIC;
+  OMCU_WDT0->ctrl = OMCU_WDT_CTRL_ENABLE |
+                    (request_reset ? OMCU_WDT_CTRL_RESET_ENABLE : 0u) |
+                    (enable_expiry_irq ? OMCU_WDT_CTRL_IRQ_ENABLE : 0u);
+}
+
+static inline void omcu_wdt0_feed(void) {
+  OMCU_WDT0->feed = OMCU_WDT_FEED_MAGIC;
+}
+
+static inline void omcu_wdt0_stop(void) {
+  OMCU_WDT0->ctrl = 0u;
+}
+
+static inline void omcu_pwm0_configure(
+  uint16_t prescale,
+  uint32_t period,
+  uint32_t duty,
+  bool invert
+) {
+  OMCU_PWM0->ctrl = 0u;
+  OMCU_PWM0->prescale = prescale;
+  OMCU_PWM0->period = period;
+  OMCU_PWM0->duty = duty;
+  OMCU_PWM0->ctrl = OMCU_PWM_CTRL_ENABLE |
+                    (invert ? OMCU_PWM_CTRL_INVERT : 0u);
 }
 
 #endif  /* OMCU_H_ */

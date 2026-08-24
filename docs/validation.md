@@ -36,6 +36,12 @@ The following directed RTL smoke tests passed:
 - `omcu_gpio_tb`: passed;
 - `omcu_uart_tb`: passed; it verifies 8-N-1 TX, RX data recovery, status and
   RX interrupt behavior at a directed simulation divider;
+- `omcu_spi_tb`: passed; it verifies an 8-bit mode-0 transfer, MISO sampling,
+  automatic chip select, DONE IRQ and W1C completion status.
+- `omcu_wdt_tb`: passed; it verifies feed, expiry, IRQ, reset request and W1C
+  expiry status behavior.
+- `omcu_pwm_tb`: passed; it verifies duty-cycle window, period rollover and
+  inversion behavior.
 - `omcu_mmio_fabric`: compiled successfully with all implemented portable
   peripherals.
 - `omcu_sysctrl_tb`: passed; it verifies ABI, feature, build and memory
@@ -51,6 +57,11 @@ The following directed RTL smoke tests passed:
   image executed through the real PicoRV32, startup `.data` copy, MMIO fabric
   and GPIO peripheral. Its disassembly contains compressed instructions plus
   `mul`, `div`, `divu`, `rem`, and `remu` operations.
+- `omcu_peripheral_sdk_tb`: passed; compiled C SDK calls discovered required
+  features, configured PWM0/WDT0, executed a real SPI0 byte transfer and
+  reported success through GPIO without a watchdog reset request.
+- `omcu_tn9k_wdt_reset_tb`: passed; compiled C firmware intentionally expired
+  WDT0 and the Tang reset-release wrapper reset and restarted the SoC.
 - `scripts/generate-sdk.ps1 -Check`: passed; generated C register definitions
   match `spec/omcu-v0.json`.
 

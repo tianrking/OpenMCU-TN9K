@@ -24,6 +24,7 @@ change the public peripheral ABI.
 | `0x4000_3000-0x4000_3FFF` | SPI0 | External devices / QSPI control boundary |
 | `0x4000_4000-0x4000_4FFF` | I2C0 | Standard sensor bus |
 | `0x4000_5000-0x4000_5FFF` | WDT0 | Independent watchdog |
+| `0x4000_6000-0x4000_6FFF` | PWM0 | Edge-aligned PWM generator |
 | `0x4000_F000-0x4000_FFFF` | SYSCTRL | Chip ID, build ID, reset reason and clock metadata |
 
 No compatible release may move an existing block. New functions receive a new

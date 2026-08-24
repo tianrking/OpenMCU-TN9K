@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('timer', 'gpio', 'uart', 'sysctrl', 'system', 'system-uart', 'sdk-isa', 'tn9k')]
+    [ValidateSet('timer', 'gpio', 'uart', 'spi', 'wdt', 'pwm', 'sysctrl', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'tn9k-wdt', 'tn9k')]
     [string]$Test = 'timer'
 )
 
@@ -68,6 +68,42 @@ switch ($Test) {
         & $vvpPath $output
         if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
     }
+    'spi' {
+        $output = Join-Path $buildDir 'omcu_spi_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_spi_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_spi_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
+    'wdt' {
+        $output = Join-Path $buildDir 'omcu_wdt_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_wdt_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_wdt_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
+    'pwm' {
+        $output = Join-Path $buildDir 'omcu_pwm_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_pwm_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_pwm_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
     'sysctrl' {
         $output = Join-Path $buildDir 'omcu_sysctrl_tb.vvp'
         $sources = @(
@@ -87,6 +123,9 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -110,6 +149,9 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -137,6 +179,9 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -152,6 +197,67 @@ switch ($Test) {
             Pop-Location
         }
     }
+    'sdk-peripherals' {
+        $firmware = Join-Path $projectRoot 'build\sdk\omcu_peripheral_smoke.hex'
+        if (-not (Test-Path -LiteralPath $firmware -PathType Leaf)) {
+            throw "Compiled SDK image is required for sdk-peripherals: $firmware. Build it with cmake -S sdk -B build/sdk first."
+        }
+        $output = Join-Path $buildDir 'omcu_peripheral_sdk_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'third_party\picorv32\picorv32.v'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
+            (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_peripheral_sdk_tb.sv')
+        )
+        Push-Location $projectRoot
+        try {
+            & $iverilogPath -g2012 -s omcu_peripheral_sdk_tb -o $output @sources
+            if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+            & $vvpPath $output
+            if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+        } finally {
+            Pop-Location
+        }
+    }
+    'tn9k-wdt' {
+        $firmware = Join-Path $projectRoot 'build\sdk\omcu_wdt_reset_smoke.hex'
+        if (-not (Test-Path -LiteralPath $firmware -PathType Leaf)) {
+            throw "Compiled SDK image is required for tn9k-wdt: $firmware. Build it with cmake -S sdk -B build/sdk first."
+        }
+        $output = Join-Path $buildDir 'omcu_tn9k_wdt_reset_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'third_party\picorv32\picorv32.v'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
+            (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
+            (Join-Path $projectRoot 'rtl\platform\tangnano9k\omcu_tn9k_bringup_top.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_tn9k_wdt_reset_tb.sv')
+        )
+        Push-Location $projectRoot
+        try {
+            & $iverilogPath -g2012 -s omcu_tn9k_wdt_reset_tb -o $output @sources
+            if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+            & $vvpPath $output
+            if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+        } finally {
+            Pop-Location
+        }
+    }
     'tn9k' {
         $output = Join-Path $buildDir 'omcu_tn9k_bringup_top_tb.vvp'
         $sources = @(
@@ -160,6 +266,9 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),

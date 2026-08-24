@@ -27,30 +27,54 @@ module omcu_mmio_fabric #(
   input  logic                  uart_rx_i,
   output logic                  uart_tx_o,
   output logic                  uart_irq_o,
-  output logic                  timer_irq_o
+  output logic                  timer_irq_o,
+
+  input  logic                  spi_miso_i,
+  output logic                  spi_mosi_o,
+  output logic                  spi_sck_o,
+  output logic                  spi_cs_n_o,
+  output logic                  spi_irq_o,
+  output logic                  wdt_irq_o,
+  output logic                  wdt_reset_req_o,
+  output logic                  pwm_o
 );
 
   localparam logic [19:0] GPIO0_PAGE  = 20'h40000;
   localparam logic [19:0] UART0_PAGE  = 20'h40001;
   localparam logic [19:0] TIMER0_PAGE = 20'h40002;
+  localparam logic [19:0] SPI0_PAGE   = 20'h40003;
+  localparam logic [19:0] WDT0_PAGE   = 20'h40005;
+  localparam logic [19:0] PWM0_PAGE   = 20'h40006;
   localparam logic [19:0] SYSCTRL_PAGE = 20'h4000f;
 
   logic gpio_select;
   logic uart_select;
   logic timer_select;
+  logic spi_select;
+  logic wdt_select;
+  logic pwm_select;
   logic sysctrl_select;
   logic gpio_ready;
   logic uart_ready;
   logic timer_ready;
+  logic spi_ready;
+  logic wdt_ready;
+  logic pwm_ready;
   logic sysctrl_ready;
   logic [31:0] gpio_read_data;
   logic [31:0] uart_read_data;
   logic [31:0] timer_read_data;
+  logic [31:0] spi_read_data;
+  logic [31:0] wdt_read_data;
+  logic [31:0] pwm_read_data;
   logic [31:0] sysctrl_read_data;
 
   assign gpio_select = req_i && (addr_i[31:12] == GPIO0_PAGE);
   assign uart_select = req_i && (addr_i[31:12] == UART0_PAGE);
   assign timer_select = req_i && (addr_i[31:12] == TIMER0_PAGE);
+  assign spi_select = req_i && (addr_i[31:12] == SPI0_PAGE);
+  assign wdt_select = req_i && (addr_i[31:12] == WDT0_PAGE);
+  assign pwm_select = req_i && (addr_i[31:12] == PWM0_PAGE);
   assign sysctrl_select = req_i && (addr_i[31:12] == SYSCTRL_PAGE);
 
   omcu_gpio #(
@@ -102,9 +126,57 @@ module omcu_mmio_fabric #(
     .irq_o(timer_irq_o)
   );
 
+  omcu_spi spi0 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(spi_select),
+    .write_i(write_i),
+    .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
+    .ready_o(spi_ready),
+    .read_data_o(spi_read_data),
+    .error_o(),
+    .miso_i(spi_miso_i),
+    .mosi_o(spi_mosi_o),
+    .sck_o(spi_sck_o),
+    .cs_n_o(spi_cs_n_o),
+    .irq_o(spi_irq_o)
+  );
+
+  omcu_wdt wdt0 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(wdt_select),
+    .write_i(write_i),
+    .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
+    .ready_o(wdt_ready),
+    .read_data_o(wdt_read_data),
+    .error_o(),
+    .irq_o(wdt_irq_o),
+    .reset_req_o(wdt_reset_req_o)
+  );
+
+  omcu_pwm pwm0 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(pwm_select),
+    .write_i(write_i),
+    .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
+    .ready_o(pwm_ready),
+    .read_data_o(pwm_read_data),
+    .error_o(),
+    .pwm_o(pwm_o)
+  );
+
   omcu_sysctrl #(
     .ROM_BYTES(ROM_BYTES),
-    .SRAM_BYTES(SRAM_BYTES)
+    .SRAM_BYTES(SRAM_BYTES),
+    .FEATURE_BITS(32'h0000_006f)
   ) sysctrl (
     .req_i(sysctrl_select),
     .write_i(write_i),
@@ -128,6 +200,15 @@ module omcu_mmio_fabric #(
     end else if (timer_select) begin
       ready_o = timer_ready;
       read_data_o = timer_read_data;
+    end else if (spi_select) begin
+      ready_o = spi_ready;
+      read_data_o = spi_read_data;
+    end else if (wdt_select) begin
+      ready_o = wdt_ready;
+      read_data_o = wdt_read_data;
+    end else if (pwm_select) begin
+      ready_o = pwm_ready;
+      read_data_o = pwm_read_data;
     end else if (sysctrl_select) begin
       ready_o = sysctrl_ready;
       read_data_o = sysctrl_read_data;

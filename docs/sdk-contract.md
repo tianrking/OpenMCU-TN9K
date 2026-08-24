@@ -33,6 +33,9 @@ because it creates silent hardware/software divergence.
 
 ## Required public SDK functions
 
-v0 must eventually include device startup, traps/interrupt dispatch, GPIO,
-timer, UART console, SPI, I2C, watchdog, a serial/QSPI programmer and a board
-information tool. The current `omcu.h` is only the beginning of that contract.
+The v0.2 SDK now includes device/feature discovery, GPIO, timer, UART console,
+polled SPI byte transfer, watchdog start/feed/stop and PWM configuration. It
+still needs a standards-complete trap/interrupt dispatch layer, I2C byte engine
+API, serial/QSPI programmer, board-information CLI and target metadata loader.
+The hardware feature bitmap is authoritative: an SDK helper must not assume an
+optional peripheral merely because its base address is reserved.

@@ -3,7 +3,7 @@
   "device": {
     "name": "OpenMCU",
     "abi_major": 0,
-    "abi_minor": 1
+    "abi_minor": 2
   },
   "memory": [
     { "macro": "OMCU_ROM_BASE", "address": "0x00000000" },
@@ -15,6 +15,7 @@
     { "macro": "OMCU_SPI0_BASE", "address": "0x40003000" },
     { "macro": "OMCU_I2C0_BASE", "address": "0x40004000" },
     { "macro": "OMCU_WDT0_BASE", "address": "0x40005000" },
+    { "macro": "OMCU_PWM0_BASE", "address": "0x40006000" },
     { "macro": "OMCU_SYSCTRL_BASE", "address": "0x4000F000" }
   ],
   "defines": [
@@ -66,6 +67,41 @@
       ]
     },
     {
+      "name": "spi0",
+      "ctype": "omcu_spi_regs_t",
+      "base_macro": "OMCU_SPI0_BASE",
+      "registers": [
+        { "name": "data", "offset": "0x00", "access": "rw", "comment": "TX byte write / RX byte read" },
+        { "name": "status", "offset": "0x04", "access": "rw", "comment": "BUSY and DONE, DONE is write-one-to-clear" },
+        { "name": "clkdiv", "offset": "0x08", "access": "rw", "comment": "SCK half-period in system clocks minus one" },
+        { "name": "ctrl", "offset": "0x0c", "access": "rw", "comment": "ENABLE and DONE interrupt enable" },
+        { "name": "start", "offset": "0x10", "access": "wo", "comment": "write one to start one automatic mode-0 byte transfer" }
+      ]
+    },
+    {
+      "name": "wdt0",
+      "ctype": "omcu_wdt_regs_t",
+      "base_macro": "OMCU_WDT0_BASE",
+      "registers": [
+        { "name": "ctrl", "offset": "0x00", "access": "rw", "comment": "ENABLE, RESET_ENABLE and EXPIRED interrupt enable" },
+        { "name": "timeout", "offset": "0x04", "access": "rw", "comment": "watchdog count limit before expiry" },
+        { "name": "feed", "offset": "0x08", "access": "wo", "comment": "write OMCU_WDT_FEED_MAGIC to restart the watchdog count" },
+        { "name": "status", "offset": "0x0c", "access": "rw", "comment": "EXPIRED is write-one-to-clear; RESET_REQUEST reports an active pulse" }
+      ]
+    },
+    {
+      "name": "pwm0",
+      "ctype": "omcu_pwm_regs_t",
+      "base_macro": "OMCU_PWM0_BASE",
+      "registers": [
+        { "name": "ctrl", "offset": "0x00", "access": "rw", "comment": "ENABLE and INVERT" },
+        { "name": "prescale", "offset": "0x04", "access": "rw", "comment": "PWM counter clocks minus one" },
+        { "name": "period", "offset": "0x08", "access": "rw", "comment": "inclusive PWM counter top" },
+        { "name": "duty", "offset": "0x0c", "access": "rw", "comment": "output high while COUNT is strictly lower than DUTY" },
+        { "name": "count", "offset": "0x10", "access": "ro", "comment": "current PWM counter" }
+      ]
+    },
+    {
       "name": "sysctrl",
       "ctype": "omcu_sysctrl_regs_t",
       "base_macro": "OMCU_SYSCTRL_BASE",
@@ -82,9 +118,24 @@
     { "name": "OMCU_FEATURE_GPIO0", "value": "1u << 0" },
     { "name": "OMCU_FEATURE_UART0", "value": "1u << 1" },
     { "name": "OMCU_FEATURE_TIMER0", "value": "1u << 2" },
+    { "name": "OMCU_FEATURE_SPI0", "value": "1u << 3" },
+    { "name": "OMCU_FEATURE_I2C0", "value": "1u << 4" },
+    { "name": "OMCU_FEATURE_WDT0", "value": "1u << 5" },
+    { "name": "OMCU_FEATURE_PWM0", "value": "1u << 6" },
     { "name": "OMCU_TIMER_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_TIMER_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_TIMER_CTRL_AUTO_RELOAD", "value": "1u << 2" },
-    { "name": "OMCU_TIMER_STATUS_PENDING", "value": "1u << 0" }
+    { "name": "OMCU_TIMER_STATUS_PENDING", "value": "1u << 0" },
+    { "name": "OMCU_SPI_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_SPI_CTRL_IRQ_ENABLE", "value": "1u << 1" },
+    { "name": "OMCU_SPI_STATUS_BUSY", "value": "1u << 0" },
+    { "name": "OMCU_SPI_STATUS_DONE", "value": "1u << 1" },
+    { "name": "OMCU_WDT_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_WDT_CTRL_RESET_ENABLE", "value": "1u << 1" },
+    { "name": "OMCU_WDT_CTRL_IRQ_ENABLE", "value": "1u << 2" },
+    { "name": "OMCU_WDT_STATUS_EXPIRED", "value": "1u << 0" },
+    { "name": "OMCU_WDT_FEED_MAGIC", "value": "UINT32_C(0x51F15EED)" },
+    { "name": "OMCU_PWM_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_PWM_CTRL_INVERT", "value": "1u << 1" }
   ]
 }

@@ -25,9 +25,11 @@ cmake --build build/sdk
 
 The outputs include `omcu_blink.elf` / `.map` / `.hex`,
 `omcu_uart_hello.elf` / `.map` / `.hex`, and the compiled
-`omcu_isa_smoke.elf` / `.map` / `.hex` integration test. The final ROM image
-format must be rechecked with the selected GNU toolchain before it is used to
-program a board: the checked configuration is
+`omcu_isa_smoke.elf` / `.map` / `.hex` and
+`omcu_peripheral_smoke.elf` / `.map` / `.hex` and
+`omcu_wdt_reset_smoke.elf` / `.map` / `.hex` integration tests. The final ROM
+image format must be rechecked with the selected GNU toolchain before it is
+used to program a board: the checked configuration is
 `-DOMCU_MARCH=rv32imc -DOMCU_MABI=ilp32`. The SDK firmware build is
 simulator-validated; it is not yet a flashed-board claim.
 

@@ -23,10 +23,15 @@ directory, run from the repository root:
 .\scripts\run-rtl-smoke.ps1 -Test gpio
 .\scripts\run-rtl-smoke.ps1 -Test timer
 .\scripts\run-rtl-smoke.ps1 -Test uart
+.\scripts\run-rtl-smoke.ps1 -Test spi
+.\scripts\run-rtl-smoke.ps1 -Test wdt
+.\scripts\run-rtl-smoke.ps1 -Test pwm
 .\scripts\run-rtl-smoke.ps1 -Test sysctrl
 .\scripts\run-rtl-smoke.ps1 -Test system
 .\scripts\run-rtl-smoke.ps1 -Test system-uart
 .\scripts\run-rtl-smoke.ps1 -Test sdk-isa
+.\scripts\run-rtl-smoke.ps1 -Test sdk-peripherals
+.\scripts\run-rtl-smoke.ps1 -Test tn9k-wdt
 .\scripts\run-rtl-smoke.ps1 -Test tn9k
 ```
 
@@ -41,6 +46,10 @@ sticky error/status behavior and RX interrupt assertion at a small simulation
 divider. `sysctrl` checks that the hardware/SDK compatibility metadata is
 parameterized correctly.
 
+`spi` checks mode-0 bit ordering, MISO sampling, automatic chip-select timing,
+completion status and W1C interrupt behavior. `wdt` checks feed, sticky expiry,
+IRQ and reset-request behavior. `pwm` checks duty window, wrap and inversion.
+
 `system-uart` is a second CPU integration gate: a hand-audited RV32I image
 writes UART0 control, divider and data through the real PicoRV32/MMIO path,
 then the testbench checks the serialized byte.
@@ -50,6 +59,15 @@ test loads the generated `omcu_isa_smoke.hex`, which has been compiled with
 `-march=rv32imc`.  It validates startup `.data` relocation, compressed
 instruction decoding, and signed/unsigned multiply/divide/remainder through
 the real CPU, bus and GPIO peripheral path.
+
+`sdk-peripherals` is the second compiler-to-hardware gate. It compiles C SDK
+calls for feature discovery, SPI0, WDT0 and PWM0, executes those calls through
+the SoC, and checks the SPI waveform, watchdog behavior, PWM activity and GPIO
+success code.
+
+`tn9k-wdt` takes the reset request all the way through the Tang Nano wrapper:
+compiled C firmware intentionally expires WDT0, then the test sees a reset and
+the synchronous reset-release sequence restart the SoC.
 
 `tn9k` adds the 27 MHz reset-release and active-low six-LED board adapter to
 the same firmware path. It verifies logic-level behavior only; it does not
