@@ -11,6 +11,7 @@
 | `0x4000_4000` | I2C0 | 开漏 SCL/SDA |
 | `0x4000_5000` | WDT0 | 连接 Tang 顶层复位序列器 |
 | `0x4000_6000` | PWM0 | 一路 PWM pad |
+| `0x4000_7000` | IRQCTRL | 六个外设来源的 sticky、屏蔽、强制与优先级视图 |
 | `0x4000_F000` | SYSCTRL | `OMCU` ID、ABI、功能位、内存容量 |
 
 所有寄存器是 32-bit little-endian；SDK 不建议使用裸常数地址。包含 `omcu.h` 后可使用
@@ -46,8 +47,33 @@ omcu_gpio_toggle(OMCU_TN9K_GPIO0);  /* 扩展 GPIO0 切换 */
 omcu_gpio_disable_output(OMCU_TN9K_GPIO0); /* 释放为高阻输入 */
 ```
 
-GPIO IRQ 逻辑在 RTL 中存在，但本版本没有发布标准 RISC-V 中断入口 ABI；采用轮询或在
-你的私有 RTL 分支中实现完整中断方案前，不要把它当作可移植 SDK 中断 API。
+### 中断与 IRQCTRL
+
+IRQCTRL 已把 GPIO0/UART0/TIMER0/SPI0/I2C0/WDT0 分别映射为 CPU bit 8..13；应用程序
+不必写 Verilog，也不应直接发射 PicoRV32 自定义指令。定义一个 strong
+`omcu_irq_dispatch(uint32_t pending)`，先清外设来源、再清 IRQCTRL：
+
+```c
+void omcu_irq_dispatch(uint32_t pending) {
+  if ((pending & OMCU_IRQ_TIMER0) != 0u) {
+    OMCU_TIMER0->ctrl = 0u;
+    OMCU_TIMER0->status = OMCU_TIMER_STATUS_PENDING;
+    omcu_irqctrl_ack(OMCU_IRQ_TIMER0);
+  }
+}
+
+omcu_irqctrl_set_enable(0u);
+omcu_irqctrl_ack(OMCU_IRQ_EXTERNAL_MASK);
+omcu_timer_start_periodic(0u, 27000u);
+omcu_irqctrl_set_enable(OMCU_IRQ_TIMER0);
+(void)omcu_irq_global_enable();
+```
+
+`pending` 可同时包含多个 bit；必须处理全部已使能来源，或禁用并确认不处理的来源。
+先清 IRQCTRL 而外设状态仍为有效时，硬件会重新捕获该事件，这是防丢中断的有意行为。
+固定向量、现场保护、非嵌套限制和每个来源的应答细节见
+[中断开发约定](interrupts.md)。这条路径是 PicoRV32 自定义 ABI，不是标准 RISC-V
+machine-mode/CSR/PLIC API。
 
 ### UART0
 
@@ -56,8 +82,9 @@ omcu_uart0_init(omcu_tn9k_uart_bauddiv(115200u), false);
 omcu_uart0_write_byte('O');
 ```
 
-顶层系统时钟为 27 MHz；115200 的除数为 233。串口 RX、错误状态和 IRQ RTL 有覆盖，但
-需要实体板串口回归才能承诺电气兼容性。
+顶层系统时钟为 27 MHz；115200 的除数为 233。启用 `enable_rx_irq=true` 后，读取
+`DATA` 会消耗 RX 字节；随后在中断函数中确认 `OMCU_IRQ_UART0`。串口 RX、错误状态和
+IRQ RTL 有覆盖，但需要实体板串口回归才能承诺电气兼容性。
 
 ### SPI0
 
@@ -106,7 +133,8 @@ PWM 为单通道边沿对齐输出，`PERIOD` 为包含端点的 top 值。看�
 
 1. 新建 `sdk/examples/<name>/main.c`，只使用 `omcu.h` / `omcu_tn9k.h` 的公开 API。
 2. 在 `sdk/CMakeLists.txt` 增加 `omcu_add_firmware(omcu_<name> examples/<name>/main.c)`。
-3. 执行 `scripts/build-sdk.ps1`，检查 `.elf`、`.map`、`.hex`。
+3. 在 Windows 执行 `scripts/build-sdk.ps1`，或在 Linux/macOS 执行
+   `sh scripts/build-sdk.sh`，检查 `.elf`、`.map`、`.hex`。
 4. 将 `.hex` 作为 `build-tangnano9k-open.ps1 -RomInitFile` 输入，不要手改 RTL ROM。
 5. 为新外设事务补充 RTL testbench 和实体板清单，再发布。
 

@@ -32,6 +32,7 @@ jobs:
           ./scripts/run-rtl-smoke.ps1 -Test i2c
           ./scripts/run-rtl-smoke.ps1 -Test wdt
           ./scripts/run-rtl-smoke.ps1 -Test pwm
+          ./scripts/run-rtl-smoke.ps1 -Test irqctrl
           ./scripts/run-rtl-smoke.ps1 -Test sysctrl
           ./scripts/run-rtl-smoke.ps1 -Test system
           ./scripts/run-rtl-smoke.ps1 -Test system-uart
@@ -44,21 +45,73 @@ jobs:
         with:
           submodules: recursive
       - name: Install RISC-V GNU toolchain
-        run: >-
-          sudo apt-get update &&
-          sudo apt-get install --yes cmake ninja-build iverilog
-          gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
-      - name: Build RV32IMC firmware
-        run: >-
-          cmake -S sdk -B build/sdk -G Ninja
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/sdk/cmake/riscv32-gcc.cmake
-          -DOMCU_RISCV_PREFIX=riscv64-unknown-elf-
-      - run: cmake --build build/sdk
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake ninja-build iverilog \
+            gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+      - name: Build RV32IMC firmware through the POSIX SDK entry point
+        run: sh ./scripts/build-sdk.sh --riscv-prefix riscv64-unknown-elf-
       - name: Execute compiled RV32IMC SDK firmware in SoC simulation
         shell: pwsh
         run: |
           ./scripts/run-rtl-smoke.ps1 -Test sdk-isa
           ./scripts/run-rtl-smoke.ps1 -Test sdk-peripherals
           ./scripts/run-rtl-smoke.ps1 -Test sdk-i2c
+          ./scripts/run-rtl-smoke.ps1 -Test sdk-irq
           ./scripts/run-rtl-smoke.ps1 -Test tn9k-wdt
           ./scripts/run-rtl-smoke.ps1 -Test tn9k-peripherals
+
+  sdk-cross-platform:
+    name: SDK host build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    env:
+      # Keep the package store inside the disposable CI workspace, then locate
+      # the compiler by executable name instead of hard-coding OS-specific
+      # xPack home-directory locations.
+      XPACKS_STORE_FOLDER: ${{ github.workspace }}/.xpack-store
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned xPack GNU RISC-V toolchain and build all SDK examples
+        shell: pwsh
+        run: |
+          cmake --version
+          ninja --version
+
+          $xpmWork = Join-Path $env:RUNNER_TEMP 'omcu-xpm'
+          New-Item -ItemType Directory -Force -Path $xpmWork | Out-Null
+          Push-Location $xpmWork
+          try {
+            npm install --no-save xpm@0.23.2
+            $xpmName = if ($IsWindows) { 'xpm.cmd' } else { 'xpm' }
+            $xpmPath = Join-Path $xpmWork (Join-Path 'node_modules/.bin' $xpmName)
+            & $xpmPath init --name omcu-ci-xpack
+            if ($LASTEXITCODE -ne 0) { throw "xpm init failed with exit code $LASTEXITCODE" }
+            & $xpmPath install '@xpack-dev-tools/riscv-none-elf-gcc@15.2.0-1.1' --verbose
+            if ($LASTEXITCODE -ne 0) { throw "xpm toolchain install failed with exit code $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }
+
+          $compilerName = if ($IsWindows) { 'riscv-none-elf-gcc.exe' } else { 'riscv-none-elf-gcc' }
+          $compiler = Get-ChildItem -LiteralPath $env:XPACKS_STORE_FOLDER -Recurse -File -Filter $compilerName |
+            Select-Object -First 1
+          if ($null -eq $compiler) {
+            throw "xPack did not provide $compilerName below $env:XPACKS_STORE_FOLDER"
+          }
+          $env:PATH = "$($compiler.DirectoryName)$([IO.Path]::PathSeparator)$env:PATH"
+          & $compiler.FullName --version
+
+          if ($IsWindows) {
+            ./scripts/build-sdk.ps1 -BuildDirectory build/sdk-host -RiscvPrefix riscv-none-elf-
+          } else {
+            sh ./scripts/build-sdk.sh --build-dir build/sdk-host --riscv-prefix riscv-none-elf-
+          }

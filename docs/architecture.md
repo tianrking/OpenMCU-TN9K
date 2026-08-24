@@ -25,6 +25,7 @@ change the public peripheral ABI.
 | `0x4000_4000-0x4000_4FFF` | I2C0 | Standard sensor bus |
 | `0x4000_5000-0x4000_5FFF` | WDT0 | Independent watchdog |
 | `0x4000_6000-0x4000_6FFF` | PWM0 | Edge-aligned PWM generator |
+| `0x4000_7000-0x4000_7FFF` | IRQCTRL | Sticky external-event capture, masking, force and priority view |
 | `0x4000_F000-0x4000_FFFF` | SYSCTRL | Chip ID, build ID, reset reason and clock metadata |
 
 No compatible release may move an existing block. New functions receive a new
@@ -61,14 +62,17 @@ RV32IMC system. It keeps PicoRV32 behind the memory-map adapter and connects:
 ```text
 PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric
                                       -> GPIO0 + UART0 + TIMER0 + SPI0 + I2C0 + WDT0 + PWM0
+                                      -> IRQCTRL -> PicoRV32 IRQ bits 8..13
 ```
 
 The adapter enables the ratified `M` and `C` instruction extensions and a
-barrel shifter, but intentionally does **not** claim `Zicsr`, privileged machine
-mode, debug support, atomics, floating point, or PicoRV32's non-standard
-interrupt facility. GPIO and timer IRQ signals are exposed for validation, but
-no third-party interrupt ABI is claimed until the CPU/debug architecture and
-startup code are specified. Invalid or ROM-write transactions are acknowledged
+barrel shifter. It intentionally does **not** claim `Zicsr`, privileged machine
+mode, standard RISC-V trap CSRs, PLIC/CLINT, debug support, atomics or floating
+point. It does implement the separately versioned PicoRV32 custom-IRQ ABI:
+IRQCTRL maps the portable peripheral sources to CPU bits 8 through 13, and the
+SDK owns the fixed `0x10` vector plus full C-ABI context preservation. See
+[`interrupts.md`](interrupts.md) for the exact non-standard boundary and
+acknowledgement sequence. Invalid or ROM-write transactions are acknowledged
 and surfaced as a simulation/bring-up diagnostic; the minimal adapter does not
 yet turn them into a RISC-V access fault.
 

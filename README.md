@@ -26,33 +26,35 @@ contracts must not change silently:
 ## Status
 
 This repository is at the executable MCU-prototype stage. It contains the v0
-memory-map contract, portable GPIO/UART/timer/SPI/I2C/watchdog/PWM/SYSCTRL RTL,
-a PicoRV32 RV32IMC CPU adapter, SDK headers/examples, real Tang Nano 9K pad
-bindings, safe SRAM-first programming tooling, and the Tang/ASIC separation
-rules. Directed end-to-end simulation executes compiled RISC-V firmware from
-ROM through the real MMIO fabric and the actual Tang top-level ports.
+memory-map contract, portable GPIO/UART/timer/SPI/I2C/watchdog/PWM/IRQCTRL/
+SYSCTRL RTL, a PicoRV32 RV32IMC CPU adapter, SDK headers/examples, real Tang
+Nano 9K pad bindings, safe SRAM-first programming tooling, and the Tang/ASIC
+separation rules. Directed end-to-end simulation executes compiled RISC-V
+firmware from ROM through the real MMIO fabric, including the fixed interrupt
+vector, C handler and return path, and reaches the actual Tang top-level ports.
 
-The latest local open-source YoWASP validation synthesized, placed, routed and
-packed the exact `GW1NR-LV9QN88PC6/I5` target twice: once with the compiled
-`omcu_tn9k_board_demo` ROM and once with `omcu_peripheral_smoke`, each at
-8 KiB ROM plus 44 KiB SRAM. Both final routed reports achieved 41.123 MHz
-against the 27 MHz constraint (12.720 ns calculated margin), used
-5,722/8,640 LUT4s and all 26/26 BSRAMs.
+The current v0.4 external-interrupt implementation has been synthesized,
+placed, routed and packed for the exact `GW1NR-LV9QN88PC6/I5` target with the
+compiled `omcu_irq_smoke` ROM. At 8 KiB ROM plus 44 KiB SRAM, the final routed
+report achieved 45.554 MHz against the 27 MHz constraint (15.085 ns calculated
+margin), used 5,892/8,640 LUT4s (68.19%), 1,643/6,480 DFFs (25.35%), and all
+26/26 BSRAMs. This is the real resource boundary of the all-BSRAM Tang Nano 9K
+configuration, not an estimate.
 
 The build flow expands each sparse SDK `.hex` into a dense NOP-padded ROM
 image before Yosys parses `$readmemh`, then records hashes for the source
 image, effective ROM image, post-synthesis BSRAM initialization, post-P&R
-BSRAM initialization, and packed bitstream. The board-demo artifact is
-`615ac5b62e9a84ab538cb9d831aaef3d668fb43370b569b5f7adfc4590c97e3a` with
-BRAM fingerprint `291fd35b7018e0b5b45a3995793ed94b16811bf19569fec304d3238ec7172655`;
-the peripheral-smoke artifact is
-`2f33fc5518a8fdedb1520aa185a115c68babf27421d7d6368fcb68b53f5f31e8` with
-the distinct fingerprint
-`4b1ecd0e29b6ae5ebfe9548d76193cf1ea17207f64a290e57b23b1c4acc3e86f`.
-This proves that distinct compiled applications reached both the placed ROM and
-the packed FPGA image, rather than merely changing a manifest input path. See
-[`docs/open-pnr.md`](docs/open-pnr.md) and the Chinese
-[developer guide](docs/zh-CN/README.md).
+BSRAM initialization, and packed bitstream. The current IRQ image's source ROM
+SHA-256 is `1409af0b9d1a1498520e6378752a2959c7d58979a4d5f0c232fa5bdd253d0b4d`,
+its synthesis/P&R BSRAM fingerprint is
+`173d1cf6c36fc89aedc62a7e5bff39cb255e064d2bfccaa616ec0bc604295c82`, and its
+packed artifact SHA-256 is
+`71e660f93b7ff190adfebffc697944b03c5175309f7bb5523a811448de5f5395`.
+The source and P&R fingerprints match across all four boot-ROM BSRAM cells.
+Earlier board-demo and peripheral-smoke images remain documented as historical
+pre-v0.4 ROM-selection evidence; they are not substituted for the current
+IRQ-enabled implementation. See [`docs/open-pnr.md`](docs/open-pnr.md) and the
+Chinese [developer guide](docs/zh-CN/README.md).
 
 That is a meaningful FPGA-build result, not a physical-board pass: no bitstream
 has been programmed into a Tang board in the current workspace. The supplied
@@ -75,8 +77,8 @@ at an unpacked copy: `$env:OMCU_IVERILOG_BIN = 'C:\path\to\iverilog\bin'`.
 | Implemented in the current prototype | Reserved ABI / next implementation | Deliberately deferred |
 | --- | --- | --- |
 | RV32IMC adapter, 8 KiB ROM / 44 KiB SRAM Tang configuration | QSPI XIP and external-flash loader | Internal Flash / eFlash |
-| GPIO0, UART0, TIMER0, SPI0, I2C0, WDT0, PWM0, SYSCTRL | Public interrupt ABI | ADC, DAC, analogue reference |
-| Generated C register header, Tang board header, and SDK examples | JTAG/serial-debug | USB PHY, Ethernet PHY, radio |
+| GPIO0, UART0, TIMER0, SPI0, I2C0, WDT0, PWM0, IRQCTRL, SYSCTRL | QSPI XIP and external-flash loader | ADC, DAC, analogue reference |
+| Generated C register header, interrupt ABI, Tang board header, and SDK examples | JTAG/serial-debug | USB PHY, Ethernet PHY, radio |
 | Tang 27 MHz / LED / UART / SPI / I2C / PWM / GPIO target, P&R and manifest-checked downloader | Physical-board release | Low-power sign-off, production packaging and ATE |
 
 The first ASIC should boot from external QSPI flash. That keeps the A0 chip
@@ -131,8 +133,11 @@ The first executable adapter uses the ratified unprivileged RV32IMC configuratio
 [PicoRV32](https://github.com/YosysHQ/picorv32), pinned as a submodule at
 `a473fc8fca393771d83b0ffcf0b14db3393339d8`. It is a bring-up choice rather
 than a public peripheral dependency: the CPU only sees the OpenMCU memory map
-and portable MMIO fabric. Its exact licence and provenance are in
-[`LICENSES.md`](LICENSES.md).
+and portable MMIO fabric. v0.4 exposes six external sources through the
+documented PicoRV32 custom-IRQ ABI at vector `0x10`; it does not claim standard
+privileged RISC-V CSRs or a PLIC. Its exact licence and provenance are in
+[`LICENSES.md`](LICENSES.md); the application contract is in
+[`docs/interrupts.md`](docs/interrupts.md).
 
 ## ARM CPU route: explicit authorization gate
 
@@ -149,11 +154,12 @@ placing proprietary core files in Git.
 ## Reproducibility scaffold
 
 The repository contains a machine-readable register specification, a checked
-generator for the C register header, a CMake RV32IMC firmware build wrapper,
-an open Tang Nano P&R/packing script, a SHA-256/manifest-aware programming
-script and a CI workflow that exercises the portable checks. These are
-deliberately distinguished from release evidence: CI is not evidence until it
-passes for the final pushed commit, and no board programming result exists yet.
+generator for the C register header, Windows and POSIX RV32IMC SDK build
+wrappers, an open Tang Nano P&R/packing script, a SHA-256/manifest-aware
+programming script and CI that builds every SDK target on Windows, Linux and
+macOS (with full RTL execution on Linux). These are deliberately distinguished
+from release evidence: CI is not evidence until it passes for the final pushed
+commit, and no board programming result exists yet.
 
 The FPGA-to-chip boundary is documented in [`asic/README.md`](asic/README.md):
 it defines a credible external-QSPI A0 rather than implying the Tang bitstream

@@ -17,6 +17,20 @@ $env:PATH = 'C:\toolchains\xpack-riscv-none-elf\bin;' + $env:PATH
 .\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
 ```
 
+Linux/macOS 的 SDK 构建不依赖 PowerShell；使用同一个 CMake toolchain file、同一个
+链接脚本与相同的 GNU 前缀约定：
+
+```sh
+git submodule update --init --recursive
+export PATH="/opt/xpack-riscv-none-elf/bin:$PATH"
+sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
+```
+
+两份入口脚本均会先检查 `gcc` 和 `objcopy`，再配置 CMake。推荐的 xPack 包为
+`@xpack-dev-tools/riscv-none-elf-gcc@15.2.0-1.1`；它可通过 `xpm` 在各宿主系统安装。
+Windows、Linux、macOS CI 都会编译全部 SDK 固件，Linux 还执行 RTL 仿真；这些自动化
+结果不取代真实板卡测试。
+
 生成的 `.elf`、`.map`、`.hex` 均位于 `build/sdk/`。`.hex` 是每 32-bit word 的 Verilog
 ROM 初始化文件，而非能够直接被 openFPGALoader 下载的 FPGA 配置文件。
 
@@ -29,6 +43,7 @@ ROM 初始化文件，而非能够直接被 openFPGALoader 下载的 FPGA 配置
 | `omcu_isa_smoke` | 编译器产生的 RV32IMC 指令端到端测试。 |
 | `omcu_peripheral_smoke` | SPI、PWM、看门狗和 GPIO 的仿真集成测试。 |
 | `omcu_i2c_smoke` | I2C 字节事务与目标夹具测试。 |
+| `omcu_irq_smoke` | TIMER0 -> IRQCTRL -> 固定向量 -> C handler -> `RETIRQ` 端到端测试。 |
 | `omcu_wdt_reset_smoke` | 看门狗触发 Tang 顶层复位。 |
 | `omcu_tn9k_board_demo` | 面向实体板的 UART/PWM/三路扩展 GPIO/看门狗演示。 |
 
@@ -104,6 +119,8 @@ Flash 下载会改写 FPGA 的持久启动配置。只能在 SRAM 运行、板�
 $env:OMCU_IVERILOG_BIN = 'C:\toolchains\iverilog\bin'
 .\scripts\run-rtl-smoke.ps1 -Test tn9k
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-peripherals
+.\scripts\run-rtl-smoke.ps1 -Test irqctrl
+.\scripts\run-rtl-smoke.ps1 -Test sdk-irq
 ```
 
 再保存 manifest、SDK `.hex` 哈希、Git commit、串口日志和板级测量记录。发布者必须能

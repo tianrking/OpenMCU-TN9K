@@ -2,7 +2,7 @@
 
 OpenMCU-TN9K 把 Tang Nano 9K 实现为一个可由裸机 C 程序使用的
 **RV32IMC FPGA MCU**：CPU、ROM/SRAM、GPIO、UART、定时器、SPI、I2C、看门狗、
-PWM 和 SYSCTRL 都在同一个 FPGA 配置中。第三方使用者的入口不是修改 Verilog，
+PWM、IRQCTRL 和 SYSCTRL 都在同一个 FPGA 配置中。第三方使用者的入口不是修改 Verilog，
 而是“编译 SDK 程序 -> 生成 `.hex` -> 构建 `.fs` -> 安全下载 -> 执行板级检查”。
 
 开放构建不会只把 `.hex` 路径写到 manifest：它会生成完整的 NOP 填充 ROM 映像，在
@@ -14,12 +14,13 @@ PWM 和 SYSCTRL 都在同一个 FPGA 配置中。第三方使用者的入口不�
 任何 `.fs` 已在实体板上运行。请先阅读
 [验证与发布状态](validation-and-release.md) 后再把它用于外部产品。
 
-## 先读这四份资料
+## 先读这五份资料
 
 1. [硬件与引脚](hardware-and-pins.md)：板上资源、I/O、电平、连线和冲突。
 2. [构建与烧录](build-and-program.md)：可重复 SDK / `.fs` 构建与默认安全的 SRAM 下载。
 3. [外设与 SDK](peripherals-and-sdk.md)：寄存器、C API、例程和应用边界。
-4. [ARM 版本授权与集成](arm-license-and-integration.md)：为什么没有把未授权的
+4. [中断开发约定](interrupts.md)：IRQCTRL、固定向量、C ISR 与清除顺序。
+5. [ARM 版本授权与集成](arm-license-and-integration.md)：为什么没有把未授权的
    Cortex-M RTL 冒充成可发布 ARM MCU，以及获得授权后如何接入。
 
 ## 五分钟构建路径
@@ -33,6 +34,17 @@ git submodule update --init --recursive
 $env:PATH = 'C:\toolchains\riscv-none-elf\bin;' + $env:PATH
 .\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
 ```
+
+Linux 和 macOS 使用同一份 CMake 配置与链接脚本，只是入口脚本采用 POSIX shell：
+
+```sh
+git submodule update --init --recursive
+export PATH="/opt/xpack-riscv-none-elf/bin:$PATH"
+sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
+```
+
+Windows、Linux、macOS 的 CI 都会编译全部 SDK 示例；Linux 还运行完整 RTL/固件仿真。
+跨平台“构建通过”不等于实体板电气测试通过。
 
 然后用锁定版本的开放 Gowin 流将一个 SDK 程序合进 FPGA ROM：
 
@@ -70,11 +82,12 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
   仿真覆盖。
 - 片上存储：Tang Nano 9K 默认 8 KiB 初始化 ROM + 44 KiB SRAM；容量可由顶层参数
   调整，但调整时必须同步使用匹配的链接脚本。
-- 外设：GPIO0、UART0、TIMER0、SPI0、I2C0、WDT0、PWM0、SYSCTRL。
+- 外设：GPIO0、UART0、TIMER0、SPI0、I2C0、WDT0、PWM0、IRQCTRL、SYSCTRL。
 - 时钟：直接使用板上 27 MHz；没有对 PLL、PSRAM、QSPI-XIP、DMA、JTAG/调试器或
   USB 协议栈作出已完成的承诺。
-- 中断：外设 IRQ 信号存在于 RTL，但尚未发布标准机器模式 / PLIC / 调试 ABI；SDK
-  例程当前采用轮询。
+- 中断：IRQCTRL 将六个外设来源固定映射到 CPU bit 8..13；SDK 已有 `0x10` 向量、
+  完整整数寄存器保存、C `omcu_irq_dispatch()` 回调与 `RETIRQ` 返回。它是 PicoRV32
+  自定义 ABI，不是标准机器模式 / CSR / PLIC；详见 [中断开发约定](interrupts.md)。
 
 完整寄存器 ABI 在英文的 [registers.md](../registers.md)，稳定架构约束在
 [architecture.md](../architecture.md)。

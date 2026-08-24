@@ -91,22 +91,29 @@ truth.
 
 ## Recorded result and boundary
 
-The local full-memory runs recorded on 2026-08-25 each completed the exact
-target at 8 KiB ROM plus 44 KiB SRAM. Both final routed reports found
-`system.clk_i` at 41.123 MHz against the 27 MHz constraint (12.720 ns
-calculated margin), using 5,722/8,640 LUT4s (66.23%), 1,606/6,480 DFFs
-(24.78%), 26/26 BSRAMs, 1,056/6,480 ALUs, one of five MULT36X36 blocks, and
-15/276 I/O buffers.
+The current v0.4 source tree was implemented on 2026-08-25 with the compiled
+`omcu_irq_smoke` image, 8 KiB ROM and 44 KiB SRAM. Its final report found the
+single `system.clk_i` domain at 45.554 MHz against the 27 MHz constraint
+(15.085 ns calculated margin), using 5,892/8,640 LUT4s (68.19%),
+1,643/6,480 DFFs (25.35%), 26/26 BSRAMs, 1,056/6,480 ALUs, one of five
+MULT36X36 blocks, and 15/276 I/O buffers. The manifest verifies that the four
+boot-ROM BSRAM initialization fingerprints match before and after P&R.
+
+The two earlier rows below are retained as historical pre-v0.4
+ROM-selection evidence. They use the same device, memory geometry and
+open-tool flow, but are not a replacement for the current IRQ-enabled result.
 
 | SDK boot ROM | Input ROM SHA-256 | BSRAM initialization fingerprint (synthesis = P&R) | Packed `.fs` SHA-256 |
 | --- | --- | --- | --- |
+| `omcu_irq_smoke` (current v0.4) | `1409af0b9d1a1498520e6378752a2959c7d58979a4d5f0c232fa5bdd253d0b4d` | `173d1cf6c36fc89aedc62a7e5bff39cb255e064d2bfccaa616ec0bc604295c82` | `71e660f93b7ff190adfebffc697944b03c5175309f7bb5523a811448de5f5395` |
 | `omcu_tn9k_board_demo` | `b35a525d571abe90fe034373e8108a4843544e78b59189cdeade8c3fab19bb30` | `291fd35b7018e0b5b45a3995793ed94b16811bf19569fec304d3238ec7172655` | `615ac5b62e9a84ab538cb9d831aaef3d668fb43370b569b5f7adfc4590c97e3a` |
 | `omcu_peripheral_smoke` | `dbaf313dc1b12980e954665b799ea53578a31b1a1ea0d05a34961581c7f6acd7` | `4b1ecd0e29b6ae5ebfe9548d76193cf1ea17207f64a290e57b23b1c4acc3e86f` | `2f33fc5518a8fdedb1520aa185a115c68babf27421d7d6368fcb68b53f5f31e8` |
 
-The two source image hashes, BSRAM fingerprints and packed bitstream hashes
-are all distinct. This is direct build evidence that selecting a different SDK
-application changes the initialized BSRAM contents and final FPGA image. The
-detailed evidence is in [`docs/validation.md`](validation.md).
+The current v0.4 row is direct evidence that the interrupt SDK firmware reaches
+the initialized BSRAMs and final FPGA image. The two historical source-image,
+BSRAM-fingerprint and packed-bitstream hash sets are also distinct, which
+demonstrates ROM selection rather than merely recording a requested input path.
+The detailed evidence is in [`docs/validation.md`](validation.md).
 
 Yosys reported its known limited tri-state support at the top-level I2C and
 GPIO pad adapters. P&R and packing still succeeded; the warnings are retained

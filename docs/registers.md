@@ -1,10 +1,11 @@
-# OpenMCU v0.3 register reference
+# OpenMCU v0.4 register reference
 
 All v0 MMIO registers are 32-bit little-endian and word-aligned. Addresses are
-stable within ABI major version 0. ABI minor 3 adds the I2C0 byte engine to the
-previous SPI0, WDT0 and PWM0 blocks. The reviewed machine-readable register
-source is [`spec/omcu-v0.json`](../spec/omcu-v0.json); the C register header is
-generated from that source.
+stable within ABI major version 0. ABI minor 4 adds IRQCTRL and the documented
+PicoRV32 custom-IRQ SDK path to the previous GPIO/UART/timer/SPI/I2C/WDT/PWM
+blocks. The reviewed machine-readable register source is
+[`spec/omcu-v0.json`](../spec/omcu-v0.json); the C register header is generated
+from that source.
 
 ## GPIO0 — `0x4000_0000`
 
@@ -39,9 +40,9 @@ for approximately 115200 baud with a 27 MHz system clock.
 | `0x08` | `BAUDDIV` | RW | Bits `15:0`: cycles per bit minus one; reset `233`. |
 | `0x0C` | `CTRL` | RW | Bit 0 `TX_ENABLE`, bit 1 `RX_ENABLE`, bit 2 `RX_IRQ_ENABLE`. |
 
-`irq_o` is asserted while `RX_VALID` and `RX_IRQ_ENABLE` are both one. The
-first v0 CPU adapter does not yet expose a public interrupt ABI, so firmware
-should poll until that architecture is finalized.
+`irq_o` is asserted while `RX_VALID` and `RX_IRQ_ENABLE` are both one. For an
+interrupt-driven UART reader, consume `DATA` first and then acknowledge
+`OMCU_IRQ_UART0` through IRQCTRL; see [`interrupts.md`](interrupts.md).
 
 ## TIMER0 — `0x4000_2000`
 
@@ -126,13 +127,44 @@ must make their own explicit pad binding.
 | `0x0C` | `DUTY` | RW | Active-high count limit. |
 | `0x10` | `COUNT` | RO | Current PWM counter. |
 
+## IRQCTRL — `0x4000_7000`
+
+IRQCTRL converts the portable peripheral event lines into six stable CPU bit
+positions, captures short events while software is masked, and provides the
+software delivery policy. It is not a standard RISC-V PLIC. The C handler,
+fixed vector and custom CPU-mask interface are documented in
+[`interrupts.md`](interrupts.md).
+
+| Offset | Register | Access | Meaning |
+| --- | --- | --- | --- |
+| `0x00` | `PENDING` | RO | Sticky/current source mask in CPU IRQ positions. |
+| `0x04` | `ENABLE` | RW | Per-source delivery enable mask in CPU IRQ positions. |
+| `0x08` | `CLEAR` | WO | Write-one-to-clear sticky and forced source bits. A current source wins a coincident clear. |
+| `0x0C` | `FORCE` | WO | Write-one-to-set a software-pending source bit. |
+| `0x10` | `ACTIVE` | RO | `PENDING & ENABLE`, delivered to the CPU. |
+| `0x14` | `HIGHEST` | RO | Lowest numbered active CPU IRQ bit; zero if no source is active. |
+
+| CPU bit | SDK constant | Source |
+| --- | --- | --- |
+| 8 | `OMCU_IRQ_GPIO0` | GPIO0 edge-status event |
+| 9 | `OMCU_IRQ_UART0` | UART0 RX valid |
+| 10 | `OMCU_IRQ_TIMER0` | TIMER0 pending |
+| 11 | `OMCU_IRQ_SPI0` | SPI0 done |
+| 12 | `OMCU_IRQ_I2C0` | I2C0 terminal command result |
+| 13 | `OMCU_IRQ_WDT0` | WDT0 expiry |
+
+`PENDING` and `ENABLE` use CPU-bit positions, not compact source indices.
+`OMCU_IRQ_EXTERNAL_MASK` is `0x0000_3F00`. Software must clear the originating
+peripheral condition before writing the matching bit to `CLEAR`, otherwise a
+live level-style source is intentionally captured again.
+
 ## SYSCTRL — `0x4000_F000`
 
 | Offset | Register | Access | Meaning |
 | --- | --- | --- | --- |
 | `0x00` | `CHIP_ID` | RO | `0x4F4D4355` (`OMCU`) |
-| `0x04` | `ABI` | RO | ABI major in bits `31:16`, minor in bits `15:0` (`0.3`) |
-| `0x08` | `FEATURES` | RO | Bit 0 GPIO0, 1 UART0, 2 TIMER0, 3 SPI0, 4 I2C0, 5 WDT0, 6 PWM0 |
+| `0x04` | `ABI` | RO | ABI major in bits `31:16`, minor in bits `15:0` (`0.4`) |
+| `0x08` | `FEATURES` | RO | Bit 0 GPIO0, 1 UART0, 2 TIMER0, 3 SPI0, 4 I2C0, 5 WDT0, 6 PWM0, 7 IRQCTRL |
 | `0x0C` | `BUILD_ID` | RO | Platform build identifier |
 | `0x10` | `MEMORY_KIB` | RO | SRAM KiB in bits `31:16`, ROM KiB in bits `15:0` |
 

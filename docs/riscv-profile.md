@@ -26,14 +26,19 @@ Third-party code must not assume any of the following in v1:
 - `A`, `F`, `D`, `Q`, `B`, vector, hypervisor, supervisor, or user-mode ISA;
 - generic `Zicsr` CSR reads/writes, machine-mode trap CSRs, PMP, or standard
   RISC-V debug transport;
-- a standard RISC-V interrupt controller or PicoRV32 custom IRQ opcodes;
+- a standard RISC-V interrupt controller, PLIC/CLINT, privileged interrupt
+  CSRs, or direct application use of PicoRV32 custom IRQ opcodes;
 - misaligned memory accesses, cache coherency, DMA, or Linux support.
 
 The CPU can read its internal cycle/instruction counters through PicoRV32's
 supported counter encodings, but this is not advertised as the full `Zicsr`
-extension. A later standards-complete trap/interrupt core adapter is a new
-hardware capability and must change the SYSCTRL feature bitmap and SDK support
-at the same time.
+extension. v0.4 does expose a deliberately narrow, documented PicoRV32
+custom-IRQ path through `omcu.h`: six external sources use bits 8 through 13,
+the SDK owns vector `0x10`, and applications provide the C dispatch hook. It
+does not make the core a privileged RISC-V implementation. A later
+standards-complete trap/interrupt core adapter is a new hardware capability and
+must change the SYSCTRL feature bitmap and SDK support at the same time. See
+[`interrupts.md`](interrupts.md).
 
 ## Why this is the 9K default
 

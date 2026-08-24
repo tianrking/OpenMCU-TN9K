@@ -23,6 +23,7 @@ work/
 
 # Local tools and editor state
 .venv/
+.xpack-store/
 .vscode/
 .idea/
 __pycache__/
