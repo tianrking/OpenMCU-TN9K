@@ -1,0 +1,64 @@
+`default_nettype none
+
+// First Tang Nano 9K board target. It runs the portable SoC directly from the
+// board's 27 MHz oscillator, avoiding an unvalidated PLL configuration during
+// initial bring-up. The active-low LEDs are intentionally only a board adapter.
+module omcu_tn9k_bringup_top #(
+  parameter ROM_INIT_FILE = "rtl/platform/tangnano9k/firmware/gpio_bringup.hex"
+) (
+  input  logic       clk_27m_i,
+  input  logic       resetn_i,
+  input  logic       uart_rx_i,
+  output logic       uart_tx_o,
+  output logic [5:0] led_n_o
+);
+
+  logic [2:0] reset_release_q;
+  logic       sys_rst_ni;
+  logic [5:0] gpio_out;
+  logic [5:0] gpio_oe;
+  logic       cpu_trap;
+  logic       bus_error;
+
+  // Assert asynchronously; deassert after three clean 27 MHz clock edges.
+  always_ff @(posedge clk_27m_i or negedge resetn_i) begin
+    if (!resetn_i) begin
+      reset_release_q <= 3'b000;
+    end else begin
+      reset_release_q <= {reset_release_q[1:0], 1'b1};
+    end
+  end
+
+  assign sys_rst_ni = reset_release_q[2];
+
+  omcu_picorv32_system #(
+    .GPIO_COUNT(6),
+    .ROM_WORDS(1024),
+    .SRAM_BYTES(32768),
+    .ROM_INIT_FILE(ROM_INIT_FILE)
+  ) system (
+    .clk_i(clk_27m_i),
+    .rst_ni(sys_rst_ni),
+    .gpio_in_i(6'b000000),
+    .gpio_out_o(gpio_out),
+    .gpio_oe_o(gpio_oe),
+    .gpio_irq_o(),
+    .uart_rx_i(uart_rx_i),
+    .uart_tx_o(uart_tx_o),
+    .uart_irq_o(),
+    .timer_irq_o(),
+    .cpu_trap_o(cpu_trap),
+    .bus_error_o(bus_error)
+  );
+
+  genvar led_index;
+  generate
+    for (led_index = 0; led_index < 6; led_index = led_index + 1) begin : led_map
+      // A disabled GPIO leaves the corresponding on-board LED off.
+      assign led_n_o[led_index] = gpio_oe[led_index] ? ~gpio_out[led_index] : 1'b1;
+    end
+  endgenerate
+
+endmodule
+
+`default_nettype wire

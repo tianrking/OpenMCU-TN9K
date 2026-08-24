@@ -1,0 +1,28 @@
+// OpenMCU Tang Nano 9K bring-up constraints.
+// Pin assignments were cross-checked against Sipeed's public TangNano-9K
+// picotiny project at c3b795799f23de91982be52db4273a8eea100cdb. They remain
+// subject to a physical-board confirmation before a supported release.
+
+IO_LOC "clk_27m_i" 52;
+IO_PORT "clk_27m_i" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+IO_LOC "resetn_i" 4;
+IO_PORT "resetn_i" PULL_MODE=UP;
+
+IO_LOC "uart_tx_o" 17;
+IO_PORT "uart_tx_o" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "uart_rx_i" 18;
+IO_PORT "uart_rx_i" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+IO_LOC "led_n_o[0]" 10;
+IO_PORT "led_n_o[0]" PULL_MODE=UP DRIVE=8;
+IO_LOC "led_n_o[1]" 11;
+IO_PORT "led_n_o[1]" PULL_MODE=UP DRIVE=8;
+IO_LOC "led_n_o[2]" 13;
+IO_PORT "led_n_o[2]" PULL_MODE=UP DRIVE=8;
+IO_LOC "led_n_o[3]" 14;
+IO_PORT "led_n_o[3]" PULL_MODE=UP DRIVE=8;
+IO_LOC "led_n_o[4]" 15;
+IO_PORT "led_n_o[4]" PULL_MODE=UP DRIVE=8;
+IO_LOC "led_n_o[5]" 16;
+IO_PORT "led_n_o[5]" PULL_MODE=UP DRIVE=8;

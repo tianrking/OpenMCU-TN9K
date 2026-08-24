@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "device": {
+    "name": "OpenMCU",
+    "abi_major": 0,
+    "abi_minor": 1
+  },
+  "memory": [
+    { "macro": "OMCU_ROM_BASE", "address": "0x00000000" },
+    { "macro": "OMCU_SRAM_BASE", "address": "0x10000000" },
+    { "macro": "OMCU_QSPI_XIP_BASE", "address": "0x20000000" },
+    { "macro": "OMCU_GPIO0_BASE", "address": "0x40000000" },
+    { "macro": "OMCU_UART0_BASE", "address": "0x40001000" },
+    { "macro": "OMCU_TIMER0_BASE", "address": "0x40002000" },
+    { "macro": "OMCU_SPI0_BASE", "address": "0x40003000" },
+    { "macro": "OMCU_I2C0_BASE", "address": "0x40004000" },
+    { "macro": "OMCU_WDT0_BASE", "address": "0x40005000" },
+    { "macro": "OMCU_SYSCTRL_BASE", "address": "0x4000F000" }
+  ],
+  "defines": [
+    { "name": "OMCU_CHIP_ID", "value": "UINT32_C(0x4F4D4355)" },
+    { "name": "OMCU_SYSCTRL_ABI_MAJOR_SHIFT", "value": "16u" },
+    { "name": "OMCU_SYSCTRL_ABI_MAJOR_MASK", "value": "UINT32_C(0xFFFF0000)" },
+    { "name": "OMCU_SYSCTRL_ABI_MINOR_MASK", "value": "UINT32_C(0x0000FFFF)" }
+  ],
+  "peripherals": [
+    {
+      "name": "gpio0",
+      "ctype": "omcu_gpio_regs_t",
+      "base_macro": "OMCU_GPIO0_BASE",
+      "registers": [
+        { "name": "out", "offset": "0x00", "access": "rw", "comment": "output latch" },
+        { "name": "out_set", "offset": "0x04", "access": "wo", "comment": "write-one-to-set" },
+        { "name": "out_clr", "offset": "0x08", "access": "wo", "comment": "write-one-to-clear" },
+        { "name": "out_xor", "offset": "0x0c", "access": "wo", "comment": "write-one-to-toggle" },
+        { "name": "oe", "offset": "0x10", "access": "rw", "comment": "output-enable latch" },
+        { "name": "oe_set", "offset": "0x14", "access": "wo", "comment": "write-one-to-set" },
+        { "name": "oe_clr", "offset": "0x18", "access": "wo", "comment": "write-one-to-clear" },
+        { "name": "in", "offset": "0x20", "access": "ro", "comment": "sampled input" },
+        { "name": "rise_en", "offset": "0x24", "access": "rw", "comment": "rising-edge interrupt enable" },
+        { "name": "fall_en", "offset": "0x28", "access": "rw", "comment": "falling-edge interrupt enable" },
+        { "name": "irq_status", "offset": "0x2c", "access": "rw", "comment": "write-one-to-clear" }
+      ]
+    },
+    {
+      "name": "uart0",
+      "ctype": "omcu_uart_regs_t",
+      "base_macro": "OMCU_UART0_BASE",
+      "registers": [
+        { "name": "data", "offset": "0x00", "access": "rw", "comment": "TX write / RX read byte" },
+        { "name": "status", "offset": "0x04", "access": "rw", "comment": "TX ready, RX valid and sticky errors" },
+        { "name": "bauddiv", "offset": "0x08", "access": "rw", "comment": "system clocks per UART bit minus one" },
+        { "name": "ctrl", "offset": "0x0c", "access": "rw", "comment": "TX enable, RX enable, RX IRQ enable" }
+      ]
+    },
+    {
+      "name": "timer0",
+      "ctype": "omcu_timer_regs_t",
+      "base_macro": "OMCU_TIMER0_BASE",
+      "registers": [
+        { "name": "ctrl", "offset": "0x00", "access": "rw", "comment": "EN, IRQ_EN, AUTO_RELOAD" },
+        { "name": "prescale", "offset": "0x04", "access": "rw", "comment": "16-bit divider minus one" },
+        { "name": "count", "offset": "0x08", "access": "rw", "comment": "current counter" },
+        { "name": "compare", "offset": "0x0c", "access": "rw", "comment": "compare value" },
+        { "name": "status", "offset": "0x10", "access": "rw", "comment": "pending, write-one-to-clear" }
+      ]
+    },
+    {
+      "name": "sysctrl",
+      "ctype": "omcu_sysctrl_regs_t",
+      "base_macro": "OMCU_SYSCTRL_BASE",
+      "registers": [
+        { "name": "chip_id", "offset": "0x00", "access": "ro", "comment": "OpenMCU chip identifier" },
+        { "name": "abi", "offset": "0x04", "access": "ro", "comment": "major in bits 31:16, minor in bits 15:0" },
+        { "name": "features", "offset": "0x08", "access": "ro", "comment": "implemented peripheral feature bits" },
+        { "name": "build_id", "offset": "0x0c", "access": "ro", "comment": "platform build identifier" },
+        { "name": "memory_kib", "offset": "0x10", "access": "ro", "comment": "SRAM KiB in bits 31:16, ROM KiB in bits 15:0" }
+      ]
+    }
+  ],
+  "constants": [
+    { "name": "OMCU_FEATURE_GPIO0", "value": "1u << 0" },
+    { "name": "OMCU_FEATURE_UART0", "value": "1u << 1" },
+    { "name": "OMCU_FEATURE_TIMER0", "value": "1u << 2" },
+    { "name": "OMCU_TIMER_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_TIMER_CTRL_IRQ_ENABLE", "value": "1u << 1" },
+    { "name": "OMCU_TIMER_CTRL_AUTO_RELOAD", "value": "1u << 2" },
+    { "name": "OMCU_TIMER_STATUS_PENDING", "value": "1u << 0" }
+  ]
+}

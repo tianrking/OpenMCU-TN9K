@@ -1,0 +1,49 @@
+name: OpenMCU CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rtl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install RTL simulator
+        run: sudo apt-get update && sudo apt-get install --yes iverilog
+      - name: Check generated SDK register definitions
+        shell: pwsh
+        run: ./scripts/generate-sdk.ps1 -Check
+      - name: Run portable and Tang bring-up RTL smoke tests
+        shell: pwsh
+        run: |
+          ./scripts/run-rtl-smoke.ps1 -Test gpio
+          ./scripts/run-rtl-smoke.ps1 -Test timer
+          ./scripts/run-rtl-smoke.ps1 -Test uart
+          ./scripts/run-rtl-smoke.ps1 -Test sysctrl
+          ./scripts/run-rtl-smoke.ps1 -Test system
+          ./scripts/run-rtl-smoke.ps1 -Test system-uart
+          ./scripts/run-rtl-smoke.ps1 -Test tn9k
+
+  sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install RISC-V GNU toolchain
+        run: >-
+          sudo apt-get update &&
+          sudo apt-get install --yes cmake ninja-build
+          gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+      - name: Build RV32I blink firmware
+        run: >-
+          cmake -S sdk -B build/sdk -G Ninja
+          -DCMAKE_TOOLCHAIN_FILE=sdk/cmake/riscv32-gcc.cmake
+          -DOMCU_RISCV_PREFIX=riscv64-unknown-elf-
+      - run: cmake --build build/sdk

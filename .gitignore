@@ -1,0 +1,27 @@
+# Generated FPGA / ASIC / simulator artifacts
+build/
+out/
+runs/
+reports/
+waves/
+*.vcd
+*.fst
+*.fs
+*.bit
+*.bin
+*.elf
+*.hex
+*.gds
+*.def
+*.odb
+*.spef
+
+# These are hand-written ROM fixtures, not generated firmware artifacts.
+!tests/data/*.hex
+!rtl/platform/tangnano9k/firmware/*.hex
+
+# Local tools and editor state
+.venv/
+.vscode/
+.idea/
+__pycache__/
