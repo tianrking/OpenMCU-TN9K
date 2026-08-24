@@ -25,8 +25,11 @@ git submodule update --init --recursive
 
 The package versions used for the recorded result are in
 [`toolchains/yowasp-gowin.lock.json`](../toolchains/yowasp-gowin.lock.json).
-For an isolated Windows environment, install those packages into a virtual
-environment, then pass its `Scripts` directory to the build script:
+Use 64-bit Python 3.10 or newer on Windows: the pinned Apycula dependency has
+prebuilt `fastcrc` wheels for current Python versions, while Python 3.9 may try
+to build that Rust extension locally. For an isolated environment, install the
+locked packages into a virtual environment, then pass its `Scripts` directory
+to the build script:
 
 ```powershell
 python -m venv .venv\yowasp-gowin
@@ -55,12 +58,17 @@ cmake --build build/sdk --target omcu_tn9k_board_demo
   -RomInitFile .\build\sdk\omcu_tn9k_board_demo.hex
 ```
 
-`RomInitFile` must be an existing file inside the repository. The script applies
-it to the Tang top-level `ROM_INIT_FILE` parameter before Yosys elaborates the
-design and records the project-relative image path, ROM/SRAM geometry, tool
-versions and artifact SHA-256 in the manifest. `-RomKiB` / `-SramKiB` are
-available for controlled experiments, but firmware must use a matching linker
-script when either changes.
+`RomInitFile` must be an existing file inside the repository. The script parses
+its `@word-address` records, materializes an exact-size `omcu_rom_image.hex`
+with RISC-V NOP fill, and supplies that generated image as a literal
+`$readmemh` input while Yosys reads the module that owns the boot ROM. This is
+deliberate: changing a string parameter after parsing cannot be treated as
+proof that a memory initializer changed. The manifest records the sparse SDK
+input hash, the dense effective image hash, and a deterministic fingerprint of
+the four boot-ROM BSRAM cells before and after P&R. The build fails if those
+two BSRAM fingerprints do not match. `-RomKiB` / `-SramKiB` are available for
+controlled experiments, but firmware must use a matching linker script when
+either changes.
 
 The script keeps its output under `build/tangnano9k-open/`, which must be
 inside the repository because the YoWASP WebAssembly executables consume
@@ -70,8 +78,10 @@ project-relative paths. It emits:
 - `omcu_tn9k_bringup_pnr.json` — placed and routed netlist;
 - `omcu_tn9k_bringup_report.json` — clock and resource report;
 - `omcu_tn9k_bringup.fs` — packable FPGA configuration image;
-- `omcu_tn9k_bringup_manifest.json` — tool versions, artifact paths, SHA-256,
-  timing and selected resource counts.
+- `omcu_rom_image.hex` — generated dense effective boot-ROM image; and
+- `omcu_tn9k_bringup_manifest.json` — tool versions, source/effective ROM
+  hashes, pre-/post-P&R BSRAM fingerprints, artifact SHA-256, timing and
+  selected resource counts.
 
 The command fails if synthesis, placement/routing or packing fails; if an
 expected artifact is absent; if the report does not contain exactly one clock;
@@ -81,19 +91,26 @@ truth.
 
 ## Recorded result and boundary
 
-The local full-memory run recorded on 2026-08-25 completed the exact target
-with the compiled `peripheral_smoke` SDK ROM, 8 KiB ROM and 44 KiB SRAM. Its
-report found `system.clk_i` at 37.803 MHz against a 27 MHz constraint
-(10.584 ns calculated margin), with 6,167/8,640 LUT4s, 1,606/6,480 DFFs,
-26/26 BSRAMs, 1,056/6,480 ALUs, one of five MULT36X36 blocks, and 15/276 I/O
-buffers. The generated `.fs` SHA-256 was
-`9384549f0f380e26e3b23b2d7d00f3bcf127d556553670e263f30e6ff3f77c83`.
-The detailed evidence is in [`docs/validation.md`](validation.md).
+The local full-memory runs recorded on 2026-08-25 each completed the exact
+target at 8 KiB ROM plus 44 KiB SRAM. Both final routed reports found
+`system.clk_i` at 41.123 MHz against the 27 MHz constraint (12.720 ns
+calculated margin), using 5,722/8,640 LUT4s (66.23%), 1,606/6,480 DFFs
+(24.78%), 26/26 BSRAMs, 1,056/6,480 ALUs, one of five MULT36X36 blocks, and
+15/276 I/O buffers.
 
-Yosys emitted generic warnings from its Gowin BRAM mapping library about
-out-of-range byte selects during synthesis. P&R and packing still succeeded;
-the warnings are retained in `yosys.log` and must not be described as a
-warning-free sign-off.
+| SDK boot ROM | Input ROM SHA-256 | BSRAM initialization fingerprint (synthesis = P&R) | Packed `.fs` SHA-256 |
+| --- | --- | --- | --- |
+| `omcu_tn9k_board_demo` | `b35a525d571abe90fe034373e8108a4843544e78b59189cdeade8c3fab19bb30` | `291fd35b7018e0b5b45a3995793ed94b16811bf19569fec304d3238ec7172655` | `615ac5b62e9a84ab538cb9d831aaef3d668fb43370b569b5f7adfc4590c97e3a` |
+| `omcu_peripheral_smoke` | `dbaf313dc1b12980e954665b799ea53578a31b1a1ea0d05a34961581c7f6acd7` | `4b1ecd0e29b6ae5ebfe9548d76193cf1ea17207f64a290e57b23b1c4acc3e86f` | `2f33fc5518a8fdedb1520aa185a115c68babf27421d7d6368fcb68b53f5f31e8` |
+
+The two source image hashes, BSRAM fingerprints and packed bitstream hashes
+are all distinct. This is direct build evidence that selecting a different SDK
+application changes the initialized BSRAM contents and final FPGA image. The
+detailed evidence is in [`docs/validation.md`](validation.md).
+
+Yosys reported its known limited tri-state support at the top-level I2C and
+GPIO pad adapters. P&R and packing still succeeded; the warnings are retained
+in `yosys.log` and must not be described as a warning-free sign-off.
 
 This flow demonstrates an implementation-ready `.fs` artifact for the exact
 device. It does **not** demonstrate successful board programming, USB power and

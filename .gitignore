@@ -4,6 +4,7 @@ out/
 runs/
 reports/
 waves/
+work/
 *.vcd
 *.fst
 *.fs

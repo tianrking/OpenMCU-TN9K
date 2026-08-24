@@ -4,6 +4,8 @@
 
 RISC-V SDK 使用 GNU bare-metal 工具链；推荐 `riscv-none-elf-` 前缀。开放 FPGA 流
 的锁定版本在 [`toolchains/yowasp-gowin.lock.json`](../../toolchains/yowasp-gowin.lock.json)。
+Windows 上建议使用 64-bit Python 3.10 或更高版本安装锁定的 YoWASP/Apycula 包；旧的
+Python 3.9 可能没有 `fastcrc` 的预编译 wheel，进而错误地要求本机 Rust 编译环境。
 
 ```powershell
 git submodule update --init --recursive
@@ -46,9 +48,17 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
 构建脚本必须成功完成 Yosys、nextpnr 和 `gowin_pack`，并生成：
 
 - `omcu_tn9k_bringup.fs`：要下载的 FPGA 配置；
-- `omcu_tn9k_bringup_manifest.json`：精确工具版本、ROM 输入、内存参数、时序、资源和
-  SHA-256；
+- `omcu_rom_image.hex`：由 SDK 稀疏 `.hex` 展开得到的完整 ROM 映像；未写入的 word
+  会填入 RISC-V NOP，避免出现可执行的未初始化空洞；
+- `omcu_tn9k_bringup_manifest.json`：精确工具版本、原始 ROM 与有效 ROM 的 SHA-256、
+  综合前后 Boot ROM BSRAM 初始化指纹、内存参数、时序、资源和 `.fs` SHA-256；
 - P&R report/JSON 与 `yosys.log` / `nextpnr.log`：发布审计证据。
+
+这里的 ROM 处理不是把文件名记录在 manifest 就结束：脚本在 Yosys 读取包含
+`$readmemh` 的 Boot ROM 模块前生成配置，并对综合网表与 P&R 网表中四个 Boot ROM
+BSRAM 的 `INIT_RAM_xx` 内容分别计算 SHA-256 指纹。两者不一致时构建直接失败。因此，
+manifest 中的 `rom_embedding.verified=true` 表示本次 SDK 映像确实保持到 P&R 网表，
+但仍不表示已经通过实体板测试。
 
 脚本检测锁定的 GW1NR-LV9QN88PC6/I5 目标、RTL 清单和约束覆盖；时钟低于 27 MHz
 约束会直接失败。构建成功仍不等于实体板可用。

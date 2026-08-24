@@ -1,5 +1,14 @@
 `default_nettype none
 
+// `$readmemh` is elaborated while Yosys reads this module, before a parent
+// module parameter can reliably be changed with `chparam`.  FPGA build flows
+// that need a generated application image therefore provide this optional
+// compile-time configuration.  It is deliberately generic, so another FPGA
+// wrapper can use the same mechanism without depending on Tang-specific RTL.
+`ifdef OMCU_ROM_IMAGE_BUILD
+`include "omcu_rom_image_config.vh"
+`endif
+
 // v1 executable OpenMCU system. PicoRV32 is a deliberately replaceable CPU
 // adapter: peripherals see only the portable OpenMCU MMIO contract below.
 // The simple ROM/SRAM models are suitable for simulation and an FPGA bring-up
@@ -8,7 +17,11 @@ module omcu_picorv32_system #(
   parameter integer GPIO_COUNT = 24,
   parameter integer ROM_WORDS = 1024,
   parameter integer SRAM_BYTES = 32768,
+`ifdef OMCU_ROM_IMAGE_BUILD
+  parameter ROM_INIT_FILE = `OMCU_ROM_IMAGE_FILE
+`else
   parameter ROM_INIT_FILE = ""
+`endif
 ) (
   input  logic                  clk_i,
   input  logic                  rst_ni,
@@ -74,15 +87,25 @@ module omcu_picorv32_system #(
   // FPGA bitstream loaders commonly support initialized inferred memories.
   // This is intentionally not an ASIC memory-reset strategy.
   initial begin
+`ifndef OMCU_ROM_IMAGE_BUILD
     for (init_index = 0; init_index < ROM_WORDS; init_index = init_index + 1) begin
       boot_rom[init_index] = 32'h0000_0013;  // RISC-V NOP
     end
+`endif
     for (init_index = 0; init_index < SRAM_WORDS; init_index = init_index + 1) begin
       sram[init_index] = 32'h0000_0000;
     end
+`ifdef OMCU_ROM_IMAGE_BUILD
+    // The open FPGA build supplies a padded image, so there is exactly one
+    // initializer for boot_rom. Keep its path syntactically literal at the
+    // `$readmemh` call site: Yosys lowers memory initialization before a
+    // string parameter override is dependable.
+    $readmemh(`OMCU_ROM_IMAGE_FILE, boot_rom);
+`else
     if (ROM_INIT_FILE != "") begin
       $readmemh(ROM_INIT_FILE, boot_rom);
     end
+`endif
   end
 
   assign rom_select = cpu_mem_valid && (cpu_mem_addr < BOOT_ROM_BYTES);

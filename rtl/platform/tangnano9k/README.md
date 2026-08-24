@@ -34,8 +34,11 @@ $tools = 'C:\path\to\yowasp-gowin\Scripts'
 ```
 
 The output directory contains a packed `.fs`, its SHA-256 manifest, synthesis
-log, P&R log and JSON reports. The script checks the exact device, all canonical
-RTL sources, the CST/SDC constraint set and timing against 27 MHz.
+log, P&R log and JSON reports. It also contains the generated dense
+`omcu_rom_image.hex`; the manifest hashes both the requested SDK image and this
+effective ROM image, then records matching synthesized/P&R BSRAM initialization
+fingerprints. The script checks the exact device, all canonical RTL sources,
+the CST/SDC constraint set and timing against 27 MHz.
 
 ## Download policy
 

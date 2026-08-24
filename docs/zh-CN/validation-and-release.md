@@ -25,6 +25,28 @@ $env:OMCU_IVERILOG_BIN = 'C:\toolchains\iverilog\bin'
 Icarus Verilog 会对 `always_comb` 的常量位选与 `unique case` 输出已知的功能限制提示；
 这些不是成功证明，也没有被隐藏。所有用来发布的构建仍须审阅实际日志。
 
+## 最新开放 P&R 与固件嵌入证据
+
+2026-08-25 在完全相同的 `GW1NR-LV9QN88PC6/I5`、`GW1N-9C`、8 KiB ROM、44 KiB
+SRAM、Yosys 0.68、nextpnr-himbaechel-gowin 0.11.1 与 Apycula 0.32 条件下，分别用两份
+不同 SDK 程序完成了综合、P&R 和 `.fs` 打包。两份最终 report 都为
+`system.clk_i = 41.123 MHz`（约束 27 MHz，12.720 ns 余量），资源为 5,722/8,640 LUT4、
+1,606/6,480 DFF、26/26 BSRAM、1,056/6,480 ALU、1/5 MULT36X36 和 15/276 IOB。
+
+| SDK ROM | 输入 SHA-256 | 综合/P&R BSRAM 初始化指纹 | `.fs` SHA-256 |
+| --- | --- | --- | --- |
+| `omcu_tn9k_board_demo` | `b35a525d571abe90fe034373e8108a4843544e78b59189cdeade8c3fab19bb30` | `291fd35b7018e0b5b45a3995793ed94b16811bf19569fec304d3238ec7172655` | `615ac5b62e9a84ab538cb9d831aaef3d668fb43370b569b5f7adfc4590c97e3a` |
+| `omcu_peripheral_smoke` | `dbaf313dc1b12980e954665b799ea53578a31b1a1ea0d05a34961581c7f6acd7` | `4b1ecd0e29b6ae5ebfe9548d76193cf1ea17207f64a290e57b23b1c4acc3e86f` | `2f33fc5518a8fdedb1520aa185a115c68babf27421d7d6368fcb68b53f5f31e8` |
+
+构建脚本会将 SDK 的带 `@word-address` 的稀疏 `.hex` 扩展为完整、NOP 填充的
+`omcu_rom_image.hex`，并在 Yosys 解析 `$readmemh` 前引用它。随后会从综合网表与
+P&R 网表的四个 Boot ROM BSRAM `INIT_RAM_xx` 参数产生指纹；两者不同即失败。上表两行
+的输入 SHA、BRAM 指纹和 `.fs` SHA 都不同，因此可证明“不同的编译应用真正进入了 P&R
+后的 FPGA 配置”，而不只是命令行中传入不同文件名。
+
+最终 Yosys 日志仍有 I2C/GPIO 顶层三态支持有限的已知 warning，未被隐藏；其余流程正常
+结束。这是强的数字实现证据，仍不是实体板电气或下载成功证明。
+
 ## “完成”不等于哪些事情
 
 当前工作区没有已连接的 Tang Nano 9K，也没有 `openFPGALoader`、`gw_sh` 或厂商下载器

@@ -1,5 +1,14 @@
 `default_nettype none
 
+// The open build flow defines OMCU_ROM_IMAGE_BUILD and supplies this generated
+// include before Yosys parses both this wrapper and the system containing
+// `$readmemh`. Changing a string parameter later with `chparam` is too late
+// for a reliable synthesized memory image. Normal RTL simulation and the
+// vendor project do not define the macro and retain the checked-in fixture.
+`ifdef OMCU_ROM_IMAGE_BUILD
+`include "omcu_rom_image_config.vh"
+`endif
+
 // Tang Nano 9K production MCU target.  It runs the portable SoC directly from
 // the board's 27 MHz oscillator, avoiding an unvalidated PLL configuration.
 //
@@ -9,7 +18,11 @@
 // parameterized so an application can trade memory for LUT/DSP experiments,
 // but do not change the linker script unless the firmware image is rebuilt.
 module omcu_tn9k_bringup_top #(
+`ifdef OMCU_ROM_IMAGE_BUILD
+  parameter ROM_INIT_FILE = `OMCU_ROM_IMAGE_FILE,
+`else
   parameter ROM_INIT_FILE = "rtl/platform/tangnano9k/firmware/gpio_bringup.hex",
+`endif
   parameter integer ROM_WORDS = 2048,
   parameter integer SRAM_BYTES = 45056
 ) (

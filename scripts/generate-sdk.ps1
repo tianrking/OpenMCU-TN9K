@@ -95,7 +95,10 @@ if ($Check) {
     if (-not (Test-Path -LiteralPath $OutputPath -PathType Leaf)) {
         throw "Generated header is missing: $OutputPath"
     }
-    $actual = Get-Content -LiteralPath $OutputPath -Raw
+    # Git may materialize the checked-in generated header as CRLF on Windows,
+    # while the generator deliberately writes a canonical LF form.  Compare
+    # normalized text so -Check validates the register ABI, not checkout mode.
+    $actual = (Get-Content -LiteralPath $OutputPath -Raw).Replace("`r`n", "`n")
     if ($actual -cne $expected) {
         throw "Generated header differs from the specification. Run scripts/generate-sdk.ps1."
     }

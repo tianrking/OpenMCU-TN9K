@@ -81,34 +81,48 @@ The following directed RTL smoke tests passed:
 Icarus emitted informational limitations about `unique case` and constant
 select sensitivity in `always_comb`; it did not report a compilation failure.
 
-The following open source-to-bitstream check also passed on the exact Tang Nano
-9K target:
+The following open source-to-bitstream checks also passed on the exact Tang
+Nano 9K target:
 
 - `scripts/check-tangnano9k-project.ps1`: passed; the GOWIN project covers all
   13 canonical RTL sources, the Tang wrapper, one CST and one SDC for
   `GW1NR-LV9QN88PC6/I5`.
 - `scripts/build-tangnano9k-open.ps1 -RomInitFile
-  .\build\sdk\omcu_peripheral_smoke.hex -RomKiB 8 -SramKiB 44`: passed
-  using Yosys 0.68, nextpnr-himbaechel-gowin 0.11.1 and Apycula 0.32. It
-  injected compiled RV32IMC peripheral firmware into the boot ROM,
-  synthesized, placed/routed and packed the exact Tang target.
-- The single reported `system.clk_i` domain achieved 37.803 MHz against a
-  27.000 MHz constraint, a calculated 10.584 ns margin.
-- Selected utilization was 6,167/8,640 LUT4s (71.38%), 1,606/6,480 DFFs
-  (24.78%), 26/26 BSRAMs (100%), 1,056/6,480 ALUs (16.30%), one of five
-  MULT36X36s, and 15/276 I/O buffers (including I/O buffers for the new
-  bidirectional pads).
-- The generated `omcu_peripheral_smoke.hex` was the ROM input recorded in the
-  manifest. The corresponding `omcu_tn9k_bringup.fs` SHA-256 was
-  `9384549f0f380e26e3b23b2d7d00f3bcf127d556553670e263f30e6ff3f77c83`.
-  The generated manifest records these hashes, memory geometry, tool versions,
-  timing and resource values alongside the artifacts.
+  .\build\sdk\omcu_tn9k_board_demo.hex -RomKiB 8 -SramKiB 44`: passed using
+  Yosys 0.68, nextpnr-himbaechel-gowin 0.11.1 and Apycula 0.32.
+- The same command with `omcu_peripheral_smoke.hex` instead of the board demo:
+  passed with the same device, constraints, memory geometry and tool versions.
+- For each build, the script converts the sparse input `.hex` into a dense
+  2,048-word NOP-padded image, supplies it as the literal boot-ROM
+  `$readmemh` input during front-end parsing, then hashes the `INIT_RAM_xx`
+  data of the four boot-ROM BSRAM cells in both the synthesized and P&R JSON.
+  A build fails if those two fingerprints differ.
+- Board demo: input SHA-256
+  `b35a525d571abe90fe034373e8108a4843544e78b59189cdeade8c3fab19bb30`,
+  synthesized/P&R BSRAM fingerprint
+  `291fd35b7018e0b5b45a3995793ed94b16811bf19569fec304d3238ec7172655`,
+  packed bitstream SHA-256
+  `615ac5b62e9a84ab538cb9d831aaef3d668fb43370b569b5f7adfc4590c97e3a`.
+- Peripheral smoke: input SHA-256
+  `dbaf313dc1b12980e954665b799ea53578a31b1a1ea0d05a34961581c7f6acd7`,
+  synthesized/P&R BSRAM fingerprint
+  `4b1ecd0e29b6ae5ebfe9548d76193cf1ea17207f64a290e57b23b1c4acc3e86f`,
+  packed bitstream SHA-256
+  `2f33fc5518a8fdedb1520aa185a115c68babf27421d7d6368fcb68b53f5f31e8`.
+- The two input, BSRAM and bitstream hash sets differ. This establishes that
+  compiled SDK firmware reaches the initialized BSRAM and final packed FPGA
+  image; it is stronger than merely recording an intended input filename.
+- Each final routed report found the single `system.clk_i` domain at 41.123 MHz
+  against a 27.000 MHz constraint, a calculated 12.720 ns margin. Selected
+  utilization was 5,722/8,640 LUT4s (66.23%), 1,606/6,480 DFFs (24.78%),
+  26/26 BSRAMs (100%), 1,056/6,480 ALUs (16.30%), one of five MULT36X36s, and
+  15/276 I/O buffers (including bidirectional-pad buffers).
 
-Yosys emitted generic out-of-range byte-select warnings in its supplied Gowin
-BRAM mapping library when adapting narrow memory ports; the log is retained and
-this result is not described as a warning-free sign-off. The script exited only
-after nextpnr reported normal completion and after it verified the timing
-threshold, but an open P&R result is still not a physical-board test or a
+Yosys emitted its known limited-tri-state warning for the I2C and GPIO top-level
+pad adapters; the log is retained and this result is not described as a
+warning-free sign-off. The script exited only after nextpnr reported normal
+completion, after it compared BSRAM initialization, and after it verified the
+timing threshold. An open P&R result is still not a physical-board test or a
 vendor-flow equivalence claim.
 
 These checks establish directed RTL behavior, compiler/simulator integration,

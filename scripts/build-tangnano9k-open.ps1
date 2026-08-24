@@ -75,6 +75,8 @@ $reportPath = Join-Path $buildDirectory 'omcu_tn9k_bringup_report.json'
 $bitstreamPath = Join-Path $buildDirectory 'omcu_tn9k_bringup.fs'
 $yosysLogPath = Join-Path $buildDirectory 'yosys.log'
 $pnrLogPath = Join-Path $buildDirectory 'nextpnr.log'
+$romImagePath = Join-Path $buildDirectory 'omcu_rom_image.hex'
+$romConfigPath = Join-Path $buildDirectory 'omcu_rom_image_config.vh'
 $cstPath = Join-Path $projectRoot 'rtl\platform\tangnano9k\project\omcu_tn9k_bringup.cst'
 $sdcPath = Join-Path $projectRoot 'rtl\platform\tangnano9k\project\omcu_tn9k_bringup.sdc'
 
@@ -83,22 +85,84 @@ function Get-ProjectRelativePath {
     return [System.IO.Path]::GetRelativePath($projectRoot, $Path).Replace('\', '/')
 }
 
+function New-PaddedRomImage {
+    param(
+        [string]$InputPath,
+        [string]$OutputPath,
+        [int]$WordCount
+    )
+
+    # GNU objcopy's Verilog image uses @<word-address> records. Materialize a
+    # dense image with RISC-V NOP fill so synthesis has one deterministic ROM
+    # initializer and no accidentally uninitialized executable holes.
+    $words = New-Object 'System.String[]' $WordCount
+    for ($index = 0; $index -lt $WordCount; $index += 1) {
+        $words[$index] = '00000013'
+    }
+    $wordAddress = 0
+    foreach ($rawLine in Get-Content -LiteralPath $InputPath) {
+        $line = $rawLine.Trim()
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith('#')) {
+            continue
+        }
+        if ($line.StartsWith('@')) {
+            $wordAddress = [Convert]::ToInt32($line.Substring(1), 16)
+            continue
+        }
+        foreach ($token in ($line -split '\s+')) {
+            if ($wordAddress -lt 0 -or $wordAddress -ge $WordCount) {
+                throw "ROM image word address 0x$($wordAddress.ToString('X')) is outside the configured $WordCount-word ROM."
+            }
+            if ($token -notmatch '^[0-9A-Fa-f]{1,8}$') {
+                throw "Unsupported Verilog ROM token '$token' in $InputPath."
+            }
+            $words[$wordAddress] = ('{0:X8}' -f [Convert]::ToUInt32($token, 16))
+            $wordAddress += 1
+        }
+    }
+    [System.IO.File]::WriteAllLines(
+        $OutputPath,
+        $words,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
 $relativeJsonPath = Get-ProjectRelativePath $jsonPath
 $relativePnrPath = Get-ProjectRelativePath $pnrPath
 $relativeReportPath = Get-ProjectRelativePath $reportPath
 $relativeBitstreamPath = Get-ProjectRelativePath $bitstreamPath
 $relativeYosysLogPath = Get-ProjectRelativePath $yosysLogPath
 $relativePnrLogPath = Get-ProjectRelativePath $pnrLogPath
+$relativeRomConfigDir = Get-ProjectRelativePath (Split-Path -Parent $romConfigPath)
 $relativeCstPath = Get-ProjectRelativePath $cstPath
 $relativeSdcPath = Get-ProjectRelativePath $sdcPath
 $relativeRomInitFile = Get-ProjectRelativePath $romInitFile
+$relativeRomImageFile = Get-ProjectRelativePath $romImagePath
+New-PaddedRomImage -InputPath $romInitFile -OutputPath $romImagePath -WordCount $romWords
+$romConfigText = @(
+    ([char]96) + 'ifndef OMCU_ROM_IMAGE_CONFIG_INCLUDED'
+    ([char]96) + 'define OMCU_ROM_IMAGE_CONFIG_INCLUDED'
+    ([char]96) + 'define OMCU_ROM_IMAGE_FILE "' + $relativeRomImageFile + '"'
+    ([char]96) + 'endif'
+    ''
+) -join [Environment]::NewLine
+[System.IO.File]::WriteAllText(
+    $romConfigPath,
+    $romConfigText,
+    [System.Text.UTF8Encoding]::new($false)
+)
 
 $sourceList = @(
     Get-Content -LiteralPath (Join-Path $projectRoot 'rtl\files.f') |
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and -not $_.TrimStart().StartsWith('#') } |
         ForEach-Object { $_.Trim().Replace('\', '/') }
 )
-$sourceList += 'rtl/platform/tangnano9k/omcu_tn9k_bringup_top.sv'
+$tangTopSource = 'rtl/platform/tangnano9k/omcu_tn9k_bringup_top.sv'
+$romAwareSources = @(
+    'rtl/cpu/omcu_picorv32_system.sv',
+    $tangTopSource
+)
+$sourceList += $tangTopSource
 
 function Quote-YosysPath {
     param([string]$Path)
@@ -118,13 +182,66 @@ function Get-ExternalToolVersion {
     return $versionOutput[$versionOutput.Count - 1].ToString().Trim()
 }
 
+function Get-BootRomInitEvidence {
+    param(
+        [string]$NetlistPath,
+        [string]$ModuleName
+    )
+
+    # The JSON emitted by Yosys and nextpnr keeps the BSRAM INIT_RAM_xx
+    # parameters.  Hashing the exact ordered set gives the release manifest a
+    # machine-checkable proof that the placed netlist retained the synthesized
+    # boot-ROM contents; a file hash alone only proves which input was requested.
+    $netlist = Get-Content -LiteralPath $NetlistPath -Raw | ConvertFrom-Json -AsHashtable
+    if (-not $netlist['modules'].ContainsKey($ModuleName)) {
+        throw "Missing module '$ModuleName' while checking boot-ROM initialization in $NetlistPath"
+    }
+    $cells = $netlist['modules'][$ModuleName]['cells']
+    $romCellNames = @(
+        $cells.Keys | Where-Object {
+            $_ -like 'system.boot_rom.*' -and
+            $cells[$_]['parameters'].ContainsKey('INIT_RAM_00')
+        } | Sort-Object
+    )
+    if ($romCellNames.Count -eq 0) {
+        throw "No initialized system.boot_rom BSRAM cells found in $NetlistPath"
+    }
+
+    $fingerprintLines = [System.Collections.Generic.List[string]]::new()
+    foreach ($cellName in $romCellNames) {
+        $parameters = $cells[$cellName]['parameters']
+        $initKeys = @($parameters.Keys | Where-Object { $_ -like 'INIT_RAM_*' } | Sort-Object)
+        if ($initKeys.Count -eq 0) {
+            throw "Boot-ROM cell '$cellName' has no INIT_RAM_xx parameters in $NetlistPath"
+        }
+        foreach ($initKey in $initKeys) {
+            $fingerprintLines.Add("$cellName/$initKey=$($parameters[$initKey])")
+        }
+    }
+
+    $fingerprintText = ($fingerprintLines -join "`n") + "`n"
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($fingerprintText))
+    } finally {
+        $sha256.Dispose()
+    }
+    return [ordered]@{
+        bram_cells = $romCellNames.Count
+        init_sha256 = ([System.BitConverter]::ToString($digest)).Replace('-', '').ToLowerInvariant()
+    }
+}
+
 Push-Location $projectRoot
 try {
     $readCommands = $sourceList | ForEach-Object {
-        "read_verilog -sv $(Quote-YosysPath $_)"
+        if ($_ -in $romAwareSources) {
+            "read_verilog -sv -DOMCU_ROM_IMAGE_BUILD -I$relativeRomConfigDir $(Quote-YosysPath $_)"
+        } else {
+            "read_verilog -sv $(Quote-YosysPath $_)"
+        }
     }
     $yosysProgram = ($readCommands + @(
-        "chparam -set ROM_INIT_FILE $(Quote-YosysPath $relativeRomInitFile) omcu_tn9k_bringup_top",
         "chparam -set ROM_WORDS $romWords omcu_tn9k_bringup_top",
         "chparam -set SRAM_BYTES $sramBytes omcu_tn9k_bringup_top",
         "synth_gowin -top omcu_tn9k_bringup_top -family gw1n -json $(Quote-YosysPath $relativeJsonPath)"
@@ -141,6 +258,9 @@ try {
 if (-not (Test-Path -LiteralPath $jsonPath -PathType Leaf)) {
     throw "Yosys reported success but did not emit the Gowin JSON netlist: $jsonPath"
 }
+$sourceBootRomEvidence = Get-BootRomInitEvidence `
+    -NetlistPath $jsonPath `
+    -ModuleName 'omcu_tn9k_bringup_top'
 
 Push-Location $projectRoot
 try {
@@ -173,6 +293,13 @@ try {
 if (-not (Test-Path -LiteralPath $pnrPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
     throw 'nextpnr reported success but did not emit both placed netlist and report.'
+}
+$pnrBootRomEvidence = Get-BootRomInitEvidence -NetlistPath $pnrPath -ModuleName 'top'
+if ($sourceBootRomEvidence.init_sha256 -ne $pnrBootRomEvidence.init_sha256 -or
+    $sourceBootRomEvidence.bram_cells -ne $pnrBootRomEvidence.bram_cells) {
+    throw ('Boot-ROM initialization changed between synthesis and place-and-route: ' +
+        "source=$($sourceBootRomEvidence.init_sha256) ($($sourceBootRomEvidence.bram_cells) BSRAM), " +
+        "pnr=$($pnrBootRomEvidence.init_sha256) ($($pnrBootRomEvidence.bram_cells) BSRAM).")
 }
 
 $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
@@ -221,6 +348,16 @@ $manifest = [ordered]@{
     pnr_netlist = $relativePnrPath
     report = $relativeReportPath
     rom_init_file = $relativeRomInitFile
+    rom_init_sha256 = (Get-FileHash -LiteralPath $romInitFile -Algorithm SHA256).Hash.ToLowerInvariant()
+    rom_image_file = $relativeRomImageFile
+    rom_image_sha256 = (Get-FileHash -LiteralPath $romImagePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    rom_embedding = [ordered]@{
+        source_bram_cells = $sourceBootRomEvidence.bram_cells
+        source_bram_init_sha256 = $sourceBootRomEvidence.init_sha256
+        pnr_bram_cells = $pnrBootRomEvidence.bram_cells
+        pnr_bram_init_sha256 = $pnrBootRomEvidence.init_sha256
+        verified = $true
+    }
     memory = [ordered]@{
         rom_kib = $RomKiB
         rom_words = $romWords

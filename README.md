@@ -32,13 +32,26 @@ bindings, safe SRAM-first programming tooling, and the Tang/ASIC separation
 rules. Directed end-to-end simulation executes compiled RISC-V firmware from
 ROM through the real MMIO fabric and the actual Tang top-level ports.
 
-The latest local open-source YoWASP result synthesized, placed, routed and
-packed the exact `GW1NR-LV9QN88PC6/I5` target with the compiled
-`omcu_peripheral_smoke` ROM, 8 KiB ROM and 44 KiB SRAM. It achieved
-37.803 MHz against the 27 MHz constraint (10.584 ns calculated margin), used
-6,167/8,640 LUT4s and all 26/26 BSRAMs, and emitted a manifest-bound `.fs`
-with SHA-256 `9384549f0f380e26e3b23b2d7d00f3bcf127d556553670e263f30e6ff3f77c83`.
-See [`docs/open-pnr.md`](docs/open-pnr.md) and the Chinese
+The latest local open-source YoWASP validation synthesized, placed, routed and
+packed the exact `GW1NR-LV9QN88PC6/I5` target twice: once with the compiled
+`omcu_tn9k_board_demo` ROM and once with `omcu_peripheral_smoke`, each at
+8 KiB ROM plus 44 KiB SRAM. Both final routed reports achieved 41.123 MHz
+against the 27 MHz constraint (12.720 ns calculated margin), used
+5,722/8,640 LUT4s and all 26/26 BSRAMs.
+
+The build flow expands each sparse SDK `.hex` into a dense NOP-padded ROM
+image before Yosys parses `$readmemh`, then records hashes for the source
+image, effective ROM image, post-synthesis BSRAM initialization, post-P&R
+BSRAM initialization, and packed bitstream. The board-demo artifact is
+`615ac5b62e9a84ab538cb9d831aaef3d668fb43370b569b5f7adfc4590c97e3a` with
+BRAM fingerprint `291fd35b7018e0b5b45a3995793ed94b16811bf19569fec304d3238ec7172655`;
+the peripheral-smoke artifact is
+`2f33fc5518a8fdedb1520aa185a115c68babf27421d7d6368fcb68b53f5f31e8` with
+the distinct fingerprint
+`4b1ecd0e29b6ae5ebfe9548d76193cf1ea17207f64a290e57b23b1c4acc3e86f`.
+This proves that distinct compiled applications reached both the placed ROM and
+the packed FPGA image, rather than merely changing a manifest input path. See
+[`docs/open-pnr.md`](docs/open-pnr.md) and the Chinese
 [developer guide](docs/zh-CN/README.md).
 
 That is a meaningful FPGA-build result, not a physical-board pass: no bitstream
