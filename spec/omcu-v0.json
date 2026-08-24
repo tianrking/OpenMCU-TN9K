@@ -3,7 +3,7 @@
   "device": {
     "name": "OpenMCU",
     "abi_major": 0,
-    "abi_minor": 2
+    "abi_minor": 3
   },
   "memory": [
     { "macro": "OMCU_ROM_BASE", "address": "0x00000000" },
@@ -79,6 +79,18 @@
       ]
     },
     {
+      "name": "i2c0",
+      "ctype": "omcu_i2c_regs_t",
+      "base_macro": "OMCU_I2C0_BASE",
+      "registers": [
+        { "name": "data", "offset": "0x00", "access": "rw", "comment": "TX byte write / RX byte read" },
+        { "name": "status", "offset": "0x04", "access": "rw", "comment": "BUSY, DONE W1C, ACK_ERROR W1C, COMMAND_ERROR W1C and BUS_ACTIVE" },
+        { "name": "clkdiv", "offset": "0x08", "access": "rw", "comment": "SCL low/high phase in system clocks minus one" },
+        { "name": "ctrl", "offset": "0x0c", "access": "rw", "comment": "ENABLE and DONE interrupt enable" },
+        { "name": "cmd", "offset": "0x10", "access": "wo", "comment": "write exactly one command bit: START, STOP, WRITE, READ_ACK or READ_NACK" }
+      ]
+    },
+    {
       "name": "wdt0",
       "ctype": "omcu_wdt_regs_t",
       "base_macro": "OMCU_WDT0_BASE",
@@ -130,6 +142,18 @@
     { "name": "OMCU_SPI_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_SPI_STATUS_BUSY", "value": "1u << 0" },
     { "name": "OMCU_SPI_STATUS_DONE", "value": "1u << 1" },
+    { "name": "OMCU_I2C_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_I2C_CTRL_IRQ_ENABLE", "value": "1u << 1" },
+    { "name": "OMCU_I2C_STATUS_BUSY", "value": "1u << 0" },
+    { "name": "OMCU_I2C_STATUS_DONE", "value": "1u << 1" },
+    { "name": "OMCU_I2C_STATUS_ACK_ERROR", "value": "1u << 2" },
+    { "name": "OMCU_I2C_STATUS_COMMAND_ERROR", "value": "1u << 3" },
+    { "name": "OMCU_I2C_STATUS_BUS_ACTIVE", "value": "1u << 4" },
+    { "name": "OMCU_I2C_CMD_START", "value": "1u << 0" },
+    { "name": "OMCU_I2C_CMD_STOP", "value": "1u << 1" },
+    { "name": "OMCU_I2C_CMD_WRITE", "value": "1u << 2" },
+    { "name": "OMCU_I2C_CMD_READ_ACK", "value": "1u << 3" },
+    { "name": "OMCU_I2C_CMD_READ_NACK", "value": "1u << 4" },
     { "name": "OMCU_WDT_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_WDT_CTRL_RESET_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_WDT_CTRL_IRQ_ENABLE", "value": "1u << 2" },

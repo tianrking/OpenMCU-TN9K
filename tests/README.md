@@ -24,6 +24,7 @@ directory, run from the repository root:
 .\scripts\run-rtl-smoke.ps1 -Test timer
 .\scripts\run-rtl-smoke.ps1 -Test uart
 .\scripts\run-rtl-smoke.ps1 -Test spi
+.\scripts\run-rtl-smoke.ps1 -Test i2c
 .\scripts\run-rtl-smoke.ps1 -Test wdt
 .\scripts\run-rtl-smoke.ps1 -Test pwm
 .\scripts\run-rtl-smoke.ps1 -Test sysctrl
@@ -31,6 +32,7 @@ directory, run from the repository root:
 .\scripts\run-rtl-smoke.ps1 -Test system-uart
 .\scripts\run-rtl-smoke.ps1 -Test sdk-isa
 .\scripts\run-rtl-smoke.ps1 -Test sdk-peripherals
+.\scripts\run-rtl-smoke.ps1 -Test sdk-i2c
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-wdt
 .\scripts\run-rtl-smoke.ps1 -Test tn9k
 ```
@@ -50,6 +52,10 @@ parameterized correctly.
 completion status and W1C interrupt behavior. `wdt` checks feed, sticky expiry,
 IRQ and reset-request behavior. `pwm` checks duty window, wrap and inversion.
 
+`i2c` checks a true open-drain byte transaction: START, STOP, repeated START,
+MSB-first write/read data, ACK/NACK handling, sticky errors, `BUS_ACTIVE` and
+target SCL clock stretching.
+
 `system-uart` is a second CPU integration gate: a hand-audited RV32I image
 writes UART0 control, divider and data through the real PicoRV32/MMIO path,
 then the testbench checks the serialized byte.
@@ -64,6 +70,10 @@ the real CPU, bus and GPIO peripheral path.
 calls for feature discovery, SPI0, WDT0 and PWM0, executes those calls through
 the SoC, and checks the SPI waveform, watchdog behavior, PWM activity and GPIO
 success code.
+
+`sdk-i2c` compiles `sdk/examples/i2c_smoke`, runs it in the real SoC, connects
+an open-drain target fixture, and checks its address/write/read byte sequence,
+final-byte NACK and GPIO success code.
 
 `tn9k-wdt` takes the reset request all the way through the Tang Nano wrapper:
 compiled C firmware intentionally expires WDT0, then the test sees a reset and

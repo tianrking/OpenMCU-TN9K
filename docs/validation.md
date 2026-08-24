@@ -38,6 +38,9 @@ The following directed RTL smoke tests passed:
   RX interrupt behavior at a directed simulation divider;
 - `omcu_spi_tb`: passed; it verifies an 8-bit mode-0 transfer, MISO sampling,
   automatic chip select, DONE IRQ and W1C completion status.
+- `omcu_i2c_tb`: passed; it verifies open-drain START/STOP/repeated-START
+  sequencing, MSB-first write/read data, ACK/NACK status, command-sequence
+  errors, `BUS_ACTIVE`, DONE IRQ and target clock-stretch waiting.
 - `omcu_wdt_tb`: passed; it verifies feed, expiry, IRQ, reset request and W1C
   expiry status behavior.
 - `omcu_pwm_tb`: passed; it verifies duty-cycle window, period rollover and
@@ -60,6 +63,9 @@ The following directed RTL smoke tests passed:
 - `omcu_peripheral_sdk_tb`: passed; compiled C SDK calls discovered required
   features, configured PWM0/WDT0, executed a real SPI0 byte transfer and
   reported success through GPIO without a watchdog reset request.
+- `omcu_i2c_sdk_tb`: passed; compiled C SDK calls issued the address/write/read
+  byte sequence through the real PicoRV32/MMIO/I2C path against an open-drain
+  target fixture, sampled the target response and sent its final-byte NACK.
 - `omcu_tn9k_wdt_reset_tb`: passed; compiled C firmware intentionally expired
   WDT0 and the Tang reset-release wrapper reset and restarted the SoC.
 - `scripts/generate-sdk.ps1 -Check`: passed; generated C register definitions
@@ -72,6 +78,7 @@ integration. Gowin synthesis, place-and-route, programmer integration and a
 physical-board test remain unvalidated.
 
 The repository includes a GitHub Actions workflow that installs Icarus and a
-GNU RISC-V toolchain, then runs the smoke suite and builds the blink example.
+GNU RISC-V toolchain, then runs the smoke suite and builds every current SDK
+firmware target.
 It is a planned reproducibility gate, not evidence of a CI run until the
 repository is pushed and that workflow has completed for the exact commit.

@@ -34,6 +34,11 @@ module omcu_mmio_fabric #(
   output logic                  spi_sck_o,
   output logic                  spi_cs_n_o,
   output logic                  spi_irq_o,
+  input  logic                  i2c_scl_i,
+  input  logic                  i2c_sda_i,
+  output logic                  i2c_scl_drive_low_o,
+  output logic                  i2c_sda_drive_low_o,
+  output logic                  i2c_irq_o,
   output logic                  wdt_irq_o,
   output logic                  wdt_reset_req_o,
   output logic                  pwm_o
@@ -43,6 +48,7 @@ module omcu_mmio_fabric #(
   localparam logic [19:0] UART0_PAGE  = 20'h40001;
   localparam logic [19:0] TIMER0_PAGE = 20'h40002;
   localparam logic [19:0] SPI0_PAGE   = 20'h40003;
+  localparam logic [19:0] I2C0_PAGE   = 20'h40004;
   localparam logic [19:0] WDT0_PAGE   = 20'h40005;
   localparam logic [19:0] PWM0_PAGE   = 20'h40006;
   localparam logic [19:0] SYSCTRL_PAGE = 20'h4000f;
@@ -51,6 +57,7 @@ module omcu_mmio_fabric #(
   logic uart_select;
   logic timer_select;
   logic spi_select;
+  logic i2c_select;
   logic wdt_select;
   logic pwm_select;
   logic sysctrl_select;
@@ -58,6 +65,7 @@ module omcu_mmio_fabric #(
   logic uart_ready;
   logic timer_ready;
   logic spi_ready;
+  logic i2c_ready;
   logic wdt_ready;
   logic pwm_ready;
   logic sysctrl_ready;
@@ -65,6 +73,7 @@ module omcu_mmio_fabric #(
   logic [31:0] uart_read_data;
   logic [31:0] timer_read_data;
   logic [31:0] spi_read_data;
+  logic [31:0] i2c_read_data;
   logic [31:0] wdt_read_data;
   logic [31:0] pwm_read_data;
   logic [31:0] sysctrl_read_data;
@@ -73,6 +82,7 @@ module omcu_mmio_fabric #(
   assign uart_select = req_i && (addr_i[31:12] == UART0_PAGE);
   assign timer_select = req_i && (addr_i[31:12] == TIMER0_PAGE);
   assign spi_select = req_i && (addr_i[31:12] == SPI0_PAGE);
+  assign i2c_select = req_i && (addr_i[31:12] == I2C0_PAGE);
   assign wdt_select = req_i && (addr_i[31:12] == WDT0_PAGE);
   assign pwm_select = req_i && (addr_i[31:12] == PWM0_PAGE);
   assign sysctrl_select = req_i && (addr_i[31:12] == SYSCTRL_PAGE);
@@ -144,6 +154,24 @@ module omcu_mmio_fabric #(
     .irq_o(spi_irq_o)
   );
 
+  omcu_i2c i2c0 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(i2c_select),
+    .write_i(write_i),
+    .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
+    .ready_o(i2c_ready),
+    .read_data_o(i2c_read_data),
+    .error_o(),
+    .scl_i(i2c_scl_i),
+    .sda_i(i2c_sda_i),
+    .scl_drive_low_o(i2c_scl_drive_low_o),
+    .sda_drive_low_o(i2c_sda_drive_low_o),
+    .irq_o(i2c_irq_o)
+  );
+
   omcu_wdt wdt0 (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
@@ -176,7 +204,7 @@ module omcu_mmio_fabric #(
   omcu_sysctrl #(
     .ROM_BYTES(ROM_BYTES),
     .SRAM_BYTES(SRAM_BYTES),
-    .FEATURE_BITS(32'h0000_006f)
+    .FEATURE_BITS(32'h0000_007f)
   ) sysctrl (
     .req_i(sysctrl_select),
     .write_i(write_i),
@@ -203,6 +231,9 @@ module omcu_mmio_fabric #(
     end else if (spi_select) begin
       ready_o = spi_ready;
       read_data_o = spi_read_data;
+    end else if (i2c_select) begin
+      ready_o = i2c_ready;
+      read_data_o = i2c_read_data;
     end else if (wdt_select) begin
       ready_o = wdt_ready;
       read_data_o = wdt_read_data;

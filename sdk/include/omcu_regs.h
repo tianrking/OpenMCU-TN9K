@@ -21,7 +21,7 @@
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
-#define OMCU_HW_ABI_MINOR      2u
+#define OMCU_HW_ABI_MINOR      3u
 
 #define OMCU_CHIP_ID             UINT32_C(0x4F4D4355)
 #define OMCU_SYSCTRL_ABI_MAJOR_SHIFT 16u
@@ -67,6 +67,14 @@ typedef struct {
 } omcu_spi_regs_t;
 
 typedef struct {
+  volatile uint32_t data; /* +0x00: TX byte write / RX byte read */
+  volatile uint32_t status; /* +0x04: BUSY, DONE W1C, ACK_ERROR W1C, COMMAND_ERROR W1C and BUS_ACTIVE */
+  volatile uint32_t clkdiv; /* +0x08: SCL low/high phase in system clocks minus one */
+  volatile uint32_t ctrl; /* +0x0c: ENABLE and DONE interrupt enable */
+  volatile uint32_t cmd; /* +0x10: write exactly one command bit: START, STOP, WRITE, READ_ACK or READ_NACK */
+} omcu_i2c_regs_t;
+
+typedef struct {
   volatile uint32_t ctrl; /* +0x00: ENABLE, RESET_ENABLE and EXPIRED interrupt enable */
   volatile uint32_t timeout; /* +0x04: watchdog count limit before expiry */
   volatile uint32_t feed; /* +0x08: write OMCU_WDT_FEED_MAGIC to restart the watchdog count */
@@ -93,6 +101,7 @@ typedef struct {
 #define OMCU_UART0               ((omcu_uart_regs_t *)(uintptr_t)OMCU_UART0_BASE)
 #define OMCU_TIMER0              ((omcu_timer_regs_t *)(uintptr_t)OMCU_TIMER0_BASE)
 #define OMCU_SPI0                ((omcu_spi_regs_t *)(uintptr_t)OMCU_SPI0_BASE)
+#define OMCU_I2C0                ((omcu_i2c_regs_t *)(uintptr_t)OMCU_I2C0_BASE)
 #define OMCU_WDT0                ((omcu_wdt_regs_t *)(uintptr_t)OMCU_WDT0_BASE)
 #define OMCU_PWM0                ((omcu_pwm_regs_t *)(uintptr_t)OMCU_PWM0_BASE)
 #define OMCU_SYSCTRL             ((omcu_sysctrl_regs_t *)(uintptr_t)OMCU_SYSCTRL_BASE)
@@ -113,6 +122,18 @@ enum {
   OMCU_SPI_CTRL_IRQ_ENABLE         = 1u << 1,
   OMCU_SPI_STATUS_BUSY             = 1u << 0,
   OMCU_SPI_STATUS_DONE             = 1u << 1,
+  OMCU_I2C_CTRL_ENABLE             = 1u << 0,
+  OMCU_I2C_CTRL_IRQ_ENABLE         = 1u << 1,
+  OMCU_I2C_STATUS_BUSY             = 1u << 0,
+  OMCU_I2C_STATUS_DONE             = 1u << 1,
+  OMCU_I2C_STATUS_ACK_ERROR        = 1u << 2,
+  OMCU_I2C_STATUS_COMMAND_ERROR    = 1u << 3,
+  OMCU_I2C_STATUS_BUS_ACTIVE       = 1u << 4,
+  OMCU_I2C_CMD_START               = 1u << 0,
+  OMCU_I2C_CMD_STOP                = 1u << 1,
+  OMCU_I2C_CMD_WRITE               = 1u << 2,
+  OMCU_I2C_CMD_READ_ACK            = 1u << 3,
+  OMCU_I2C_CMD_READ_NACK           = 1u << 4,
   OMCU_WDT_CTRL_ENABLE             = 1u << 0,
   OMCU_WDT_CTRL_RESET_ENABLE       = 1u << 1,
   OMCU_WDT_CTRL_IRQ_ENABLE         = 1u << 2,

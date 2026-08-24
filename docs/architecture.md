@@ -58,7 +58,8 @@ transaction but must preserve visible ordering and register semantics.
 RV32IMC system. It keeps PicoRV32 behind the memory-map adapter and connects:
 
 ```text
-PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric -> GPIO0 + TIMER0
+PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric
+                                      -> GPIO0 + UART0 + TIMER0 + SPI0 + I2C0 + WDT0 + PWM0
 ```
 
 The adapter enables the ratified `M` and `C` instruction extensions and a

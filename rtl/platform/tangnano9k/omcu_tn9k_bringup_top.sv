@@ -53,6 +53,14 @@ module omcu_tn9k_bringup_top #(
     .spi_sck_o(),
     .spi_cs_n_o(),
     .spi_irq_o(),
+    // The generic byte engine is present, but this first board wrapper does
+    // not invent a connector binding.  A later verified CST may expose these
+    // open-drain controls on a documented header pair.
+    .i2c_scl_i(1'b1),
+    .i2c_sda_i(1'b1),
+    .i2c_scl_drive_low_o(),
+    .i2c_sda_drive_low_o(),
+    .i2c_irq_o(),
     .wdt_irq_o(),
     .wdt_reset_req_o(watchdog_reset_request),
     .pwm_o(),

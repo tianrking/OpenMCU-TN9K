@@ -27,6 +27,7 @@ The outputs include `omcu_blink.elf` / `.map` / `.hex`,
 `omcu_uart_hello.elf` / `.map` / `.hex`, and the compiled
 `omcu_isa_smoke.elf` / `.map` / `.hex` and
 `omcu_peripheral_smoke.elf` / `.map` / `.hex` and
+`omcu_i2c_smoke.elf` / `.map` / `.hex` and
 `omcu_wdt_reset_smoke.elf` / `.map` / `.hex` integration tests. The final ROM
 image format must be rechecked with the selected GNU toolchain before it is
 used to program a board: the checked configuration is

@@ -1,7 +1,7 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-// End-to-end SDK smoke test for the v0.2 digital peripheral set.  The C
+// End-to-end SDK smoke test for the v0.3 digital peripheral set.  The C
 // application checks SYSCTRL features, configures PWM/WDT, performs a real SPI
 // transaction and signals its result through GPIO.
 module omcu_peripheral_sdk_tb;

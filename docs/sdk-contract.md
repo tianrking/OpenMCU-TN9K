@@ -33,9 +33,13 @@ because it creates silent hardware/software divergence.
 
 ## Required public SDK functions
 
-The v0.2 SDK now includes device/feature discovery, GPIO, timer, UART console,
-polled SPI byte transfer, watchdog start/feed/stop and PWM configuration. It
-still needs a standards-complete trap/interrupt dispatch layer, I2C byte engine
-API, serial/QSPI programmer, board-information CLI and target metadata loader.
+The v0.3 SDK now includes device/feature discovery, GPIO, timer, UART console,
+polled SPI byte transfer, composable I2C START/STOP/read/write-byte helpers,
+watchdog start/feed/stop and PWM configuration. I2C helpers return `false` for
+disabled hardware, invalid command sequencing or a target NACK. They do not
+silently invent a transaction timeout; applications choose that policy around
+the calls. The SDK still needs a standards-complete trap/interrupt dispatch
+layer, serial/QSPI programmer, board-information CLI and target metadata
+loader.
 The hardware feature bitmap is authoritative: an SDK helper must not assume an
 optional peripheral merely because its base address is reserved.

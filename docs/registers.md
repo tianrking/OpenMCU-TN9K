@@ -1,8 +1,8 @@
-# OpenMCU v0.2 register reference
+# OpenMCU v0.3 register reference
 
 All v0 MMIO registers are 32-bit little-endian and word-aligned. Addresses are
-stable within ABI major version 0. ABI minor 2 adds the optional SPI0, WDT0 and
-PWM0 blocks. The reviewed machine-readable register
+stable within ABI major version 0. ABI minor 3 adds the I2C0 byte engine to the
+previous SPI0, WDT0 and PWM0 blocks. The reviewed machine-readable register
 source is [`spec/omcu-v0.json`](../spec/omcu-v0.json); the C register header is
 generated from that source.
 
@@ -69,6 +69,32 @@ DMA controller.
 | `0x0C` | `CTRL` | RW | Bit 0 `ENABLE`; bit 1 `DONE_IRQ_ENABLE`. |
 | `0x10` | `START` | WO | Bit 0 starts a transfer if `ENABLE=1` and `BUSY=0`. |
 
+## I2C0 — `0x4000_4000`
+
+I2C0 is an open-drain, single-master byte engine. `SCL` and `SDA` outputs tell
+the platform when to drive a line low; the platform must provide pull-ups,
+open-drain pads and synchronized line inputs. Each `CMD` write issues exactly
+one operation, allowing software to compose address/write/repeated-START/read
+transactions explicitly. The engine honours target clock stretching whenever
+it releases SCL. It intentionally has no FIFO, DMA, arbitration-loss handling,
+bus-recovery sequencer or automatic timeout; a product application should use
+its watchdog/outer timeout policy if a target holds the bus forever.
+
+| Offset | Register | Access | Meaning |
+| --- | --- | --- | --- |
+| `0x00` | `DATA` | RW | Write the next TX byte; read the completed RX byte. |
+| `0x04` | `STATUS` | RW1C | Bit 0 `BUSY`; bit 1 `DONE` (W1C); bit 2 `ACK_ERROR` (W1C, target NACK after `WRITE`); bit 3 `COMMAND_ERROR` (W1C); bit 4 `BUS_ACTIVE` (RO). |
+| `0x08` | `CLKDIV` | RW | Bits `15:0`: SCL low/high phase in system clocks minus one; reset `134` produces approximately 100 kHz at 27 MHz without stretching. |
+| `0x0C` | `CTRL` | RW | Bit 0 `ENABLE`; bit 1 `DONE_IRQ_ENABLE`. Disabling releases both lines and abandons an active transaction. |
+| `0x10` | `CMD` | WO | Write exactly one of bit 0 `START`, 1 `STOP`, 2 `WRITE`, 3 `READ_ACK`, 4 `READ_NACK`. `WRITE`/`READ_*`/`STOP` require a preceding START; a second `START` is a repeated START. |
+
+`DONE` is set when a command reaches a terminal result, including an immediate
+rejected command. `COMMAND_ERROR` is set for an invalid or out-of-sequence
+command; `ACK_ERROR` is set when the target leaves SDA high on a byte-write ACK
+clock. While `BUS_ACTIVE` is one the controller holds SCL low between commands,
+so software cannot accidentally generate a STOP while it is preparing the next
+byte.
+
 ## WDT0 — `0x4000_5000`
 
 The watchdog runs from the SoC clock. On expiry it latches `EXPIRED`, can assert
@@ -103,8 +129,8 @@ ASIC pad is a separate board binding, not an implicit pin promise.
 | Offset | Register | Access | Meaning |
 | --- | --- | --- | --- |
 | `0x00` | `CHIP_ID` | RO | `0x4F4D4355` (`OMCU`) |
-| `0x04` | `ABI` | RO | ABI major in bits `31:16`, minor in bits `15:0` (`0.2`) |
-| `0x08` | `FEATURES` | RO | Bit 0 GPIO0, 1 UART0, 2 TIMER0, 3 SPI0, 5 WDT0, 6 PWM0 |
+| `0x04` | `ABI` | RO | ABI major in bits `31:16`, minor in bits `15:0` (`0.3`) |
+| `0x08` | `FEATURES` | RO | Bit 0 GPIO0, 1 UART0, 2 TIMER0, 3 SPI0, 4 I2C0, 5 WDT0, 6 PWM0 |
 | `0x0C` | `BUILD_ID` | RO | Platform build identifier |
 | `0x10` | `MEMORY_KIB` | RO | SRAM KiB in bits `31:16`, ROM KiB in bits `15:0` |
 

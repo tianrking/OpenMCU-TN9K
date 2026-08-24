@@ -126,6 +126,61 @@ static inline bool omcu_spi0_transfer(uint8_t tx, uint8_t *rx) {
   return true;
 }
 
+static inline void omcu_i2c0_init(uint16_t clkdiv, bool enable_done_irq) {
+  OMCU_I2C0->ctrl = 0u;
+  OMCU_I2C0->clkdiv = clkdiv;
+  OMCU_I2C0->status = OMCU_I2C_STATUS_DONE |
+                       OMCU_I2C_STATUS_ACK_ERROR |
+                       OMCU_I2C_STATUS_COMMAND_ERROR;
+  OMCU_I2C0->ctrl = OMCU_I2C_CTRL_ENABLE |
+                    (enable_done_irq ? OMCU_I2C_CTRL_IRQ_ENABLE : 0u);
+}
+
+static inline bool omcu_i2c0_command(uint32_t command) {
+  uint32_t status;
+
+  if ((OMCU_I2C0->ctrl & OMCU_I2C_CTRL_ENABLE) == 0u) {
+    return false;
+  }
+  while ((OMCU_I2C0->status & OMCU_I2C_STATUS_BUSY) != 0u) {
+  }
+  OMCU_I2C0->status = OMCU_I2C_STATUS_DONE |
+                       OMCU_I2C_STATUS_ACK_ERROR |
+                       OMCU_I2C_STATUS_COMMAND_ERROR;
+  OMCU_I2C0->cmd = command;
+  do {
+    status = OMCU_I2C0->status;
+  } while ((status & OMCU_I2C_STATUS_BUSY) != 0u);
+  return (status & (OMCU_I2C_STATUS_DONE |
+                    OMCU_I2C_STATUS_ACK_ERROR |
+                    OMCU_I2C_STATUS_COMMAND_ERROR)) == OMCU_I2C_STATUS_DONE;
+}
+
+static inline bool omcu_i2c0_start(void) {
+  return omcu_i2c0_command(OMCU_I2C_CMD_START);
+}
+
+static inline bool omcu_i2c0_stop(void) {
+  return omcu_i2c0_command(OMCU_I2C_CMD_STOP);
+}
+
+static inline bool omcu_i2c0_write_byte(uint8_t byte) {
+  OMCU_I2C0->data = byte;
+  return omcu_i2c0_command(OMCU_I2C_CMD_WRITE);
+}
+
+// Set acknowledge=false for the final byte in a target-to-controller read.
+static inline bool omcu_i2c0_read_byte(uint8_t *byte, bool acknowledge) {
+  if (!omcu_i2c0_command(
+        acknowledge ? OMCU_I2C_CMD_READ_ACK : OMCU_I2C_CMD_READ_NACK)) {
+    return false;
+  }
+  if (byte != 0) {
+    *byte = (uint8_t)OMCU_I2C0->data;
+  }
+  return true;
+}
+
 static inline void omcu_wdt0_start(
   uint32_t timeout,
   bool request_reset,

@@ -36,10 +36,11 @@ validate an end-to-end command.
 
 It uses direct 27 MHz clocking and inferred initialized memories solely to make
 the first observable board test small. It has no PLL, flash loader, debugger,
-header GPIO mapping, PSRAM or bitstream/programming automation yet. SPI0 and
-PWM0 board pins are not silently assigned by this bring-up target; their RTL
-and SDK support must be bound to a verified connector constraint set before a
-board release. I2C0 remains a reserved address until its byte engine lands.
+header GPIO mapping, PSRAM or bitstream/programming automation yet. SPI0,
+I2C0 and PWM0 board pins are not silently assigned by this bring-up target;
+their RTL and SDK support must be bound to a verified connector constraint set
+before a board release. I2C0 has a generic open-drain byte engine, but no Tang
+header assignment or physical pull-up verification yet.
 UART0 RTL
 and board pins are present, but the current ROM fixture only lights LED0;
 `sdk/examples/uart_hello` needs a verified toolchain-to-ROM-image path before
