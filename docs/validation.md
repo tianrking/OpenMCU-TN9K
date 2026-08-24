@@ -71,6 +71,10 @@ The following directed RTL smoke tests passed:
   target fixture, sampled the target response and sent its final-byte NACK.
 - `omcu_tn9k_wdt_reset_tb`: passed; compiled C firmware intentionally expired
   WDT0 and the Tang reset-release wrapper reset and restarted the SoC.
+- `omcu_tn9k_peripheral_io_tb`: passed; compiled SDK firmware reached the
+  actual Tang top-level SPI0 chip-select, PWM0 and tri-state GPIO/I2C pad
+  adapters. This is a digital top-level connectivity test, not an electrical
+  connector test.
 - `scripts/generate-sdk.ps1 -Check`: passed; generated C register definitions
   match `spec/omcu-v0.json`.
 
@@ -84,21 +88,21 @@ The following open source-to-bitstream check also passed on the exact Tang Nano
   13 canonical RTL sources, the Tang wrapper, one CST and one SDC for
   `GW1NR-LV9QN88PC6/I5`.
 - `scripts/build-tangnano9k-open.ps1 -RomInitFile
-  .\build\sdk\omcu_uart_hello.hex`: passed using Yosys 0.68,
-  nextpnr-himbaechel-gowin 0.11.1 and Apycula 0.32. It injected the compiled
-  RV32IMC `uart_hello` firmware image into the boot ROM, synthesized,
-  placed/routed and packed the target.
-- The single reported `system.clk_i` domain achieved 39.893 MHz against a
-  27.000 MHz constraint, a calculated 11.970 ns margin.
-- Selected utilization was 5,408/8,640 LUT4s (62.59%), 1,548/6,480 DFFs
-  (23.89%), 18/26 BSRAMs (69.23%), 1,024/6,480 ALUs (15.80%), one of five
-  MULT36X36s, and 10/276 I/O buffers.
-- The generated `omcu_uart_hello.hex` SHA-256 was
-  `343a58b8142f67f515e6eef6c1712689c5df7fe2c196e2ad2c7022e7114f2f60`.
-  The corresponding `omcu_tn9k_bringup.fs` SHA-256 was
-  `e77ef2d9c44d6b291be21df9d2c575868731e528c7676ad0bddc49ef6ae58c59`.
-  The generated manifest records these hashes, tool versions, timing and
-  resource values alongside the artifacts.
+  .\build\sdk\omcu_peripheral_smoke.hex -RomKiB 8 -SramKiB 44`: passed
+  using Yosys 0.68, nextpnr-himbaechel-gowin 0.11.1 and Apycula 0.32. It
+  injected compiled RV32IMC peripheral firmware into the boot ROM,
+  synthesized, placed/routed and packed the exact Tang target.
+- The single reported `system.clk_i` domain achieved 37.803 MHz against a
+  27.000 MHz constraint, a calculated 10.584 ns margin.
+- Selected utilization was 6,167/8,640 LUT4s (71.38%), 1,606/6,480 DFFs
+  (24.78%), 26/26 BSRAMs (100%), 1,056/6,480 ALUs (16.30%), one of five
+  MULT36X36s, and 15/276 I/O buffers (including I/O buffers for the new
+  bidirectional pads).
+- The generated `omcu_peripheral_smoke.hex` was the ROM input recorded in the
+  manifest. The corresponding `omcu_tn9k_bringup.fs` SHA-256 was
+  `9384549f0f380e26e3b23b2d7d00f3bcf127d556553670e263f30e6ff3f77c83`.
+  The generated manifest records these hashes, memory geometry, tool versions,
+  timing and resource values alongside the artifacts.
 
 Yosys emitted generic out-of-range byte-select warnings in its supplied Gowin
 BRAM mapping library when adapting narrow memory ports; the log is retained and

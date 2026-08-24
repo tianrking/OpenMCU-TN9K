@@ -27,13 +27,16 @@ in one maintained project.
 
 ## Board-binding provenance
 
-For the initial OpenMCU Tang Nano 9K LED bring-up target, the 27 MHz clock,
-reset and six LED package locations were cross-checked against the public
-Sipeed `picotiny` project at revision
+For the OpenMCU Tang Nano 9K target, the 27 MHz clock, reset, LEDs, UART and
+the extension-pad starting constraints were independently cross-checked against
+the public Sipeed `picotiny` project and public board material; the original
+LED source cross-check used revision
 `c3b795799f23de91982be52db4273a8eea100cdb` (cloned for inspection only from
 the first source above). The OpenMCU top-level RTL and constraints were written
 independently; no upstream RTL, IP core or generated project file was copied.
 
 This establishes traceability for a starting constraint set, not physical-board
 validation. A Tang Nano 9K test must still verify the actual board revision,
-USB power-up, reset polarity, LED polarity, clock stability and timing report.
+USB power-up, reset polarity, LED polarity, clock stability, I/O bank voltage,
+SPI/TF-card conflict, I2C pull-ups and timing report. The concrete constraints
+and safety checklist are in [`zh-CN/hardware-and-pins.md`](zh-CN/hardware-and-pins.md).

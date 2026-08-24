@@ -39,23 +39,28 @@ $tools = (Resolve-Path .\.venv\yowasp-gowin\Scripts).Path
 .\scripts\build-tangnano9k-open.ps1 -ToolBin $tools
 ```
 
-The default uses the minimal LED fixture. To build an SDK application into the
-FPGA boot ROM, first build the SDK and supply its generated Verilog image. For
-example, the UART demonstration is selected without editing RTL:
+The default uses the minimal LED fixture. The default Tang top-level geometry is
+8 KiB ROM plus 44 KiB SRAM; it is intentionally the all-BSRAM configuration.
+To build an SDK application into the FPGA boot ROM, first build the SDK and
+supply its generated Verilog image. For example, the board demonstration is
+selected without editing RTL:
 
 ```powershell
 cmake -S sdk -B build/sdk -G Ninja `
   -DCMAKE_TOOLCHAIN_FILE=sdk/cmake/riscv32-gcc.cmake `
   -DOMCU_RISCV_PREFIX=riscv-none-elf-
-cmake --build build/sdk --target omcu_uart_hello
+cmake --build build/sdk --target omcu_tn9k_board_demo
 
 .\scripts\build-tangnano9k-open.ps1 -ToolBin $tools `
-  -RomInitFile .\build\sdk\omcu_uart_hello.hex
+  -RomInitFile .\build\sdk\omcu_tn9k_board_demo.hex
 ```
 
 `RomInitFile` must be an existing file inside the repository. The script applies
 it to the Tang top-level `ROM_INIT_FILE` parameter before Yosys elaborates the
-design and records the project-relative image path in the manifest.
+design and records the project-relative image path, ROM/SRAM geometry, tool
+versions and artifact SHA-256 in the manifest. `-RomKiB` / `-SramKiB` are
+available for controlled experiments, but firmware must use a matching linker
+script when either changes.
 
 The script keeps its output under `build/tangnano9k-open/`, which must be
 inside the repository because the YoWASP WebAssembly executables consume
@@ -76,11 +81,14 @@ truth.
 
 ## Recorded result and boundary
 
-The local run recorded on 2026-08-25 completed the exact target with the
-compiled `uart_hello` SDK ROM and met its 27 MHz constraint. Its report found
-`system.clk_i` at approximately 39.893 MHz and reported 5,408/8,640 LUT4s,
-1,548/6,480 DFFs and 18/26 BSRAMs. The detailed record, including the firmware
-and artifact SHA-256 values, is in [`docs/validation.md`](validation.md).
+The local full-memory run recorded on 2026-08-25 completed the exact target
+with the compiled `peripheral_smoke` SDK ROM, 8 KiB ROM and 44 KiB SRAM. Its
+report found `system.clk_i` at 37.803 MHz against a 27 MHz constraint
+(10.584 ns calculated margin), with 6,167/8,640 LUT4s, 1,606/6,480 DFFs,
+26/26 BSRAMs, 1,056/6,480 ALUs, one of five MULT36X36 blocks, and 15/276 I/O
+buffers. The generated `.fs` SHA-256 was
+`9384549f0f380e26e3b23b2d7d00f3bcf127d556553670e263f30e6ff3f77c83`.
+The detailed evidence is in [`docs/validation.md`](validation.md).
 
 Yosys emitted generic warnings from its Gowin BRAM mapping library about
 out-of-range byte selects during synthesis. P&R and packing still succeeded;
@@ -92,3 +100,9 @@ device. It does **not** demonstrate successful board programming, USB power and
 reset behavior, LED polarity, UART electrical behavior, or compatibility with
 any particular GOWIN EDA release. Those remain explicit physical-board release
 gates.
+
+For a safe host-side download, use
+[`scripts/program-tangnano9k.ps1`](../scripts/program-tangnano9k.ps1). It
+verifies the `.fs` SHA-256 against its manifest and defaults to volatile SRAM.
+Persistent Flash programming requires both `-Destination flash` and
+`-ConfirmFlash`; a tool exit code is still not a functional-board validation.

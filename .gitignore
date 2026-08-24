@@ -25,3 +25,8 @@ waves/
 .vscode/
 .idea/
 __pycache__/
+
+# Proprietary ARM DesignStart/Flexible Access deliverables are intentionally
+# never committed.  The public adapter contract lives under arm/ instead.
+vendor/arm-designstart/
+vendor/arm-ip/

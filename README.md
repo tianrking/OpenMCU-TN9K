@@ -27,16 +27,25 @@ contracts must not change silently:
 
 This repository is at the executable MCU-prototype stage. It contains the v0
 memory-map contract, portable GPIO/UART/timer/SPI/I2C/watchdog/PWM/SYSCTRL RTL,
-a PicoRV32 CPU adapter, an SDK header/examples, and the Tang Nano 9K/ASIC
-separation rules. Directed end-to-end simulation executes compiled RISC-V
-firmware from ROM through the real MMIO fabric. A workspace-local open-source
-YoWASP flow has also synthesized, placed, routed and packed this exact Tang
-Nano 9K target into a `.fs` configuration image that meets the 27 MHz
-constraint. See [`docs/open-pnr.md`](docs/open-pnr.md).
+a PicoRV32 RV32IMC CPU adapter, SDK headers/examples, real Tang Nano 9K pad
+bindings, safe SRAM-first programming tooling, and the Tang/ASIC separation
+rules. Directed end-to-end simulation executes compiled RISC-V firmware from
+ROM through the real MMIO fabric and the actual Tang top-level ports.
+
+The latest local open-source YoWASP result synthesized, placed, routed and
+packed the exact `GW1NR-LV9QN88PC6/I5` target with the compiled
+`omcu_peripheral_smoke` ROM, 8 KiB ROM and 44 KiB SRAM. It achieved
+37.803 MHz against the 27 MHz constraint (10.584 ns calculated margin), used
+6,167/8,640 LUT4s and all 26/26 BSRAMs, and emitted a manifest-bound `.fs`
+with SHA-256 `9384549f0f380e26e3b23b2d7d00f3bcf127d556553670e263f30e6ff3f77c83`.
+See [`docs/open-pnr.md`](docs/open-pnr.md) and the Chinese
+[developer guide](docs/zh-CN/README.md).
 
 That is a meaningful FPGA-build result, not a physical-board pass: no bitstream
-has been programmed into this board in the current workspace, and this project
-does not claim a firmware upload path, vendor-flow equivalence, or ASIC layout
+has been programmed into a Tang board in the current workspace. The supplied
+programming script validates the manifest/hash and defaults to volatile SRAM,
+but it cannot substitute for board-level electrical and peripheral regression.
+This project also does not claim vendor-flow equivalence or ASIC layout
 validation.
 
 The workstation has no globally installed Verilog simulator, RISC-V cross
@@ -52,10 +61,10 @@ at an unpacked copy: `$env:OMCU_IVERILOG_BIN = 'C:\path\to\iverilog\bin'`.
 
 | Implemented in the current prototype | Reserved ABI / next implementation | Deliberately deferred |
 | --- | --- | --- |
-| RV32IMC bring-up adapter, ROM/SRAM model | QSPI XIP and external-flash loader | Internal Flash / eFlash |
+| RV32IMC adapter, 8 KiB ROM / 44 KiB SRAM Tang configuration | QSPI XIP and external-flash loader | Internal Flash / eFlash |
 | GPIO0, UART0, TIMER0, SPI0, I2C0, WDT0, PWM0, SYSCTRL | Public interrupt ABI | ADC, DAC, analogue reference |
-| Generated C register header and starter SDK | JTAG/serial-debug and programmer tooling | USB PHY, Ethernet PHY, radio |
-| Tang 27 MHz / LED / UART target, open P&R and `.fs` artifact | Programmer/flash flow and physical board release | Low-power sign-off, production packaging and ATE |
+| Generated C register header, Tang board header, and SDK examples | JTAG/serial-debug | USB PHY, Ethernet PHY, radio |
+| Tang 27 MHz / LED / UART / SPI / I2C / PWM / GPIO target, P&R and manifest-checked downloader | Physical-board release | Low-power sign-off, production packaging and ATE |
 
 The first ASIC should boot from external QSPI flash. That keeps the A0 chip
 fully real and useful without pretending that an open-flow test chip already
@@ -112,14 +121,26 @@ than a public peripheral dependency: the CPU only sees the OpenMCU memory map
 and portable MMIO fabric. Its exact licence and provenance are in
 [`LICENSES.md`](LICENSES.md).
 
+## ARM CPU route: explicit authorization gate
+
+The repository does **not** include an ARM/Cortex-M RTL core or claim an ARM
+bitstream. Such IP has separate licensing and redistribution conditions; an
+unlicensed placeholder would not be a usable ARM MCU. The public RISC-V design
+is Apache-2.0 (except separately licensed dependencies), while the ARM route is
+documented as an independent, authorization-dependent backend in
+[`docs/zh-CN/arm-license-and-integration.md`](docs/zh-CN/arm-license-and-integration.md).
+Once an owner supplies a valid core license and delivery approved for this
+Gowin target, it can reuse the documented peripheral/pad contract without
+placing proprietary core files in Git.
+
 ## Reproducibility scaffold
 
-The repository now contains a machine-readable register specification, a
-checked generator for the C register header, a CMake RV32IMC firmware build path,
-an open Tang Nano P&R/packing script, and a CI workflow that exercises the
-portable checks. These are deliberately distinguished from release evidence:
-the workflow has not run until this local repository is pushed, and no board
-programming result exists yet.
+The repository contains a machine-readable register specification, a checked
+generator for the C register header, a CMake RV32IMC firmware build wrapper,
+an open Tang Nano P&R/packing script, a SHA-256/manifest-aware programming
+script and a CI workflow that exercises the portable checks. These are
+deliberately distinguished from release evidence: CI is not evidence until it
+passes for the final pushed commit, and no board programming result exists yet.
 
 The FPGA-to-chip boundary is documented in [`asic/README.md`](asic/README.md):
 it defines a credible external-QSPI A0 rather than implying the Tang bitstream

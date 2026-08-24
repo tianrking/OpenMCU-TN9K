@@ -8,8 +8,10 @@ generated from that source.
 
 ## GPIO0 — `0x4000_0000`
 
-All GPIO bit fields apply to the implemented GPIO width; the current Tang
-bring-up target uses the first six bits for active-low LEDs.
+All GPIO bit fields apply to the implemented GPIO width. The current Tang Nano
+9K target uses bits `0:5` for active-low LEDs and exposes bits `6:8` as three
+real expansion GPIO pads. See [`zh-CN/hardware-and-pins.md`](zh-CN/hardware-and-pins.md)
+for the reviewed constraint mapping and electrical restrictions.
 
 | Offset | Register | Access | Meaning |
 | --- | --- | --- | --- |
@@ -113,8 +115,8 @@ software should feed with the documented magic value, not by writing the count.
 
 PWM0 is one edge-aligned output. It is high while `COUNT < DUTY`; `PERIOD` is
 an inclusive top value, so the full cycle contains `PERIOD + 1` counter ticks.
-The raw output is presently a SoC/platform signal; choosing a Tang header or
-ASIC pad is a separate board binding, not an implicit pin promise.
+The Tang Nano 9K wrapper binds it to a reviewed package pad; other platforms
+must make their own explicit pad binding.
 
 | Offset | Register | Access | Meaning |
 | --- | --- | --- | --- |

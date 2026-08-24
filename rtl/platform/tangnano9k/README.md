@@ -1,65 +1,55 @@
-# Tang Nano 9K platform backend
+# Tang Nano 9K OpenMCU platform backend
 
-The first board target is now a deliberately small, inspectable hardware
-bring-up configuration:
+`omcu_tn9k_bringup_top.sv` is the executable Tang Nano 9K MCU wrapper for
+`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`. It runs the portable RV32IMC SoC at the
+board's 27 MHz input, synchronizes reset release, and maps portable peripherals
+onto actual top-level pads:
 
-- `omcu_tn9k_bringup_top.sv` runs the portable SoC directly at the board's
-  27 MHz input and synchronizes reset deassertion;
-- `firmware/gpio_bringup.hex` is a five-instruction RISC-V image that enables
-  GPIO0[0] and lights LED0;
-- `project/omcu_tn9k_bringup.gprj` selects `GW1NR-LV9QN88PC6/I5`;
-- `project/*.cst` and `project/*.sdc` record the bring-up pins, USB-UART pins
-  and 27 MHz timing constraint.
+- GPIO0[0:5] -> six active-low on-board LEDs;
+- UART0 -> package pads 17/18;
+- SPI0 -> pads 38/37/36/39 (shared J5/TF-card signal group);
+- I2C0 -> true open-drain pads 26/27;
+- PWM0 -> pad 25;
+- GPIO0[6:8] -> tri-state expansion pads 28/29/30.
 
-The pin locations were independently cross-checked against Sipeed's public
-`picotiny` project at revision
-`c3b795799f23de91982be52db4273a8eea100cdb`; they have not yet been tested on
-this physical board. No Sipeed RTL or generated IP was copied into OpenMCU.
+The default 8 KiB ROM + 44 KiB SRAM configuration is intentionally an
+all-BSRAM Tang design. The open P&R release flow produces the authoritative
+resource report; it has successfully placed and routed this geometry using
+26/26 BSRAMs. It is still parameterized for controlled experiments, but a
+different memory geometry requires a matching SDK linker script.
 
-## Build an open `.fs` artifact
+## Build a manifest-bound `.fs`
 
-First initialize the separately licensed CPU source:
+Initialize the separately licensed CPU source, build an SDK ROM image, then
+run the pinned open Gowin flow:
 
 ```powershell
 git submodule update --init --recursive
+.\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
+
+$tools = 'C:\path\to\yowasp-gowin\Scripts'
+.\scripts\build-tangnano9k-open.ps1 -ToolBin $tools `
+  -BuildDirectory .\build\tangnano9k-board-demo `
+  -RomInitFile .\build\sdk\omcu_tn9k_board_demo.hex
 ```
 
-For a reproducible open build, install the version-pinned YoWASP/Yosys,
-nextpnr-himbaechel-gowin and Apycula packages described in
-[`../../../docs/open-pnr.md`](../../../docs/open-pnr.md), then run:
+The output directory contains a packed `.fs`, its SHA-256 manifest, synthesis
+log, P&R log and JSON reports. The script checks the exact device, all canonical
+RTL sources, the CST/SDC constraint set and timing against 27 MHz.
+
+## Download policy
+
+Use the provided hash/manifest-checked script. It defaults to volatile SRAM;
+Flash requires an additional deliberate confirmation:
 
 ```powershell
-$tools = 'C:\path\to\yowasp-gowin\Scripts'
-.\scripts\build-tangnano9k-open.ps1 -ToolBin $tools
+.\scripts\program-tangnano9k.ps1 `
+  -BitstreamPath .\build\tangnano9k-board-demo\omcu_tn9k_bringup.fs `
+  -Destination sram
 ```
 
-The result is `build/tangnano9k-open/omcu_tn9k_bringup.fs`, accompanied by its
-P&R report and SHA-256 manifest. The build script checks that the project
-contains all current portable RTL sources, uses the exact device/package and
-meets the declared 27 MHz clock constraint.
-
-To select a built SDK application instead of the default LED ROM fixture, add
-`-RomInitFile .\build\sdk\omcu_uart_hello.hex` (or any other generated ROM
-image inside the repository). The full command is documented in
-[`../../../docs/open-pnr.md`](../../../docs/open-pnr.md).
-
-`project/omcu_tn9k_bringup.gprj` remains useful for a separately installed
-GOWIN EDA cross-check. Open it, synthesize/place/route it, then compare timing,
-utilization and board behavior rather than treating the two flows as
-interchangeable without evidence.
-
-## Deliberate limits of this target
-
-It uses direct 27 MHz clocking and inferred initialized memories solely to make
-the first observable board test small. It has no PLL, flash loader, debugger,
-header GPIO mapping, PSRAM or programming automation yet. SPI0,
-I2C0 and PWM0 board pins are not silently assigned by this bring-up target;
-their RTL and SDK support must be bound to a verified connector constraint set
-before a board release. I2C0 has a generic open-drain byte engine, but no Tang
-header assignment or physical pull-up verification yet.
-UART0 RTL
-and board pins are present, but the current ROM fixture only lights LED0;
-`sdk/examples/uart_hello` needs a verified toolchain-to-ROM-image path before
-it can be used on hardware. No board programming or board-level regression has
-been performed for the generated `.fs`; those are later explicit release gates,
-so this source must not be described as a supported third-party board release.
+See [`../../../docs/zh-CN/hardware-and-pins.md`](../../../docs/zh-CN/hardware-and-pins.md)
+for I/O voltages, I2C pull-ups, the SPI/TF-card conflict and the real-board
+release checklist. P&R and top-level simulation verify digital connectivity;
+they do not validate this particular board's USB programmer, voltage banks,
+connector numbering, LEDs or external-device behavior.

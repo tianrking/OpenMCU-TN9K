@@ -1,18 +1,21 @@
-# Licensing decision record
+# Licensing and provenance
 
-No external release licence is granted by this initial local foundation.
+Unless a file says otherwise, project-authored RTL, SDK source, build scripts
+and documentation in this repository are licensed under
+[Apache-2.0](LICENSE). This release decision covers the public OpenMCU-TN9K
+source tree only; it does not grant rights to any third-party CPU/IP, Sipeed
+board design, GOWIN tooling, FPGA bitstream, or future ASIC mask work.
 
-Before publication, the project owner must explicitly choose and document:
-
-1. RTL and SDK licence, likely Apache-2.0 or a compatible alternative;
-2. board schematic/PCB licence, likely a CERN Open Hardware Licence variant if
-   the hardware is to be open;
-3. all imported CPU, debug, memory, boot and tool licences;
-4. whether the ASIC implementation files are public, source-available or
-   private.
+Generated artifacts are deliberately ignored by Git. A `.fs` created from this
+repository is a configuration image for a particular FPGA/toolchain run, not a
+separately licensed hardware product. Do not redistribute a generated artifact
+without retaining its manifest, build input provenance and relevant tool terms.
 
 The project must never copy a third-party CPU/SoC repository into this tree
-without preserving its licence, notices and revision provenance.
+without preserving its licence, notices and revision provenance. In particular,
+the `vendor/arm-designstart/` and `vendor/arm-ip/` paths are ignored on purpose:
+they are reserved for separately obtained, non-redistributable Arm IP and must
+not be committed.
 
 ## Imported dependency record
 

@@ -31,10 +31,11 @@ No compatible release may move an existing block. New functions receive a new
 range; an incompatible behavior requires a new major device revision.
 
 The listed ROM and SRAM regions are reserved address apertures, not a promise
-that every early prototype implements 64 KiB of each. The current executable
-adapter defaults to 4 KiB of boot ROM and 32 KiB of SRAM, which is a realistic
-first BRAM budget for Tang Nano 9K bring-up. A later `SYSCTRL` implementation
-must expose the exact usable capacities and feature bitmap before third-party
+that every platform implements 64 KiB of each. The Tang Nano 9K production
+wrapper defaults to 8 KiB of boot ROM and 44 KiB of SRAM, an intentionally
+all-BSRAM configuration verified by the open P&R flow as 26/26 BSRAMs. The
+portable system remains parameterized for other platforms, and `SYSCTRL`
+exposes the exact usable capacities and feature bitmap before third-party
 firmware can rely on them.
 
 ## Portable MMIO transaction
