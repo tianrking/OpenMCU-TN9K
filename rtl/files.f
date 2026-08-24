@@ -8,6 +8,7 @@ rtl/peripherals/omcu_spi.sv
 rtl/peripherals/omcu_i2c.sv
 rtl/peripherals/omcu_wdt.sv
 rtl/peripherals/omcu_pwm.sv
+rtl/peripherals/omcu_irq_ctrl.sv
 rtl/peripherals/omcu_sysctrl.sv
 rtl/bus/omcu_mmio_fabric.sv
 rtl/cpu/omcu_picorv32_system.sv

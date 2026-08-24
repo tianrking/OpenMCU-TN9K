@@ -18,10 +18,11 @@
 #define OMCU_I2C0_BASE           UINT32_C(0x40004000)
 #define OMCU_WDT0_BASE           UINT32_C(0x40005000)
 #define OMCU_PWM0_BASE           UINT32_C(0x40006000)
+#define OMCU_IRQCTRL_BASE        UINT32_C(0x40007000)
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
-#define OMCU_HW_ABI_MINOR      3u
+#define OMCU_HW_ABI_MINOR      4u
 
 #define OMCU_CHIP_ID             UINT32_C(0x4F4D4355)
 #define OMCU_SYSCTRL_ABI_MAJOR_SHIFT 16u
@@ -90,6 +91,15 @@ typedef struct {
 } omcu_pwm_regs_t;
 
 typedef struct {
+  volatile const uint32_t pending; /* +0x00: sticky and current source bits in CPU IRQ positions */
+  volatile uint32_t enable; /* +0x04: per-source IRQ enable mask in CPU IRQ positions */
+  volatile uint32_t clear; /* +0x08: write-one-to-clear sticky and software-pending source bits */
+  volatile uint32_t force; /* +0x0c: write-one-to-set software-pending source bits */
+  volatile const uint32_t active; /* +0x10: enabled pending source bits sent to the CPU */
+  volatile const uint32_t highest; /* +0x14: lowest numbered active CPU IRQ bit, zero when none */
+} omcu_irqctrl_regs_t;
+
+typedef struct {
   volatile const uint32_t chip_id; /* +0x00: OpenMCU chip identifier */
   volatile const uint32_t abi; /* +0x04: major in bits 31:16, minor in bits 15:0 */
   volatile const uint32_t features; /* +0x08: implemented peripheral feature bits */
@@ -104,6 +114,7 @@ typedef struct {
 #define OMCU_I2C0                ((omcu_i2c_regs_t *)(uintptr_t)OMCU_I2C0_BASE)
 #define OMCU_WDT0                ((omcu_wdt_regs_t *)(uintptr_t)OMCU_WDT0_BASE)
 #define OMCU_PWM0                ((omcu_pwm_regs_t *)(uintptr_t)OMCU_PWM0_BASE)
+#define OMCU_IRQCTRL             ((omcu_irqctrl_regs_t *)(uintptr_t)OMCU_IRQCTRL_BASE)
 #define OMCU_SYSCTRL             ((omcu_sysctrl_regs_t *)(uintptr_t)OMCU_SYSCTRL_BASE)
 
 enum {
@@ -114,6 +125,14 @@ enum {
   OMCU_FEATURE_I2C0                = 1u << 4,
   OMCU_FEATURE_WDT0                = 1u << 5,
   OMCU_FEATURE_PWM0                = 1u << 6,
+  OMCU_FEATURE_IRQCTRL             = 1u << 7,
+  OMCU_IRQ_GPIO0                   = 1u << 8,
+  OMCU_IRQ_UART0                   = 1u << 9,
+  OMCU_IRQ_TIMER0                  = 1u << 10,
+  OMCU_IRQ_SPI0                    = 1u << 11,
+  OMCU_IRQ_I2C0                    = 1u << 12,
+  OMCU_IRQ_WDT0                    = 1u << 13,
+  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x00003F00),
   OMCU_TIMER_CTRL_ENABLE           = 1u << 0,
   OMCU_TIMER_CTRL_IRQ_ENABLE       = 1u << 1,
   OMCU_TIMER_CTRL_AUTO_RELOAD      = 1u << 2,

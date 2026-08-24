@@ -3,6 +3,24 @@
     .type _start, @function
 
 _start:
+    // PicoRV32 enters external interrupts at 0x10. Keep exactly four
+    // uncompressed words here, then place the executable IRQ wrapper at the
+    // fixed vector before normal reset/startup code.
+    .option push
+    .option norvc
+    j omcu_reset
+    nop
+    nop
+    nop
+    .option pop
+
+    .size _start, . - _start
+
+    .section .text.startup, "ax", @progbits
+    .globl omcu_reset
+    .type omcu_reset, @function
+
+omcu_reset:
     la sp, __stack_top
 
     la a0, __data_load_start
@@ -30,4 +48,4 @@ _start:
 5:
     j 5b
 
-    .size _start, . - _start
+    .size omcu_reset, . - omcu_reset

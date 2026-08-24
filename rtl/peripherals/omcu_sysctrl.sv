@@ -5,8 +5,8 @@
 module omcu_sysctrl #(
   parameter logic [31:0] CHIP_ID = 32'h4f4d_4355,
   parameter logic [15:0] ABI_MAJOR = 16'h0000,
-  parameter logic [15:0] ABI_MINOR = 16'h0003,
-  parameter logic [31:0] FEATURE_BITS = 32'h0000_007f,
+  parameter logic [15:0] ABI_MINOR = 16'h0004,
+  parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
   parameter logic [31:0] BUILD_ID = 32'h0000_0001,
   parameter integer ROM_BYTES = 4096,
   parameter integer SRAM_BYTES = 32768

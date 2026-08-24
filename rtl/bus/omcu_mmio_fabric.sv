@@ -41,7 +41,8 @@ module omcu_mmio_fabric #(
   output logic                  i2c_irq_o,
   output logic                  wdt_irq_o,
   output logic                  wdt_reset_req_o,
-  output logic                  pwm_o
+  output logic                  pwm_o,
+  output logic [31:0]           irq_vector_o
 );
 
   localparam logic [19:0] GPIO0_PAGE  = 20'h40000;
@@ -51,6 +52,7 @@ module omcu_mmio_fabric #(
   localparam logic [19:0] I2C0_PAGE   = 20'h40004;
   localparam logic [19:0] WDT0_PAGE   = 20'h40005;
   localparam logic [19:0] PWM0_PAGE   = 20'h40006;
+  localparam logic [19:0] IRQCTRL_PAGE = 20'h40007;
   localparam logic [19:0] SYSCTRL_PAGE = 20'h4000f;
 
   logic gpio_select;
@@ -60,6 +62,7 @@ module omcu_mmio_fabric #(
   logic i2c_select;
   logic wdt_select;
   logic pwm_select;
+  logic irqctrl_select;
   logic sysctrl_select;
   logic gpio_ready;
   logic uart_ready;
@@ -68,6 +71,7 @@ module omcu_mmio_fabric #(
   logic i2c_ready;
   logic wdt_ready;
   logic pwm_ready;
+  logic irqctrl_ready;
   logic sysctrl_ready;
   logic [31:0] gpio_read_data;
   logic [31:0] uart_read_data;
@@ -76,7 +80,9 @@ module omcu_mmio_fabric #(
   logic [31:0] i2c_read_data;
   logic [31:0] wdt_read_data;
   logic [31:0] pwm_read_data;
+  logic [31:0] irqctrl_read_data;
   logic [31:0] sysctrl_read_data;
+  logic [5:0] irq_sources;
 
   assign gpio_select = req_i && (addr_i[31:12] == GPIO0_PAGE);
   assign uart_select = req_i && (addr_i[31:12] == UART0_PAGE);
@@ -85,7 +91,18 @@ module omcu_mmio_fabric #(
   assign i2c_select = req_i && (addr_i[31:12] == I2C0_PAGE);
   assign wdt_select = req_i && (addr_i[31:12] == WDT0_PAGE);
   assign pwm_select = req_i && (addr_i[31:12] == PWM0_PAGE);
+  assign irqctrl_select = req_i && (addr_i[31:12] == IRQCTRL_PAGE);
   assign sysctrl_select = req_i && (addr_i[31:12] == SYSCTRL_PAGE);
+
+  // Keep this source ordering stable: the IRQ controller maps element zero to
+  // CPU IRQ 8 and advertises the exact resulting masks in the SDK register
+  // specification.  New sources belong at the end of the array.
+  assign irq_sources[0] = gpio_irq_o;
+  assign irq_sources[1] = uart_irq_o;
+  assign irq_sources[2] = timer_irq_o;
+  assign irq_sources[3] = spi_irq_o;
+  assign irq_sources[4] = i2c_irq_o;
+  assign irq_sources[5] = wdt_irq_o;
 
   omcu_gpio #(
     .GPIO_COUNT(GPIO_COUNT)
@@ -201,10 +218,28 @@ module omcu_mmio_fabric #(
     .pwm_o(pwm_o)
   );
 
+  omcu_irq_ctrl #(
+    .SOURCE_COUNT(6),
+    .IRQ_BASE(8)
+  ) irqctrl (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(irqctrl_select),
+    .write_i(write_i),
+    .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
+    .ready_o(irqctrl_ready),
+    .read_data_o(irqctrl_read_data),
+    .error_o(),
+    .source_i(irq_sources),
+    .irq_o(irq_vector_o)
+  );
+
   omcu_sysctrl #(
     .ROM_BYTES(ROM_BYTES),
     .SRAM_BYTES(SRAM_BYTES),
-    .FEATURE_BITS(32'h0000_007f)
+    .FEATURE_BITS(32'h0000_00ff)
   ) sysctrl (
     .req_i(sysctrl_select),
     .write_i(write_i),
@@ -240,6 +275,9 @@ module omcu_mmio_fabric #(
     end else if (pwm_select) begin
       ready_o = pwm_ready;
       read_data_o = pwm_read_data;
+    end else if (irqctrl_select) begin
+      ready_o = irqctrl_ready;
+      read_data_o = irqctrl_read_data;
     end else if (sysctrl_select) begin
       ready_o = sysctrl_ready;
       read_data_o = sysctrl_read_data;

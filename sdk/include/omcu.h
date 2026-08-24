@@ -32,6 +32,59 @@ static inline bool omcu_hw_has_feature(uint32_t feature) {
   return (OMCU_SYSCTRL->features & feature) == feature;
 }
 
+/*
+ * PicoRV32 custom-IRQ control functions implemented by startup/omcu_irq.S.
+ * They are intentionally ordinary C ABI functions so applications never need
+ * to emit custom opcodes themselves.  The returned mask is the mask that was
+ * active before the requested value was installed.
+ */
+uint32_t omcu_irq_set_mask(uint32_t mask);
+uint32_t omcu_irq_wait(void);
+
+/*
+ * The startup wrapper calls this function from a dedicated IRQ stack with the
+ * complete active CPU IRQ mask.  Applications override the weak SDK default
+ * with a strong definition and must clear the originating peripheral before
+ * acknowledging its IRQCTRL source.
+ */
+void omcu_irq_dispatch(uint32_t pending);
+
+static inline uint32_t omcu_irq_global_enable(void) {
+  return omcu_irq_set_mask(0u);
+}
+
+static inline uint32_t omcu_irq_global_disable(void) {
+  return omcu_irq_set_mask(UINT32_MAX);
+}
+
+static inline void omcu_irq_restore(uint32_t previous_mask) {
+  (void)omcu_irq_set_mask(previous_mask);
+}
+
+static inline uint32_t omcu_irqctrl_pending(void) {
+  return OMCU_IRQCTRL->pending;
+}
+
+static inline uint32_t omcu_irqctrl_active(void) {
+  return OMCU_IRQCTRL->active;
+}
+
+static inline uint32_t omcu_irqctrl_highest(void) {
+  return OMCU_IRQCTRL->highest;
+}
+
+static inline void omcu_irqctrl_set_enable(uint32_t mask) {
+  OMCU_IRQCTRL->enable = mask & OMCU_IRQ_EXTERNAL_MASK;
+}
+
+static inline void omcu_irqctrl_ack(uint32_t mask) {
+  OMCU_IRQCTRL->clear = mask & OMCU_IRQ_EXTERNAL_MASK;
+}
+
+static inline void omcu_irqctrl_force(uint32_t mask) {
+  OMCU_IRQCTRL->force = mask & OMCU_IRQ_EXTERNAL_MASK;
+}
+
 static inline void omcu_gpio_enable_output(uint32_t mask) {
   OMCU_GPIO0->oe_set = mask;
 }

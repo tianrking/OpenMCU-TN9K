@@ -81,6 +81,8 @@ module omcu_picorv32_system #(
   logic mmio_ready;
   logic [31:0] mmio_read_data;
   logic mmio_error;
+  logic [31:0] cpu_irq_vector;
+  logic [31:0] cpu_eoi;
 
   integer init_index;
 
@@ -172,7 +174,8 @@ module omcu_picorv32_system #(
     .i2c_irq_o(i2c_irq_o),
     .wdt_irq_o(wdt_irq_o),
     .wdt_reset_req_o(wdt_reset_req_o),
-    .pwm_o(pwm_o)
+    .pwm_o(pwm_o),
+    .irq_vector_o(cpu_irq_vector)
   );
 
   always_comb begin
@@ -202,9 +205,9 @@ module omcu_picorv32_system #(
     .LATCHED_MEM_RDATA(1'b0),
     .TWO_STAGE_SHIFT(1'b1),
     // The Tang Nano 9K profile intentionally spends LUTs on a barrel shifter
-    // and a fast multiplier instead of presenting a minimal RV32I demo.  The
-    // selected ISA remains the ratified unprivileged RV32IMC profile; it does
-    // not claim privileged CSRs or PicoRV32's non-standard IRQ instructions.
+    // and a fast multiplier instead of presenting a minimal RV32I demo. The
+    // selected ISA remains RV32IMC; external interrupts use the separately
+    // documented PicoRV32 custom-IRQ ABI, not privileged RISC-V CSRs.
     .BARREL_SHIFTER(1'b1),
     .TWO_CYCLE_COMPARE(1'b0),
     .TWO_CYCLE_ALU(1'b0),
@@ -215,7 +218,13 @@ module omcu_picorv32_system #(
     .ENABLE_MUL(1'b0),
     .ENABLE_FAST_MUL(1'b1),
     .ENABLE_DIV(1'b1),
-    .ENABLE_IRQ(1'b0),
+    .ENABLE_IRQ(1'b1),
+    .ENABLE_IRQ_QREGS(1'b1),
+    .ENABLE_IRQ_TIMER(1'b0),
+    // Bits 0..2 are PicoRV32-reserved; the portable IRQ controller owns only
+    // bits 8..13. Everything else is permanently masked in hardware.
+    .MASKED_IRQ(32'hffff_c0ff),
+    .LATCHED_IRQ(32'h0000_3f00),
     .ENABLE_TRACE(1'b0),
     .PROGADDR_RESET(32'h0000_0000),
     .PROGADDR_IRQ(32'h0000_0010),
@@ -244,8 +253,8 @@ module omcu_picorv32_system #(
     .pcpi_rd(32'h0000_0000),
     .pcpi_wait(1'b0),
     .pcpi_ready(1'b0),
-    .irq(32'h0000_0000),
-    .eoi(),
+    .irq(cpu_irq_vector),
+    .eoi(cpu_eoi),
     .trace_valid(),
     .trace_data()
   );

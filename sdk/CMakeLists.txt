@@ -14,6 +14,8 @@ find_program(OMCU_OBJCOPY NAMES "${OMCU_RISCV_PREFIX}objcopy" REQUIRED)
 function(omcu_add_firmware target)
   add_executable(${target}
     ${CMAKE_CURRENT_SOURCE_DIR}/startup/crt0.S
+    ${CMAKE_CURRENT_SOURCE_DIR}/startup/omcu_irq.S
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/omcu_irq.c
     ${ARGN}
   )
   target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -56,3 +58,4 @@ omcu_add_firmware(omcu_peripheral_smoke examples/peripheral_smoke/main.c)
 omcu_add_firmware(omcu_i2c_smoke examples/i2c_smoke/main.c)
 omcu_add_firmware(omcu_wdt_reset_smoke examples/wdt_reset_smoke/main.c)
 omcu_add_firmware(omcu_tn9k_board_demo examples/tn9k_board_demo/main.c)
+omcu_add_firmware(omcu_irq_smoke examples/irq_smoke/main.c)

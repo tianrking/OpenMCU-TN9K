@@ -46,8 +46,8 @@ module omcu_sysctrl_tb;
     address = '0;
 
     check_read(32'h0000_0000, 32'h4f4d_4355, "chip identifier must be OMCU");
-    check_read(32'h0000_0004, 32'h0000_0003, "ABI version must encode v0.3");
-    check_read(32'h0000_0008, 32'h0000_007f, "feature bits must describe implemented v1 digital peripherals");
+    check_read(32'h0000_0004, 32'h0000_0004, "ABI version must encode v0.4");
+    check_read(32'h0000_0008, 32'h0000_00ff, "feature bits must include IRQCTRL and every implemented digital peripheral");
     check_read(32'h0000_000c, 32'h2026_0825, "build identifier must be parameterized");
     check_read(32'h0000_0010, 32'h0018_0008, "memory register must report SRAM/ROM KiB");
 

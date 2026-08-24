@@ -3,7 +3,7 @@
   "device": {
     "name": "OpenMCU",
     "abi_major": 0,
-    "abi_minor": 3
+    "abi_minor": 4
   },
   "memory": [
     { "macro": "OMCU_ROM_BASE", "address": "0x00000000" },
@@ -16,6 +16,7 @@
     { "macro": "OMCU_I2C0_BASE", "address": "0x40004000" },
     { "macro": "OMCU_WDT0_BASE", "address": "0x40005000" },
     { "macro": "OMCU_PWM0_BASE", "address": "0x40006000" },
+    { "macro": "OMCU_IRQCTRL_BASE", "address": "0x40007000" },
     { "macro": "OMCU_SYSCTRL_BASE", "address": "0x4000F000" }
   ],
   "defines": [
@@ -114,6 +115,19 @@
       ]
     },
     {
+      "name": "irqctrl",
+      "ctype": "omcu_irqctrl_regs_t",
+      "base_macro": "OMCU_IRQCTRL_BASE",
+      "registers": [
+        { "name": "pending", "offset": "0x00", "access": "ro", "comment": "sticky and current source bits in CPU IRQ positions" },
+        { "name": "enable", "offset": "0x04", "access": "rw", "comment": "per-source IRQ enable mask in CPU IRQ positions" },
+        { "name": "clear", "offset": "0x08", "access": "wo", "comment": "write-one-to-clear sticky and software-pending source bits" },
+        { "name": "force", "offset": "0x0c", "access": "wo", "comment": "write-one-to-set software-pending source bits" },
+        { "name": "active", "offset": "0x10", "access": "ro", "comment": "enabled pending source bits sent to the CPU" },
+        { "name": "highest", "offset": "0x14", "access": "ro", "comment": "lowest numbered active CPU IRQ bit, zero when none" }
+      ]
+    },
+    {
       "name": "sysctrl",
       "ctype": "omcu_sysctrl_regs_t",
       "base_macro": "OMCU_SYSCTRL_BASE",
@@ -134,6 +148,14 @@
     { "name": "OMCU_FEATURE_I2C0", "value": "1u << 4" },
     { "name": "OMCU_FEATURE_WDT0", "value": "1u << 5" },
     { "name": "OMCU_FEATURE_PWM0", "value": "1u << 6" },
+    { "name": "OMCU_FEATURE_IRQCTRL", "value": "1u << 7" },
+    { "name": "OMCU_IRQ_GPIO0", "value": "1u << 8" },
+    { "name": "OMCU_IRQ_UART0", "value": "1u << 9" },
+    { "name": "OMCU_IRQ_TIMER0", "value": "1u << 10" },
+    { "name": "OMCU_IRQ_SPI0", "value": "1u << 11" },
+    { "name": "OMCU_IRQ_I2C0", "value": "1u << 12" },
+    { "name": "OMCU_IRQ_WDT0", "value": "1u << 13" },
+    { "name": "OMCU_IRQ_EXTERNAL_MASK", "value": "UINT32_C(0x00003F00)" },
     { "name": "OMCU_TIMER_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_TIMER_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_TIMER_CTRL_AUTO_RELOAD", "value": "1u << 2" },

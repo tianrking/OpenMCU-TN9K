@@ -12,9 +12,20 @@ SECTIONS
 {
   . = ORIGIN(ROM);
 
-  .text : ALIGN(4)
+  .vectors ORIGIN(ROM) : ALIGN(4)
   {
     KEEP(*(.init))
+  } > ROM
+  ASSERT(SIZEOF(.vectors) == 16, "OpenMCU reset vector must reserve 0x00..0x0f")
+
+  .irq ORIGIN(ROM) + 0x10 : ALIGN(4)
+  {
+    KEEP(*(.irq))
+  } > ROM
+
+  .text : ALIGN(4)
+  {
+    *(.text.startup .text.startup.*)
     *(.text .text.*)
   } > ROM
 
@@ -39,6 +50,12 @@ SECTIONS
     *(.sbss .sbss.*)
     *(COMMON)
     __bss_end = .;
+  } > RAM
+
+  /* IRQ frame/stack and other explicitly no-init scratch storage. */
+  .noinit (NOLOAD) : ALIGN(16)
+  {
+    *(.noinit .noinit.*)
   } > RAM
 
   __stack_top = ORIGIN(RAM) + LENGTH(RAM);
