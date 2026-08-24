@@ -3,6 +3,10 @@ param(
     [string]$ToolBin,
     [string]$BuildDirectory,
     [string]$RomInitFile,
+    [ValidateRange(1, 8)]
+    [int]$RomKiB = 8,
+    [ValidateRange(1, 44)]
+    [int]$SramKiB = 44,
     [switch]$SkipPack
 )
 
@@ -58,6 +62,8 @@ if (-not $buildDirectory.StartsWith($projectRootPrefix, [System.StringComparison
 if (-not (Test-Path -LiteralPath $RomInitFile -PathType Leaf)) {
     throw "ROM initialization file is missing: $RomInitFile"
 }
+$romWords = $RomKiB * 256
+$sramBytes = $SramKiB * 1024
 $romInitFile = (Resolve-Path -LiteralPath $RomInitFile).Path
 if (-not $romInitFile.StartsWith($projectRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "RomInitFile must be inside the repository because the YoWASP WebAssembly tools require project-relative paths: $romInitFile"
@@ -119,6 +125,8 @@ try {
     }
     $yosysProgram = ($readCommands + @(
         "chparam -set ROM_INIT_FILE $(Quote-YosysPath $relativeRomInitFile) omcu_tn9k_bringup_top",
+        "chparam -set ROM_WORDS $romWords omcu_tn9k_bringup_top",
+        "chparam -set SRAM_BYTES $sramBytes omcu_tn9k_bringup_top",
         "synth_gowin -top omcu_tn9k_bringup_top -family gw1n -json $(Quote-YosysPath $relativeJsonPath)"
     )) -join '; '
 
@@ -213,6 +221,12 @@ $manifest = [ordered]@{
     pnr_netlist = $relativePnrPath
     report = $relativeReportPath
     rom_init_file = $relativeRomInitFile
+    memory = [ordered]@{
+        rom_kib = $RomKiB
+        rom_words = $romWords
+        sram_kib = $SramKiB
+        sram_bytes = $sramBytes
+    }
     bitstream = if ($SkipPack) { $null } else { $relativeBitstreamPath }
     bitstream_sha256 = if ($SkipPack) { $null } else { (Get-FileHash -LiteralPath $bitstreamPath -Algorithm SHA256).Hash.ToLowerInvariant() }
     timing = [ordered]@{
@@ -239,6 +253,7 @@ if ($SkipPack) {
 Write-Output ("Timing: {0} achieved {1:N3} MHz / {2:N3} MHz constraint; slack {3:N3} ns" -f
     $clockName, $achievedMhz, $constraintMhz, $manifest.timing.slack_ns)
 Write-Output "ROM init: $relativeRomInitFile"
+Write-Output "Memory: ROM $RomKiB KiB ($romWords words), SRAM $SramKiB KiB ($sramBytes bytes)"
 foreach ($resourceName in $utilizationSummary.Keys) {
     $resource = $utilizationSummary[$resourceName]
     $percent = if ($resource.available -eq 0) { 0.0 } else { 100.0 * $resource.used / $resource.available }

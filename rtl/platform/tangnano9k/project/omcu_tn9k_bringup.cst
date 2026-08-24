@@ -26,3 +26,29 @@ IO_LOC "led_n_o[4]" 15;
 IO_PORT "led_n_o[4]" PULL_MODE=UP DRIVE=8;
 IO_LOC "led_n_o[5]" 16;
 IO_PORT "led_n_o[5]" PULL_MODE=UP DRIVE=8;
+
+// These assignments use the 3.3 V J5/TF-card signal group published in the
+// Tang Nano 9K reference design.  They are covered by digital P&R and remain
+// explicitly subject to the physical-board validation checklist in docs.
+// SPI0 shares J5/TF-card signals: do not use a microSD card concurrently.
+IO_LOC "spi0_cs_n_o" 38;
+IO_PORT "spi0_cs_n_o" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "spi0_mosi_o" 37;
+IO_PORT "spi0_mosi_o" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "spi0_sck_o" 36;
+IO_PORT "spi0_sck_o" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "spi0_miso_i" 39;
+IO_PORT "spi0_miso_i" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+IO_LOC "pwm0_o" 25;
+IO_PORT "pwm0_o" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "i2c0_scl_io" 26;
+IO_PORT "i2c0_scl_io" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "i2c0_sda_io" 27;
+IO_PORT "i2c0_sda_io" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "gpio_io[0]" 28;
+IO_PORT "gpio_io[0]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "gpio_io[1]" 29;
+IO_PORT "gpio_io[1]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+IO_LOC "gpio_io[2]" 30;
+IO_PORT "gpio_io[2]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;

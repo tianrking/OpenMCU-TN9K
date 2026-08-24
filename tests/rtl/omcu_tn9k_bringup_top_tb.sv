@@ -9,6 +9,14 @@ module omcu_tn9k_bringup_top_tb;
   logic uart_rx = 1'b1;
   logic uart_tx;
   logic [5:0] led_n;
+  logic spi_miso = 1'b1;
+  logic spi_mosi;
+  logic spi_sck;
+  logic spi_cs_n;
+  logic pwm0;
+  tri1 i2c_scl;
+  tri1 i2c_sda;
+  tri1 [2:0] gpio;
 
   always #18.518 clk_27m = ~clk_27m;
 
@@ -17,7 +25,15 @@ module omcu_tn9k_bringup_top_tb;
     .resetn_i(resetn),
     .uart_rx_i(uart_rx),
     .uart_tx_o(uart_tx),
-    .led_n_o(led_n)
+    .led_n_o(led_n),
+    .spi0_miso_i(spi_miso),
+    .spi0_mosi_o(spi_mosi),
+    .spi0_sck_o(spi_sck),
+    .spi0_cs_n_o(spi_cs_n),
+    .i2c0_scl_io(i2c_scl),
+    .i2c0_sda_io(i2c_sda),
+    .pwm0_o(pwm0),
+    .gpio_io(gpio)
   );
 
   task automatic check(input logic condition, input string message);

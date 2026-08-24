@@ -44,8 +44,9 @@ module omcu_peripheral_sdk_tb;
 
   omcu_picorv32_system #(
     .GPIO_COUNT(4),
-    .ROM_WORDS(1024),
-    .SRAM_BYTES(32768),
+    // Match sdk/linker/omcu_fpga_bringup.ld and the Tang production wrapper.
+    .ROM_WORDS(2048),
+    .SRAM_BYTES(45056),
     .ROM_INIT_FILE("build/sdk/omcu_peripheral_smoke.hex")
   ) dut (
     .clk_i(clk),

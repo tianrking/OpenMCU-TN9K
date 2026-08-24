@@ -24,8 +24,10 @@ module omcu_rv32imc_sdk_tb;
 
   omcu_picorv32_system #(
     .GPIO_COUNT(4),
-    .ROM_WORDS(1024),
-    .SRAM_BYTES(32768),
+    // Keep the simulation MCU geometry identical to the public Tang SDK
+    // linker target. This also catches stack accesses near the real SRAM top.
+    .ROM_WORDS(2048),
+    .SRAM_BYTES(45056),
     .ROM_INIT_FILE("build/sdk/omcu_isa_smoke.hex")
   ) dut (
     .clk_i(clk),

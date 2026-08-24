@@ -42,8 +42,10 @@ module omcu_i2c_sdk_tb;
 
   omcu_picorv32_system #(
     .GPIO_COUNT(4),
-    .ROM_WORDS(1024),
-    .SRAM_BYTES(32768),
+    // I2C helper calls spill registers to the stack, so this must use the
+    // exact 8 KiB ROM / 44 KiB SRAM geometry selected by the public SDK.
+    .ROM_WORDS(2048),
+    .SRAM_BYTES(45056),
     .ROM_INIT_FILE("build/sdk/omcu_i2c_smoke.hex")
   ) dut (
     .clk_i(clk),

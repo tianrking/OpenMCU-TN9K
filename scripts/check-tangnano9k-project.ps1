@@ -80,4 +80,20 @@ if (-not ($constraints.path -match '\.cst$') -or -not ($constraints.path -match 
     throw 'Tang Nano 9K project must include both CST pin and SDC clock constraints.'
 }
 
-Write-Output "PASS: Tang Nano 9K project covers $($requiredSources.Count) canonical RTL sources in build order for $expectedDevice"
+$cstEntry = @($constraints | Where-Object { $_.path -match '\.cst$' })[0]
+$cstPath = [System.IO.Path]::GetFullPath((Join-Path $projectDirectory $cstEntry.path))
+$cstText = Get-Content -LiteralPath $cstPath -Raw
+$requiredPadBindings = @(
+    'clk_27m_i', 'resetn_i', 'uart_tx_o', 'uart_rx_i',
+    'led_n_o[0]', 'led_n_o[5]',
+    'spi0_cs_n_o', 'spi0_mosi_o', 'spi0_sck_o', 'spi0_miso_i',
+    'i2c0_scl_io', 'i2c0_sda_io', 'pwm0_o',
+    'gpio_io[0]', 'gpio_io[1]', 'gpio_io[2]'
+)
+foreach ($padBinding in $requiredPadBindings) {
+    if (-not $cstText.Contains(('"' + $padBinding + '"'))) {
+        throw "Tang Nano 9K CST is missing required OpenMCU pad binding '$padBinding'."
+    }
+}
+
+Write-Output "PASS: Tang Nano 9K project covers $($requiredSources.Count) canonical RTL sources and $($requiredPadBindings.Count) MCU pad bindings for $expectedDevice"

@@ -1,22 +1,48 @@
 `default_nettype none
 
-// First Tang Nano 9K board target. It runs the portable SoC directly from the
-// board's 27 MHz oscillator, avoiding an unvalidated PLL configuration during
-// initial bring-up. The active-low LEDs are intentionally only a board adapter.
+// Tang Nano 9K production MCU target.  It runs the portable SoC directly from
+// the board's 27 MHz oscillator, avoiding an unvalidated PLL configuration.
+//
+// The default memory geometry is deliberately the largest all-BSRAM layout
+// which this project supports on GW1NR-9C: 8 KiB ROM plus 44 KiB SRAM.  The
+// open P&R release flow checks the resulting 26/26 BSRAM use.  Keep this top
+// parameterized so an application can trade memory for LUT/DSP experiments,
+// but do not change the linker script unless the firmware image is rebuilt.
 module omcu_tn9k_bringup_top #(
-  parameter ROM_INIT_FILE = "rtl/platform/tangnano9k/firmware/gpio_bringup.hex"
+  parameter ROM_INIT_FILE = "rtl/platform/tangnano9k/firmware/gpio_bringup.hex",
+  parameter integer ROM_WORDS = 2048,
+  parameter integer SRAM_BYTES = 45056
 ) (
   input  logic       clk_27m_i,
   input  logic       resetn_i,
   input  logic       uart_rx_i,
   output logic       uart_tx_o,
-  output logic [5:0] led_n_o
+  output logic [5:0] led_n_o,
+
+  // J5/TF-card signal group. SPI0 owns these pins while the MCU image runs;
+  // do not insert or access a microSD card at the same time.
+  input  logic       spi0_miso_i,
+  output logic       spi0_mosi_o,
+  output logic       spi0_sck_o,
+  output logic       spi0_cs_n_o,
+
+  // Open-drain I2C0, plus three GPIOs on the 3.3 V expansion group.
+  // External I2C pull-ups are mandatory for a real bus.
+  inout  wire        i2c0_scl_io,
+  inout  wire        i2c0_sda_io,
+  output logic       pwm0_o,
+  inout  wire [2:0]  gpio_io
 );
 
   logic [2:0] reset_release_q;
   logic       sys_rst_ni;
-  logic [5:0] gpio_out;
-  logic [5:0] gpio_oe;
+  logic [8:0] gpio_in;
+  logic [8:0] gpio_out;
+  logic [8:0] gpio_oe;
+  logic       i2c_scl_i;
+  logic       i2c_sda_i;
+  logic       i2c_scl_drive_low;
+  logic       i2c_sda_drive_low;
   logic       cpu_trap;
   logic       bus_error;
   logic       watchdog_reset_request;
@@ -38,14 +64,14 @@ module omcu_tn9k_bringup_top #(
   assign sys_rst_ni = reset_release_q[2];
 
   omcu_picorv32_system #(
-    .GPIO_COUNT(6),
-    .ROM_WORDS(1024),
-    .SRAM_BYTES(32768),
+    .GPIO_COUNT(9),
+    .ROM_WORDS(ROM_WORDS),
+    .SRAM_BYTES(SRAM_BYTES),
     .ROM_INIT_FILE(ROM_INIT_FILE)
   ) system (
     .clk_i(clk_27m_i),
     .rst_ni(sys_rst_ni),
-    .gpio_in_i(6'b000000),
+    .gpio_in_i(gpio_in),
     .gpio_out_o(gpio_out),
     .gpio_oe_o(gpio_oe),
     .gpio_irq_o(),
@@ -53,25 +79,40 @@ module omcu_tn9k_bringup_top #(
     .uart_tx_o(uart_tx_o),
     .uart_irq_o(),
     .timer_irq_o(),
-    .spi_miso_i(1'b1),
-    .spi_mosi_o(),
-    .spi_sck_o(),
-    .spi_cs_n_o(),
+    .spi_miso_i(spi0_miso_i),
+    .spi_mosi_o(spi0_mosi_o),
+    .spi_sck_o(spi0_sck_o),
+    .spi_cs_n_o(spi0_cs_n_o),
     .spi_irq_o(),
-    // The generic byte engine is present, but this first board wrapper does
-    // not invent a connector binding.  A later verified CST may expose these
-    // open-drain controls on a documented header pair.
-    .i2c_scl_i(1'b1),
-    .i2c_sda_i(1'b1),
-    .i2c_scl_drive_low_o(),
-    .i2c_sda_drive_low_o(),
+    .i2c_scl_i(i2c_scl_i),
+    .i2c_sda_i(i2c_sda_i),
+    .i2c_scl_drive_low_o(i2c_scl_drive_low),
+    .i2c_sda_drive_low_o(i2c_sda_drive_low),
     .i2c_irq_o(),
     .wdt_irq_o(),
     .wdt_reset_req_o(watchdog_reset_request),
-    .pwm_o(),
+    .pwm_o(pwm0_o),
     .cpu_trap_o(cpu_trap),
     .bus_error_o(bus_error)
   );
+
+  // GPIO[0:5] are the six on-board active-low LEDs. GPIO[6:8] are brought to
+  // the expansion pins. GPIO output-enable is honoured: applications can
+  // safely use the three expansion pins as inputs without a permanently
+  // driven FPGA output.
+  assign gpio_in[5:0] = 6'b000000;
+  assign gpio_in[8:6] = gpio_io;
+  assign gpio_io[0] = gpio_oe[6] ? gpio_out[6] : 1'bz;
+  assign gpio_io[1] = gpio_oe[7] ? gpio_out[7] : 1'bz;
+  assign gpio_io[2] = gpio_oe[8] ? gpio_out[8] : 1'bz;
+
+  // I2C is wired as true open-drain at the pad boundary.  Never drive a one:
+  // releasing the line lets the external pull-up and other bus targets decide
+  // its level, which preserves the peripheral's arbitration/error checks.
+  assign i2c0_scl_io = i2c_scl_drive_low ? 1'b0 : 1'bz;
+  assign i2c0_sda_io = i2c_sda_drive_low ? 1'b0 : 1'bz;
+  assign i2c_scl_i = i2c0_scl_io;
+  assign i2c_sda_i = i2c0_sda_io;
 
   genvar led_index;
   generate

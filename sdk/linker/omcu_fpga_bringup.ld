@@ -3,8 +3,9 @@ ENTRY(_start)
 
 MEMORY
 {
-  ROM (rx)  : ORIGIN = 0x00000000, LENGTH = 4K
-  RAM (rwx) : ORIGIN = 0x10000000, LENGTH = 32K
+  /* Tang Nano 9K all-BSRAM production configuration: 8 KiB ROM + 44 KiB RAM. */
+  ROM (rx)  : ORIGIN = 0x00000000, LENGTH = 8K
+  RAM (rwx) : ORIGIN = 0x10000000, LENGTH = 44K
 }
 
 SECTIONS
