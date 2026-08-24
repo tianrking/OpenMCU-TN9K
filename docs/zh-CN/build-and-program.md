@@ -11,8 +11,8 @@ git submodule update --init --recursive
 # 示例：使 GNU 工具链对脚本可见。
 $env:PATH = 'C:\toolchains\xpack-riscv-none-elf\bin;' + $env:PATH
 
-# 若 cmake/ninja 不在 PATH，可明确给出路径。-Fresh 只清理明确的 build/sdk 生成元数据。
-.\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf- -Fresh
+# 若 cmake/ninja 不在 PATH，可明确给出路径。
+.\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
 ```
 
 生成的 `.elf`、`.map`、`.hex` 均位于 `build/sdk/`。`.hex` 是每 32-bit word 的 Verilog

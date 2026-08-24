@@ -22,12 +22,14 @@ checked build wrapper from the repository root:
 ```powershell
 git submodule update --init --recursive
 $env:PATH = 'C:\toolchains\riscv-none-elf\bin;' + $env:PATH
-.\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf- -Fresh
+.\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
 ```
 
 If CMake or Ninja is not on `PATH`, pass their absolute paths with `-Cmake` and
 `-Ninja`. The wrapper checks both compiler executables before configuring, so a
 wrong prefix fails before a partial firmware build is mistaken for a result.
+With CMake 3.24 or later, add `-Fresh` to discard generated CMake metadata in
+the explicitly selected SDK build directory before reconfiguring.
 
 ## Examples
 

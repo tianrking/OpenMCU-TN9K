@@ -1,0 +1,12 @@
+OpenMCU-TN9K
+Copyright 2026 OpenMCU-TN9K contributors
+
+Project-authored source and documentation are available under the Apache
+License, Version 2.0. See LICENSE for the full text.
+
+This repository includes PicoRV32 as a separately licensed Git submodule.
+See LICENSES.md and third_party/picorv32/COPYING for its provenance and ISC
+license terms.
+
+Arm and Cortex are trademarks or registered trademarks of Arm Limited (or its
+affiliates) in the US and/or elsewhere. No Arm IP is included in this project.
