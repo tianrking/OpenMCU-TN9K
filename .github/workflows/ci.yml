@@ -51,7 +51,7 @@ jobs:
       - name: Build RV32IMC firmware
         run: >-
           cmake -S sdk -B build/sdk -G Ninja
-          -DCMAKE_TOOLCHAIN_FILE=sdk/cmake/riscv32-gcc.cmake
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/sdk/cmake/riscv32-gcc.cmake
           -DOMCU_RISCV_PREFIX=riscv64-unknown-elf-
       - run: cmake --build build/sdk
       - name: Execute compiled RV32IMC SDK firmware in SoC simulation
