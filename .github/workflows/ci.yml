@@ -61,3 +61,4 @@ jobs:
           ./scripts/run-rtl-smoke.ps1 -Test sdk-peripherals
           ./scripts/run-rtl-smoke.ps1 -Test sdk-i2c
           ./scripts/run-rtl-smoke.ps1 -Test tn9k-wdt
+          ./scripts/run-rtl-smoke.ps1 -Test tn9k-peripherals
