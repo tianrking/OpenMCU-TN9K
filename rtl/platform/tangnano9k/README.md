@@ -16,7 +16,7 @@ The pin locations were independently cross-checked against Sipeed's public
 `c3b795799f23de91982be52db4273a8eea100cdb`; they have not yet been tested on
 this physical board. No Sipeed RTL or generated IP was copied into OpenMCU.
 
-## How to use the initial Gowin project
+## Build an open `.fs` artifact
 
 First initialize the separately licensed CPU source:
 
@@ -24,19 +24,35 @@ First initialize the separately licensed CPU source:
 git submodule update --init --recursive
 ```
 
-Open `project/omcu_tn9k_bringup.gprj` in a GOWIN EDA installation, synthesize
-and place-and-route it, then inspect the resulting timing and utilization
-reports before programming a board. GOWIN documents `gw_sh.exe` as the
-command-line entrypoint, but this repository intentionally does not yet call a
-Gowin command automatically: the exact installed tool version, licence,
-generated report paths and programmer are not available in this workspace to
-validate an end-to-end command.
+For a reproducible open build, install the version-pinned YoWASP/Yosys,
+nextpnr-himbaechel-gowin and Apycula packages described in
+[`../../../docs/open-pnr.md`](../../../docs/open-pnr.md), then run:
+
+```powershell
+$tools = 'C:\path\to\yowasp-gowin\Scripts'
+.\scripts\build-tangnano9k-open.ps1 -ToolBin $tools
+```
+
+The result is `build/tangnano9k-open/omcu_tn9k_bringup.fs`, accompanied by its
+P&R report and SHA-256 manifest. The build script checks that the project
+contains all current portable RTL sources, uses the exact device/package and
+meets the declared 27 MHz clock constraint.
+
+To select a built SDK application instead of the default LED ROM fixture, add
+`-RomInitFile .\build\sdk\omcu_uart_hello.hex` (or any other generated ROM
+image inside the repository). The full command is documented in
+[`../../../docs/open-pnr.md`](../../../docs/open-pnr.md).
+
+`project/omcu_tn9k_bringup.gprj` remains useful for a separately installed
+GOWIN EDA cross-check. Open it, synthesize/place/route it, then compare timing,
+utilization and board behavior rather than treating the two flows as
+interchangeable without evidence.
 
 ## Deliberate limits of this target
 
 It uses direct 27 MHz clocking and inferred initialized memories solely to make
 the first observable board test small. It has no PLL, flash loader, debugger,
-header GPIO mapping, PSRAM or bitstream/programming automation yet. SPI0,
+header GPIO mapping, PSRAM or programming automation yet. SPI0,
 I2C0 and PWM0 board pins are not silently assigned by this bring-up target;
 their RTL and SDK support must be bound to a verified connector constraint set
 before a board release. I2C0 has a generic open-drain byte engine, but no Tang
@@ -44,5 +60,6 @@ header assignment or physical pull-up verification yet.
 UART0 RTL
 and board pins are present, but the current ROM fixture only lights LED0;
 `sdk/examples/uart_hello` needs a verified toolchain-to-ROM-image path before
-it can be used on hardware. Those are later explicit release gates, so this
-source must not be described as a supported third-party board release.
+it can be used on hardware. No board programming or board-level regression has
+been performed for the generated `.fs`; those are later explicit release gates,
+so this source must not be described as a supported third-party board release.

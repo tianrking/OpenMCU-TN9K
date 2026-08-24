@@ -23,8 +23,6 @@ module omcu_wdt #(
   output logic        reset_req_o
 );
 
-  import omcu_mmio_pkg::*;
-
   localparam logic [5:0] REG_CTRL    = 6'h00;
   localparam logic [5:0] REG_TIMEOUT = 6'h01;
   localparam logic [5:0] REG_FEED    = 6'h02;
@@ -45,7 +43,7 @@ module omcu_wdt #(
   assign error_o = 1'b0;
   assign irq_o = expired_q & irq_enable_q;
   assign reset_req_o = reset_req_q;
-  assign timeout_merged = merge_write(timeout_q, write_data_i, write_strobe_i);
+  assign timeout_merged = `OMCU_MERGE_WRITE(timeout_q, write_data_i, write_strobe_i);
 
   always_comb begin
     ctrl_read = '0;
@@ -107,7 +105,7 @@ module omcu_wdt #(
             timeout_q <= timeout_merged;
           end
           REG_FEED: begin
-            if (merge_write(32'h0000_0000, write_data_i, write_strobe_i) == FEED_MAGIC) begin
+            if (`OMCU_MERGE_WRITE(32'h0000_0000, write_data_i, write_strobe_i) == FEED_MAGIC) begin
               count_q <= 32'h0000_0000;
             end
           end

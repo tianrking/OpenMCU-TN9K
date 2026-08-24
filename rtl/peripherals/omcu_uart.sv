@@ -23,8 +23,6 @@ module omcu_uart #(
   output logic        irq_o
 );
 
-  import omcu_mmio_pkg::*;
-
   localparam logic [5:0] REG_DATA    = 6'h00;
   localparam logic [5:0] REG_STATUS  = 6'h01;
   localparam logic [5:0] REG_BAUDDIV = 6'h02;
@@ -65,7 +63,7 @@ module omcu_uart #(
   assign error_o = 1'b0;
   assign tx_o = tx_busy_q ? tx_shift_q[0] : 1'b1;
   assign irq_o = rx_valid_q && rx_irq_enable_q;
-  assign bauddiv_merged = merge_write({16'h0000, bauddiv_q}, write_data_i, write_strobe_i);
+  assign bauddiv_merged = `OMCU_MERGE_WRITE({16'h0000, bauddiv_q}, write_data_i, write_strobe_i);
 
   always_comb begin
     ctrl_read = '0;

@@ -25,10 +25,13 @@ bring-up and an ATE or production test strategy.
 
 On 2026-08-25 this workspace exposes Git, CMake and Ninja, but not a Verilog
 simulator, Yosys, Gowin EDA, openFPGALoader or a RISC-V cross compiler on
-`PATH`. A workspace-local Icarus Verilog 11.0 copy and a workspace-local xPack
-GNU RISC-V Embedded GCC 15.2.0-1 package were used for these checks. The xPack
-Windows archive SHA-256 matched the pinned value in
-[`toolchains/riscv-none-elf-gcc-15.2.0-1.lock.json`](../toolchains/riscv-none-elf-gcc-15.2.0-1.lock.json).
+`PATH`. A workspace-local Icarus Verilog 11.0 copy, a workspace-local xPack
+GNU RISC-V Embedded GCC 15.2.0-1 package, and an isolated YoWASP environment
+were used for these checks. The xPack Windows archive SHA-256 matched the pinned
+value in
+[`toolchains/riscv-none-elf-gcc-15.2.0-1.lock.json`](../toolchains/riscv-none-elf-gcc-15.2.0-1.lock.json);
+the open FPGA package versions are recorded in
+[`toolchains/yowasp-gowin.lock.json`](../toolchains/yowasp-gowin.lock.json).
 
 The following directed RTL smoke tests passed:
 
@@ -73,9 +76,42 @@ The following directed RTL smoke tests passed:
 
 Icarus emitted informational limitations about `unique case` and constant
 select sensitivity in `always_comb`; it did not report a compilation failure.
-Those checks establish only directed RTL behavior and local compiler/simulator
-integration. Gowin synthesis, place-and-route, programmer integration and a
-physical-board test remain unvalidated.
+
+The following open source-to-bitstream check also passed on the exact Tang Nano
+9K target:
+
+- `scripts/check-tangnano9k-project.ps1`: passed; the GOWIN project covers all
+  13 canonical RTL sources, the Tang wrapper, one CST and one SDC for
+  `GW1NR-LV9QN88PC6/I5`.
+- `scripts/build-tangnano9k-open.ps1 -RomInitFile
+  .\build\sdk\omcu_uart_hello.hex`: passed using Yosys 0.68,
+  nextpnr-himbaechel-gowin 0.11.1 and Apycula 0.32. It injected the compiled
+  RV32IMC `uart_hello` firmware image into the boot ROM, synthesized,
+  placed/routed and packed the target.
+- The single reported `system.clk_i` domain achieved 39.893 MHz against a
+  27.000 MHz constraint, a calculated 11.970 ns margin.
+- Selected utilization was 5,408/8,640 LUT4s (62.59%), 1,548/6,480 DFFs
+  (23.89%), 18/26 BSRAMs (69.23%), 1,024/6,480 ALUs (15.80%), one of five
+  MULT36X36s, and 10/276 I/O buffers.
+- The generated `omcu_uart_hello.hex` SHA-256 was
+  `343a58b8142f67f515e6eef6c1712689c5df7fe2c196e2ad2c7022e7114f2f60`.
+  The corresponding `omcu_tn9k_bringup.fs` SHA-256 was
+  `e77ef2d9c44d6b291be21df9d2c575868731e528c7676ad0bddc49ef6ae58c59`.
+  The generated manifest records these hashes, tool versions, timing and
+  resource values alongside the artifacts.
+
+Yosys emitted generic out-of-range byte-select warnings in its supplied Gowin
+BRAM mapping library when adapting narrow memory ports; the log is retained and
+this result is not described as a warning-free sign-off. The script exited only
+after nextpnr reported normal completion and after it verified the timing
+threshold, but an open P&R result is still not a physical-board test or a
+vendor-flow equivalence claim.
+
+These checks establish directed RTL behavior, compiler/simulator integration,
+and a reproducible FPGA configuration image. Programmer integration and
+physical-board behavior remain unvalidated: no `.fs` has been loaded on this
+board, and reset, clock, LED polarity, UART electrical behavior and connector
+I/O still require a real-board matrix.
 
 The repository includes a GitHub Actions workflow that installs Icarus and a
 GNU RISC-V toolchain, then runs the smoke suite and builds every current SDK

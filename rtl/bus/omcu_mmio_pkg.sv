@@ -1,32 +1,22 @@
 `default_nettype none
 
-package omcu_mmio_pkg;
+// This file is deliberately a macro library rather than a SystemVerilog
+// package.  It is compiled first by rtl/files.f and every board project, so
+// the same expressions work in simulation, Gowin EDA and Yosys's conservative
+// SystemVerilog frontend without a vendor-specific package-import switch.
+`ifndef OMCU_MMIO_PKG_SV
+`define OMCU_MMIO_PKG_SV
 
-  // Expands one byte-enable bit into the corresponding byte mask.
-  function automatic logic [31:0] write_strobe_mask(input logic [3:0] strobe);
-    logic [31:0] result;
-    begin
-      result = '0;
-      for (int index = 0; index < 4; index++) begin
-        result[index*8 +: 8] = {8{strobe[index]}};
-      end
-      return result;
-    end
-  endfunction
+// Expands one byte-enable bit into the corresponding byte mask.
+`define OMCU_WRITE_STROBE_MASK(strobe) { \
+  {8{strobe[3]}}, {8{strobe[2]}}, {8{strobe[1]}}, {8{strobe[0]}} \
+}
 
-  // Merges a 32-bit write into a register without changing disabled bytes.
-  function automatic logic [31:0] merge_write(
-    input logic [31:0] old_value,
-    input logic [31:0] write_value,
-    input logic [3:0]  write_strobe
-  );
-    logic [31:0] mask;
-    begin
-      mask = write_strobe_mask(write_strobe);
-      return (old_value & ~mask) | (write_value & mask);
-    end
-  endfunction
+// Merges a 32-bit write into a register without changing disabled bytes.
+`define OMCU_MERGE_WRITE(old_value, write_value, write_strobe) \
+  (((old_value) & ~`OMCU_WRITE_STROBE_MASK(write_strobe)) | \
+   ((write_value) &  `OMCU_WRITE_STROBE_MASK(write_strobe)))
 
-endpackage
+`endif
 
 `default_nettype wire

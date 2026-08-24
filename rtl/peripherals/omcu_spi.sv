@@ -24,8 +24,6 @@ module omcu_spi (
   output logic        irq_o
 );
 
-  import omcu_mmio_pkg::*;
-
   localparam logic [5:0] REG_DATA   = 6'h00;
   localparam logic [5:0] REG_STATUS = 6'h01;
   localparam logic [5:0] REG_CLKDIV = 6'h02;
@@ -57,8 +55,8 @@ module omcu_spi (
   assign mosi_o = mosi_q;
   assign sck_o = busy_q ? sck_q : 1'b0;
   assign cs_n_o = cs_n_q;
-  assign clkdiv_merged = merge_write({16'h0000, clkdiv_q}, write_data_i, write_strobe_i);
-  assign tx_data_merged = merge_write({24'h000000, tx_data_q}, write_data_i, write_strobe_i);
+  assign clkdiv_merged = `OMCU_MERGE_WRITE({16'h0000, clkdiv_q}, write_data_i, write_strobe_i);
+  assign tx_data_merged = `OMCU_MERGE_WRITE({24'h000000, tx_data_q}, write_data_i, write_strobe_i);
 
   always_comb begin
     ctrl_read = '0;

@@ -23,8 +23,6 @@ module omcu_gpio #(
   output logic                  irq_o
 );
 
-  import omcu_mmio_pkg::*;
-
   localparam logic [5:0] REG_OUT        = 6'h00;
   localparam logic [5:0] REG_OUT_SET    = 6'h01;
   localparam logic [5:0] REG_OUT_CLR    = 6'h02;
@@ -62,11 +60,11 @@ module omcu_gpio #(
   assign gpio_out_o = gpio_out_q;
   assign gpio_oe_o = gpio_oe_q;
   assign irq_o = |irq_status_q;
-  assign write_masked_data = write_data_i & write_strobe_mask(write_strobe_i);
-  assign gpio_out_merged = merge_write(gpio_out_ext, write_data_i, write_strobe_i);
-  assign gpio_oe_merged = merge_write(gpio_oe_ext, write_data_i, write_strobe_i);
-  assign rise_enable_merged = merge_write(rise_enable_ext, write_data_i, write_strobe_i);
-  assign fall_enable_merged = merge_write(fall_enable_ext, write_data_i, write_strobe_i);
+  assign write_masked_data = write_data_i & `OMCU_WRITE_STROBE_MASK(write_strobe_i);
+  assign gpio_out_merged = `OMCU_MERGE_WRITE(gpio_out_ext, write_data_i, write_strobe_i);
+  assign gpio_oe_merged = `OMCU_MERGE_WRITE(gpio_oe_ext, write_data_i, write_strobe_i);
+  assign rise_enable_merged = `OMCU_MERGE_WRITE(rise_enable_ext, write_data_i, write_strobe_i);
+  assign fall_enable_merged = `OMCU_MERGE_WRITE(fall_enable_ext, write_data_i, write_strobe_i);
   assign irq_events = ((gpio_in_i & ~gpio_in_previous_q) & rise_enable_q) |
                       ((~gpio_in_i & gpio_in_previous_q) & fall_enable_q);
 

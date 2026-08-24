@@ -19,8 +19,6 @@ module omcu_pwm (
   output logic        pwm_o
 );
 
-  import omcu_mmio_pkg::*;
-
   localparam logic [5:0] REG_CTRL     = 6'h00;
   localparam logic [5:0] REG_PRESCALE = 6'h01;
   localparam logic [5:0] REG_PERIOD   = 6'h02;
@@ -44,7 +42,7 @@ module omcu_pwm (
   assign tick = enable_q && (prescale_count_q == prescale_q);
   assign active_level = enable_q && (count_q < duty_q);
   assign pwm_o = active_level ^ invert_q;
-  assign prescale_merged = merge_write({16'h0000, prescale_q}, write_data_i, write_strobe_i);
+  assign prescale_merged = `OMCU_MERGE_WRITE({16'h0000, prescale_q}, write_data_i, write_strobe_i);
 
   always_comb begin
     ctrl_read = '0;
@@ -105,10 +103,10 @@ module omcu_pwm (
             prescale_q <= prescale_merged[15:0];
           end
           REG_PERIOD: begin
-            period_q <= merge_write(period_q, write_data_i, write_strobe_i);
+            period_q <= `OMCU_MERGE_WRITE(period_q, write_data_i, write_strobe_i);
           end
           REG_DUTY: begin
-            duty_q <= merge_write(duty_q, write_data_i, write_strobe_i);
+            duty_q <= `OMCU_MERGE_WRITE(duty_q, write_data_i, write_strobe_i);
           end
           default: begin
           end

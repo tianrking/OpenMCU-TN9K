@@ -18,8 +18,6 @@ module omcu_timer (
   output logic        irq_o
 );
 
-  import omcu_mmio_pkg::*;
-
   localparam logic [5:0] REG_CTRL      = 6'h00;
   localparam logic [5:0] REG_PRESCALE  = 6'h01;
   localparam logic [5:0] REG_COUNT     = 6'h02;
@@ -45,7 +43,7 @@ module omcu_timer (
   assign irq_o = irq_pending_q & irq_enable_q;
   assign counter_tick = enable_q && (prescale_count_q == prescale_q);
   assign compare_event = counter_tick && (count_q == compare_q);
-  assign prescale_merged = merge_write({16'h0000, prescale_q}, write_data_i, write_strobe_i);
+  assign prescale_merged = `OMCU_MERGE_WRITE({16'h0000, prescale_q}, write_data_i, write_strobe_i);
 
   always_comb begin
     ctrl_read = '0;
@@ -116,10 +114,10 @@ module omcu_timer (
             prescale_q <= prescale_merged[15:0];
           end
           REG_COUNT: begin
-            count_q <= merge_write(count_q, write_data_i, write_strobe_i);
+            count_q <= `OMCU_MERGE_WRITE(count_q, write_data_i, write_strobe_i);
           end
           REG_COMPARE: begin
-            compare_q <= merge_write(compare_q, write_data_i, write_strobe_i);
+            compare_q <= `OMCU_MERGE_WRITE(compare_q, write_data_i, write_strobe_i);
           end
           REG_STATUS: begin
             if (write_strobe_i[0] && write_data_i[0]) begin

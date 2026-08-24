@@ -25,19 +25,25 @@ contracts must not change silently:
 
 ## Status
 
-This repository is at the executable architecture-foundation stage. It contains
-the v0 memory-map contract, portable GPIO/UART/timer/SPI/I2C/watchdog/PWM/SYSCTRL RTL, a PicoRV32
-CPU adapter, an SDK header/examples, and the Tang Nano 9K/ASIC separation
-rules. Its first
-end-to-end simulation executes RISC-V firmware from ROM and verifies that it
-enables and drives GPIO. It does **not** yet claim that a bitstream, firmware
-upload, or ASIC layout has been validated on hardware.
+This repository is at the executable MCU-prototype stage. It contains the v0
+memory-map contract, portable GPIO/UART/timer/SPI/I2C/watchdog/PWM/SYSCTRL RTL,
+a PicoRV32 CPU adapter, an SDK header/examples, and the Tang Nano 9K/ASIC
+separation rules. Directed end-to-end simulation executes compiled RISC-V
+firmware from ROM through the real MMIO fabric. A workspace-local open-source
+YoWASP flow has also synthesized, placed, routed and packed this exact Tang
+Nano 9K target into a `.fs` configuration image that meets the 27 MHz
+constraint. See [`docs/open-pnr.md`](docs/open-pnr.md).
+
+That is a meaningful FPGA-build result, not a physical-board pass: no bitstream
+has been programmed into this board in the current workspace, and this project
+does not claim a firmware upload path, vendor-flow equivalence, or ASIC layout
+validation.
 
 The workstation has no globally installed Verilog simulator, RISC-V cross
-compiler, Gowin EDA or openFPGALoader on `PATH`. Workspace-local Icarus Verilog
-and a SHA-256-verified xPack GNU RISC-V toolchain nevertheless run the directed
-RTL and compiled-SDK smoke tests. See
-[`docs/validation.md`](docs/validation.md).
+compiler, Gowin EDA or openFPGALoader on `PATH`. Workspace-local Icarus Verilog,
+a SHA-256-verified xPack GNU RISC-V toolchain, and pinned YoWASP/Yosys,
+nextpnr-himbaechel and Apycula packages run the directed RTL, compiled-SDK and
+open-P&R checks. See [`docs/validation.md`](docs/validation.md).
 
 For portable RTL smoke tests, install Icarus Verilog or point the test runner
 at an unpacked copy: `$env:OMCU_IVERILOG_BIN = 'C:\path\to\iverilog\bin'`.
@@ -49,7 +55,7 @@ at an unpacked copy: `$env:OMCU_IVERILOG_BIN = 'C:\path\to\iverilog\bin'`.
 | RV32IMC bring-up adapter, ROM/SRAM model | QSPI XIP and external-flash loader | Internal Flash / eFlash |
 | GPIO0, UART0, TIMER0, SPI0, I2C0, WDT0, PWM0, SYSCTRL | Public interrupt ABI | ADC, DAC, analogue reference |
 | Generated C register header and starter SDK | JTAG/serial-debug and programmer tooling | USB PHY, Ethernet PHY, radio |
-| Tang 27 MHz / LED / UART board target source | Reproducible Gowin P&R and board release | Low-power sign-off, production packaging and ATE |
+| Tang 27 MHz / LED / UART target, open P&R and `.fs` artifact | Programmer/flash flow and physical board release | Low-power sign-off, production packaging and ATE |
 
 The first ASIC should boot from external QSPI flash. That keeps the A0 chip
 fully real and useful without pretending that an open-flow test chip already
@@ -110,9 +116,10 @@ and portable MMIO fabric. Its exact licence and provenance are in
 
 The repository now contains a machine-readable register specification, a
 checked generator for the C register header, a CMake RV32IMC firmware build path,
-and a CI workflow that exercises both. These are deliberately distinguished
-from release evidence: the workflow has not run until this local repository is
-pushed, and no Gowin synthesis or board programming result exists yet.
+an open Tang Nano P&R/packing script, and a CI workflow that exercises the
+portable checks. These are deliberately distinguished from release evidence:
+the workflow has not run until this local repository is pushed, and no board
+programming result exists yet.
 
 The FPGA-to-chip boundary is documented in [`asic/README.md`](asic/README.md):
 it defines a credible external-QSPI A0 rather than implying the Tang bitstream

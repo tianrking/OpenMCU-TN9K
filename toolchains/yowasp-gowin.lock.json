@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "purpose": "OpenMCU-TN9K Tang Nano 9K open synthesis, place-and-route and packing",
+  "host": "win32-x64",
+  "target_device": "GW1NR-LV9QN88PC6/I5",
+  "target_family": "GW1N-9C",
+  "python_packages": [
+    {
+      "name": "yowasp-yosys",
+      "version": "0.68.0.0.post1208"
+    },
+    {
+      "name": "yowasp-nextpnr-himbaechel-gowin",
+      "version": "0.11.1.0.post826"
+    },
+    {
+      "name": "apycula",
+      "version": "0.32"
+    }
+  ],
+  "reported_tools": {
+    "yosys": "Yosys 0.68 (git sha1 38e001a6f)",
+    "nextpnr": "nextpnr-0.11.1"
+  },
+  "build_script": "scripts/build-tangnano9k-open.ps1",
+  "package_index": "https://pypi.org/"
+}

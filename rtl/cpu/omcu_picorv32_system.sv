@@ -39,8 +39,6 @@ module omcu_picorv32_system #(
   output logic                  bus_error_o
 );
 
-  import omcu_mmio_pkg::*;
-
   localparam logic [31:0] SRAM_BASE = 32'h1000_0000;
   localparam logic [31:0] SRAM_END = SRAM_BASE + SRAM_BYTES;
   localparam logic [31:0] MMIO_BASE = 32'h4000_0000;
@@ -108,7 +106,7 @@ module omcu_picorv32_system #(
 
   always_ff @(posedge clk_i) begin
     if (sram_select && (|cpu_mem_wstrb)) begin
-      sram[sram_word_index] <= merge_write(
+      sram[sram_word_index] <= `OMCU_MERGE_WRITE(
         sram[sram_word_index],
         cpu_mem_wdata,
         cpu_mem_wstrb

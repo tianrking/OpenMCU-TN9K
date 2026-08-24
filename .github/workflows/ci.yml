@@ -19,6 +19,9 @@ jobs:
       - name: Check generated SDK register definitions
         shell: pwsh
         run: ./scripts/generate-sdk.ps1 -Check
+      - name: Check Tang Nano 9K project source coverage
+        shell: pwsh
+        run: ./scripts/check-tangnano9k-project.ps1
       - name: Run portable and Tang bring-up RTL smoke tests
         shell: pwsh
         run: |
