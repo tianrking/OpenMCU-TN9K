@@ -102,8 +102,17 @@ jobs:
           }
 
           $compilerName = if ($IsWindows) { 'riscv-none-elf-gcc.exe' } else { 'riscv-none-elf-gcc' }
-          $compiler = Get-ChildItem -LiteralPath $env:XPACKS_STORE_FOLDER -Recurse -File -Filter $compilerName |
-            Select-Object -First 1
+          # xpm creates a project-local launcher for every installed xPack.
+          # Use it first: on macOS, the central-store payload lives below the
+          # hidden .content directory, which PowerShell does not recurse into
+          # unless -Force is specified.
+          $compilerPath = Join-Path $xpmWork (Join-Path 'xpacks/.bin' $compilerName)
+          if (Test-Path -LiteralPath $compilerPath -PathType Leaf) {
+            $compiler = Get-Item -LiteralPath $compilerPath
+          } else {
+            $compiler = Get-ChildItem -LiteralPath $env:XPACKS_STORE_FOLDER -Recurse -Force -File -Filter $compilerName |
+              Select-Object -First 1
+          }
           if ($null -eq $compiler) {
             throw "xPack did not provide $compilerName below $env:XPACKS_STORE_FOLDER"
           }
