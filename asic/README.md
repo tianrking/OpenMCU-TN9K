@@ -1,68 +1,44 @@
-# OpenMCU ASIC transition plan
+# OpenMCU 从 FPGA 到 ASIC 的交接边界
 
-This directory is deliberately a tapeout handoff boundary, not evidence that
-OpenMCU has an ASIC layout or a manufacturable chip. The Tang Nano 9K is the
-functional prototype target; an ASIC implementation starts only after the
-following contracts are stable and exercised on FPGA.
+此目录定义的是未来 ASIC 的交接条件，不是已经完成的版图、可制造芯片或流片证据。Tang Nano 9K 是当前功能原型目标；只有在 FPGA 上稳定并实测过的合同，才能进入 ASIC 实现。
 
-## A0 product definition
+## 建议的 A0 产品定义
 
-The first physical OpenMCU should be a small, conventional external-QSPI-boot
-MCU rather than an overambitious SoC:
+第一颗 OpenMCU 应是务实的外部 QSPI 启动 MCU，而不是假定教育性流程已经提供合格 eFlash、模拟 IP 和量产封装：
 
-- RV32I CPU adapter behind the existing OpenMCU memory/MMIO contract;
-- SRAM macro(s), immutable boot ROM and external QSPI firmware storage;
-- GPIO, UART, timer, SPI/QSPI control, watchdog and a debug/test interface;
-- no assumed eFlash, ADC, DAC, USB PHY, radio, PLL, brown-out or analogue IP;
-- an explicit pad-ring, ESD, power, reset, DFT/scan and package plan.
+- 遵守现有 OpenMCU 内存/MMIO 合同的 RV32I 或受控 CPU 适配器；
+- SRAM 宏、不可变 Boot ROM 和外部 QSPI 固件存储；
+- GPIO、UART、定时器、SPI/QSPI、看门狗和调试/测试接口；
+- 明确的 pad ring、ESD、电源、复位、DFT/scan、封装和 ATE 计划；
+- 不默认包含 eFlash、ADC、DAC、USB PHY、无线、PLL、欠压或其他模拟 IP。
 
-Keeping persistent firmware in external QSPI is intentional. It makes an A0
-chip useful without pretending an educational/open PDK route includes qualified
-embedded Flash or analogue macros.
+FPGA 产品中 User Flash A/B 升级架构是很好的系统软件参考，但 ASIC 的实际非易失存储、启动、加密和寿命必须按选定工艺/IP 重新验证，不能把 Gowin 行为直接等同为硅片行为。
 
-## What transfers unchanged
+## 可迁移与不可直接迁移的资产
 
-The following are ASIC-neutral assets and should remain a single source of
-truth:
+| 可作为单一事实来源 | 必须由 ASIC 重新实现 |
+| --- | --- |
+| `spec/omcu-v0.json` 与生成的 SDK 寄存器定义 | ROM/SRAM 宏、时钟、复位、pad cell、ESD、DFT |
+| `rtl/bus/` 的内存图和总线语义 | 电源域、扫描、物理约束、布局布线和签核 |
+| `rtl/peripherals/` 的功能 RTL | 非易失存储控制器、密钥/安全启动、工艺可靠性 |
+| `sdk/`、镜像格式和升级状态机 | 封装、ATE、量产测试和生命周期服务 |
+| `tests/` 的可复用行为用例 | 角落 STA、DRC/LVS、IR/EM、天线、密度和制造检查 |
 
-```text
-spec/omcu-v0.json -> generated SDK register definitions
-rtl/bus/           -> memory-map and transaction behavior
-rtl/peripherals/   -> GPIO / UART / timer / SYSCTRL functionality
-sdk/               -> ABI-aware bare-metal applications
-tests/             -> directed RTL and firmware integration regressions
-```
+`omcu_picorv32_system` 的数组式存储器以及 Tang 顶层不能直接迁移；ASIC 必须换成经表征的宏、合法 pad、时钟/复位、DFT 和技术约束封装。
 
-The current `omcu_picorv32_system` memory arrays and Tang top-level do **not**
-transfer unchanged. An ASIC integration must replace them with characterized
-ROM/SRAM macro wrappers, pad cells, clocks/resets, DFT and technology-specific
-constraints.
+## 选择 MPW 或代工厂前的门槛
 
-## Required gates before selecting an MPW or foundry
+1. 冻结版本化的寄存器参考、启动 ABI、异常/中断策略和外部镜像/升级格式。
+2. 在 Tang 实板完成综合、时序、位流哈希、冷复位、外设、应用升级中断和管脚测试。
+3. 明确工艺 PDK、标准单元、SRAM、I/O pad、封装和测试策略及其许可/分发范围。
+4. 完成带时钟/复位、scan/DFT、pad ring、电源域、ESD 的 ASIC 封装，并进行等价或针对性的 RTL-门级验证。
+5. 完成全角落综合/STA、DRC/LVS、IR/EM、天线、ERC、密度/填充和可制造性检查。
+6. 在流片前设计晶圆、封装芯片、板卡 bring-up、编程、量产向量和 ATE 覆盖。
 
-1. Freeze a versioned register reference, startup ABI, exception/interrupt
-   policy and external firmware image/update format.
-2. Validate the selected Tang Nano 9K configuration: synthesis, timing,
-   bitstream hash, cold reset, UART, flash-update interruption and pin tests.
-3. Select a foundry PDK, standard-cell library, SRAM compiler/macros, I/O pad
-   library, package and test strategy with licences that allow the intended
-   product and distribution model.
-4. Build an ASIC wrapper with clock/reset, scan/DFT, pad ring, power domains,
-   ESD and formal equivalence or focused RTL-vs-gate verification.
-5. Complete synthesis, STA across sign-off corners, DRC/LVS, IR/EM, antenna,
-   ERC, density/fill and manufacturability checks in the selected flow.
-6. Plan wafer/packaged-die bring-up, programming, board support, production
-   test vectors and ATE coverage before tapeout—not after first silicon.
-
-## Three honest stages
-
-| Stage | Purpose | Evidence required |
+| 阶段 | 目的 | 需要的证据 |
 | --- | --- | --- |
-| FPGA developer preview | Stabilize ABI and prove digital behavior on Tang Nano 9K | Passing RTL/firmware/board matrix and reproducible bitstream |
-| A0 MPW learning silicon | Validate pad, reset, boot, I/O and manufacturing assumptions | Foundry sign-off reports plus packaged-die/board bring-up |
-| Production MCU | Deliver a third-party-supported chip and development board | Qualified process/IP, production test, lifecycle/security/update policy |
+| FPGA 开发预览 | 固定 ABI，验证数字行为 | RTL/固件/实板矩阵与可重复位流 |
+| A0 MPW 学习芯片 | 验证 pad、复位、启动、I/O 和制造假设 | 代工签核报告与封装芯片/板级 bring-up |
+| 量产 MCU | 面向第三方长期交付 | 合格工艺/IP、量产测试、供应/安全/升级生命周期策略 |
 
-Open-source PDK flows are valuable learning and pre-silicon verification tools,
-but they do not by themselves establish a production-capable MCU supply chain.
-The project must name its exact PDK and contractual manufacturing path before
-claiming anything stronger than an experimental test chip.
+开源 PDK 流程有助于学习和预硅验证，但不能单独构成可量产 MCU 的供应链或签核证据。

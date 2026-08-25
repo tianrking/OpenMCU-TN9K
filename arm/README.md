@@ -1,19 +1,15 @@
-# ARM backend reservation (no ARM IP included)
+# ARM 后端保留边界（仓库不包含 ARM IP）
 
-This directory intentionally contains no ARM/Cortex-M RTL, netlist or generated
-IP. A synthesizable ARM CPU is not a generic dependency that can be fetched and
-republished without an applicable Arm license, delivery package and explicit
-redistribution rights.
+此目录有意不包含 ARM/Cortex-M RTL、综合网表或生成的 IP。可综合 ARM CPU 不是可以随意下载、再分发的通用依赖；它需要适用的 Arm 许可证、合法交付包和明确的再分发权利。
 
-The `vendor/arm-designstart/` and `vendor/arm-ip/` directories are ignored by
-Git for that reason. An authorized integrator may use this repository's public
-peripheral and board contracts, but must create an independent ARM target with
-its own CPU/bus bridge, startup code, linker script, validation suite and
-licensing record. It must not replace or silently alter the RV32IMC target.
+因此，`vendor/arm-designstart/` 和 `vendor/arm-ip/` 被 Git 忽略。取得授权的集成方可以复用本仓库公开的外设寄存器合同与板级合同，但必须独立建立 ARM 目标，并提供：
 
-Read the complete Chinese integration gate before beginning:
-[`docs/zh-CN/arm-license-and-integration.md`](../docs/zh-CN/arm-license-and-integration.md).
+1. 合法的 CPU/IP 来源、版本和许可证记录；
+2. ARM CPU/总线桥、启动代码、链接脚本和工具链配置；
+3. 不静默改变 RV32IMC 目标的兼容策略；
+4. 独立的仿真、P&R、实板下载、更新恢复和公开再分发验证；
+5. 面向客户的维护、安全、调试和升级边界。
 
-Until an authorized, reproducible ARM build has passed the same simulation,
-P&R, board-programming and public-redistribution checks as the RISC-V target,
-this directory is a boundary marker—not an ARM MCU release.
+在开始之前阅读完整的 [ARM 授权与集成门槛](../docs/zh-CN/arm-license-and-integration.md)。
+
+在获得授权且可重复构建的 ARM 版本通过与 RISC-V 目标等价的仿真、P&R、板级烧录和分发检查之前，本目录只是边界标记，**不是 ARM MCU 发布物**。

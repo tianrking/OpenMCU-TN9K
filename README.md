@@ -1,166 +1,162 @@
 # OpenMCU-TN9K
 
-`OpenMCU-TN9K` is the FPGA-prototype backend of an MCU project that is intended
-to grow into a real ASIC-backed development platform. It is deliberately not a
-one-off RISC-V demo: the hardware register contract, SDK, simulator, Tang Nano
-9K build, and future ASIC wrapper are treated as one product.
+<p align="center">
+  <strong>面向 Tang Nano 9K 的可独立烧录 RISC-V FPGA MCU 平台</strong><br/>
+  <sub>一次固化 FPGA 平台，之后像普通 MCU 一样通过 UART 更新客户应用</sub>
+</p>
 
-## Project promise
+![OpenMCU 产品固件分层](docs/zh-CN/assets/openmcu-product-flow.svg)
 
-The same bare-metal application must be able to run, with only a board target
-change, in three environments:
+> **产品原则：客户程序绝不和 FPGA 配置混在一起。**
+>
+> `omcu_tn9k_mcu.fs` 只包含稳定的硬件平台和启动器；日常业务程序编译为独立的 `*.omcu`，经 UART0 写入 FPGA 内独立的 User Flash。客户升级应用时，不需要综合 Verilog、布局布线、生成 `.fs` 或重烧配置 Flash。
 
-```text
-software simulation -> Tang Nano 9K FPGA -> OpenMCU-A0 ASIC board
+## 这是什么
+
+OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 RV32IMC CPU、ROM/SRAM、GPIO、UART、定时器、SPI、I2C、看门狗、PWM、IRQCTRL、SYSCTRL 和 User Flash 控制器组合成一个具有固定寄存器 ABI 的 MCU 平台。
+
+PicoRV32 是 FPGA 配置内部使用的 CPU IP 依赖；它不是客户每次开发应用都要“引用”的库。对应用开发者而言，本项目提供的是普通的裸机 SDK、链接脚本、应用镜像格式和串口升级工具。
+
+```mermaid
+flowchart TB
+  subgraph 平台层[一次性固化的 FPGA 平台]
+    CPU[PicoRV32 RV32IMC] --> MMIO[OpenMCU MMIO / 寄存器 ABI]
+    MMIO --> PERI[GPIO · UART · TIMER · SPI · I2C · WDT · PWM · IRQCTRL]
+    CPU --> ROM[8 KiB Boot ROM：启动器]
+    CPU --> RAM[44 KiB SRAM]
+    MMIO --> UF[76 KiB GW1NR User Flash 控制器]
+  end
+  subgraph 客户层[可反复更新的客户 MCU 应用]
+    APP[C/C++ 裸机程序] --> ELF[RV32IMC ELF]
+    ELF --> IMG[.omcu 镜像]
+    IMG -->|UART0| UF
+    UF -->|验证后复制| RAM
+  end
 ```
 
-The CPU implementation may change during early bring-up, but the following
-contracts must not change silently:
+## 两条严格分开的交付链
 
-- RISC-V toolchain ABI and startup convention;
-- memory map and peripheral register definitions;
-- interrupt and reset semantics;
-- firmware-image and update format;
-- public SDK API and generated device metadata.
+| 角色 | 要做什么 | 产物 | 是否会改 FPGA 配置 Flash |
+| --- | --- | --- | --- |
+| 硬件工程师 / 工厂 | 构建并验证 MCU 平台、首次固化 | `omcu_tn9k_mcu.fs` + manifest | 会；仅平台发布、生产或维修时 |
+| 客户 / 应用工程师 | 编译业务程序、串口升级 | `my_product_app.omcu` | 不会；只改独立 User Flash 槽 |
+| 测试工程师 | 运行 RTL、SDK、P&R、实板矩阵 | 日志、报告、可追溯证据 | 视测试场景而定 |
 
-## Status
+### 正常客户流程
 
-This repository is at the executable MCU-prototype stage. It contains the v0
-memory-map contract, portable GPIO/UART/timer/SPI/I2C/watchdog/PWM/IRQCTRL/
-SYSCTRL RTL, a PicoRV32 RV32IMC CPU adapter, SDK headers/examples, real Tang
-Nano 9K pad bindings, safe SRAM-first programming tooling, and the Tang/ASIC
-separation rules. Directed end-to-end simulation executes compiled RISC-V
-firmware from ROM through the real MMIO fabric, including the fixed interrupt
-vector, C handler and return path, and reaches the actual Tang top-level ports.
+```mermaid
+sequenceDiagram
+  participant Dev as 客户应用开发者
+  participant Host as PC 升级工具
+  participant Boot as FPGA 内启动器
+  participant Flash as User Flash 双槽
+  participant Ram as 应用 SRAM
 
-The current v0.4 external-interrupt implementation has been synthesized,
-placed, routed and packed for the exact `GW1NR-LV9QN88PC6/I5` target with the
-compiled `omcu_irq_smoke` ROM. At 8 KiB ROM plus 44 KiB SRAM, the final routed
-report achieved 45.554 MHz against the 27 MHz constraint (15.085 ns calculated
-margin), used 5,892/8,640 LUT4s (68.19%), 1,643/6,480 DFFs (25.35%), and all
-26/26 BSRAMs. This is the real resource boundary of the all-BSRAM Tang Nano 9K
-configuration, not an estimate.
-
-The build flow expands each sparse SDK `.hex` into a dense NOP-padded ROM
-image before Yosys parses `$readmemh`, then records hashes for the source
-image, effective ROM image, post-synthesis BSRAM initialization, post-P&R
-BSRAM initialization, and packed bitstream. The current IRQ image's source ROM
-SHA-256 is `1409af0b9d1a1498520e6378752a2959c7d58979a4d5f0c232fa5bdd253d0b4d`,
-its synthesis/P&R BSRAM fingerprint is
-`173d1cf6c36fc89aedc62a7e5bff39cb255e064d2bfccaa616ec0bc604295c82`, and its
-packed artifact SHA-256 is
-`71e660f93b7ff190adfebffc697944b03c5175309f7bb5523a811448de5f5395`.
-The source and P&R fingerprints match across all four boot-ROM BSRAM cells.
-Earlier board-demo and peripheral-smoke images remain documented as historical
-pre-v0.4 ROM-selection evidence; they are not substituted for the current
-IRQ-enabled implementation. See [`docs/open-pnr.md`](docs/open-pnr.md) and the
-Chinese [developer guide](docs/zh-CN/README.md).
-
-That is a meaningful FPGA-build result, not a physical-board pass: no bitstream
-has been programmed into a Tang board in the current workspace. The supplied
-programming script validates the manifest/hash and defaults to volatile SRAM,
-but it cannot substitute for board-level electrical and peripheral regression.
-This project also does not claim vendor-flow equivalence or ASIC layout
-validation.
-
-The workstation has no globally installed Verilog simulator, RISC-V cross
-compiler, Gowin EDA or openFPGALoader on `PATH`. Workspace-local Icarus Verilog,
-a SHA-256-verified xPack GNU RISC-V toolchain, and pinned YoWASP/Yosys,
-nextpnr-himbaechel and Apycula packages run the directed RTL, compiled-SDK and
-open-P&R checks. See [`docs/validation.md`](docs/validation.md).
-
-For portable RTL smoke tests, install Icarus Verilog or point the test runner
-at an unpacked copy: `$env:OMCU_IVERILOG_BIN = 'C:\path\to\iverilog\bin'`.
-
-## v0 scope
-
-| Implemented in the current prototype | Reserved ABI / next implementation | Deliberately deferred |
-| --- | --- | --- |
-| RV32IMC adapter, 8 KiB ROM / 44 KiB SRAM Tang configuration | QSPI XIP and external-flash loader | Internal Flash / eFlash |
-| GPIO0, UART0, TIMER0, SPI0, I2C0, WDT0, PWM0, IRQCTRL, SYSCTRL | QSPI XIP and external-flash loader | ADC, DAC, analogue reference |
-| Generated C register header, interrupt ABI, Tang board header, and SDK examples | JTAG/serial-debug | USB PHY, Ethernet PHY, radio |
-| Tang 27 MHz / LED / UART / SPI / I2C / PWM / GPIO target, P&R and manifest-checked downloader | Physical-board release | Low-power sign-off, production packaging and ATE |
-
-The first ASIC should boot from external QSPI flash. That keeps the A0 chip
-fully real and useful without pretending that an open-flow test chip already
-has qualified embedded Flash or analogue IP.
-
-## Repository layout
-
-```text
-docs/                  Architecture, SDK and validation contracts
-asic/                  Explicit FPGA-to-ASIC handoff and tapeout gates
-rtl/bus/               Technology-neutral MMIO/bus definitions
-rtl/cpu/               Replaceable CPU adapters and executable system wrappers
-rtl/peripherals/       Technology-neutral peripheral RTL
-rtl/platform/sim/      Simulation-specific wrappers
-rtl/platform/tangnano9k/  Gowin-specific clock, RAM and pin wrappers
-sdk/                   Public headers and bare-metal examples
-tests/                 RTL, firmware and board-level test plan
-third_party/           Pinned, separately licensed upstream dependencies
+  Dev->>Host: 编译 my_app.omcu
+  Host->>Boot: HELLO（按复位进入连接窗口）
+  Boot-->>Host: 平台 ABI / 当前槽状态
+  Host->>Boot: BEGIN、DATA × N、END
+  Boot->>Flash: 写入非当前槽并回读 CRC
+  Boot->>Flash: 原子提交新槽
+  Boot-->>Host: ACK
+  Host->>Boot: BOOT
+  Boot->>Ram: 验证、复制镜像
+  Boot->>Ram: 跳转到应用复位向量
 ```
 
-## Design principles
+完整协议、掉电回退、产物命名和恢复步骤见 [独立 MCU 固件开发与升级](docs/zh-CN/mcu-firmware-update.md)。
 
-1. **No vendor primitive leaks into the SoC contract.** Gowin BRAM/PLL and
-   ASIC SRAM/pad cells belong behind platform wrappers.
-2. **A register is an API.** Every register has reset, width, access and
-   side-effect semantics before an SDK function is written.
-3. **FPGA success is not ASIC sign-off.** FPGA testing proves functionality;
-   ASIC timing, DRC/LVS, power integrity, pad ring, DFT and packaging remain
-   separate gates.
-4. **A demo is not an SDK.** Public release requires versioned headers,
-   linker scripts, boot/update tooling, documentation and regression tests.
+## 快速开始
 
-## Starting references, not code to fork blindly
+### 1. 首次构建并固化产品 FPGA
 
-- [NEORV32](https://github.com/stnolting/neorv32): complete MCU-class soft SoC
-  and software framework; useful architecture reference, but VHDL-based.
-- [Ibex Demo System](https://github.com/lowRISC/ibex-demo-system): a useful
-  SystemVerilog reference for debug, UART, GPIO, PWM, timer and SPI.
-- [PicoSoC](https://github.com/YosysHQ/picorv32/tree/main/picosoc): useful
-  minimal external-SPI-flash boot reference.
-- [OpenROAD Flow Scripts](https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts): future RTL-to-GDS learning and ASIC-flow reference.
+> 这一步属于平台交付，不是客户每次写应用时的步骤。
 
-See [`docs/architecture.md`](docs/architecture.md) for the actual OpenMCU
-contract and [`docs/evidence.md`](docs/evidence.md) for the Tang Nano 9K gap
-assessment. The usable v0 peripheral details are in
-[`docs/registers.md`](docs/registers.md).
+```powershell
+git submodule update --init --recursive
+$env:PATH = 'C:\toolchains\riscv-none-elf\bin;' + $env:PATH
 
-## Current CPU implementation record
+# 生成启动器 .hex 和示例独立应用 .omcu。
+.\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
 
-The first executable adapter uses the ratified unprivileged RV32IMC configuration of
-[PicoRV32](https://github.com/YosysHQ/picorv32), pinned as a submodule at
-`a473fc8fca393771d83b0ffcf0b14db3393339d8`. It is a bring-up choice rather
-than a public peripheral dependency: the CPU only sees the OpenMCU memory map
-and portable MMIO fabric. v0.4 exposes six external sources through the
-documented PicoRV32 custom-IRQ ABI at vector `0x10`; it does not claim standard
-privileged RISC-V CSRs or a PLIC. Its exact licence and provenance are in
-[`LICENSES.md`](LICENSES.md); the application contract is in
-[`docs/interrupts.md`](docs/interrupts.md).
+# 构建带独立 User Flash 启动器的产品 FPGA 位流。
+$tools = 'C:\toolchains\yowasp-gowin\Scripts'
+.\scripts\build-tangnano9k-open.ps1 -McuMode `
+  -ToolBin $tools `
+  -BuildDirectory .\build\tangnano9k-mcu
 
-## ARM CPU route: explicit authorization gate
+# 先易失 SRAM 验证，确认后才写入配置 Flash。
+.\scripts\program-tangnano9k.ps1 `
+  -BitstreamPath .\build\tangnano9k-mcu\omcu_tn9k_mcu.fs `
+  -Destination sram
+```
 
-The repository does **not** include an ARM/Cortex-M RTL core or claim an ARM
-bitstream. Such IP has separate licensing and redistribution conditions; an
-unlicensed placeholder would not be a usable ARM MCU. The public RISC-V design
-is Apache-2.0 (except separately licensed dependencies), while the ARM route is
-documented as an independent, authorization-dependent backend in
-[`docs/zh-CN/arm-license-and-integration.md`](docs/zh-CN/arm-license-and-integration.md).
-Once an owner supplies a valid core license and delivery approved for this
-Gowin target, it can reuse the documented peripheral/pad contract without
-placing proprietary core files in Git.
+完成实板检查后，才执行 `-Destination flash -ConfirmFlash`。下载脚本会核对相邻的 `omcu_tn9k_mcu_manifest.json` 和位流 SHA-256。
 
-## Reproducibility scaffold
+### 2. 客户开发并更新 MCU 应用
 
-The repository contains a machine-readable register specification, a checked
-generator for the C register header, Windows and POSIX RV32IMC SDK build
-wrappers, an open Tang Nano P&R/packing script, a SHA-256/manifest-aware
-programming script and CI that builds every SDK target on Windows, Linux and
-macOS (with full RTL execution on Linux). These are deliberately distinguished
-from release evidence: CI is not evidence until it passes for the final pushed
-commit, and no board programming result exists yet.
+```powershell
+# 构建自己的 omcu_add_application() 目标后：
+python -m pip install pyserial
+python .\tools\omcu_image.py validate --image .\build\sdk\my_product_app.omcu
+python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
+```
 
-The FPGA-to-chip boundary is documented in [`asic/README.md`](asic/README.md):
-it defines a credible external-QSPI A0 rather than implying the Tang bitstream
-is already an ASIC tapeout.
+工具默认在 8 秒内寻找启动器。若设备已经运行旧应用，先启动工具，再按一次复位键；串口使用 `115200 / 8N1`、3.3 V TTL 电平、TX/RX 交叉并共地。
+
+## 产品级应用存储模型
+
+| 项目 | 固定值 | 目的 |
+| --- | ---: | --- |
+| Boot ROM | 8 KiB | 位于 FPGA 配置内部，只放稳定启动器 |
+| SRAM | 44 KiB | 40 KiB 客户应用运行区 + 4 KiB 启动器临时区 |
+| User Flash | 76 KiB | 与 FPGA 配置 Flash 分离的持久应用存储 |
+| 应用槽 | 2 × 36 KiB | A/B 轮换写入，保留上一个可启动版本 |
+| 单应用最大载荷 | 36,800 B | 64 B 头部之外，按 32 位对齐 |
+| 镜像完整性 | 头部 CRC32 + 载荷 CRC32 | 拒绝损坏、错误 ABI 或未提交镜像 |
+
+升级必须经历 `STAGING → 载荷写入与回读校验 → COMMITTED`。只有最后的状态字写入使新槽可启动，因此更新中掉电不会让半写入的应用替代旧的有效应用。
+
+**安全边界：** CRC32 解决偶发损坏和断电一致性，不提供来源认证或防篡改能力。面向攻击者可接触的升级接口，发布产品前还需要签名验证、密钥管理、调试锁定和回滚策略。
+
+## 代码与文档导航
+
+```text
+rtl/                         可综合 SoC、外围设备和 Tang Nano 9K 平台封装
+rtl/peripherals/omcu_user_flash.sv  GW1NR User Flash 控制器
+sdk/                         C/C++ SDK、启动代码、链接脚本和示例
+sdk/bootloader/              独立应用 A/B 启动与 UART 更新器
+tools/omcu_image.py          .omcu 打包、检查和校验
+tools/omcu_flash.py          PC 端 UART 更新客户端
+scripts/                     SDK、FPGA 构建、项目检查和受 manifest 保护的下载脚本
+tests/                       RTL、固件、平台和工具协议测试
+docs/zh-CN/                  中文产品、硬件、升级与验证指南
+asic/                        FPGA 到 ASIC 的明确交接边界
+arm/                         ARM 后端授权边界（不含 ARM IP）
+```
+
+- [中文开发总览](docs/zh-CN/README.md)
+- [独立 MCU 固件开发与升级](docs/zh-CN/mcu-firmware-update.md)
+- [构建与烧录](docs/zh-CN/build-and-program.md)
+- [硬件与引脚](docs/zh-CN/hardware-and-pins.md)
+- [外设与 SDK](docs/zh-CN/peripherals-and-sdk.md)
+- [中断开发约定](docs/zh-CN/interrupts.md)
+- [测试计划](tests/README.md)
+- [ASIC 交接边界](asic/README.md)
+
+## 两个使用模式，请不要混淆
+
+| 模式 | 顶层 | 适用场景 | 应用如何放入系统 |
+| --- | --- | --- | --- |
+| `bringup` | `omcu_tn9k_bringup_top` | RTL、外设、FPGA bring-up 回归 | 旧式 `.hex` 作为 FPGA ROM 初始化；不面向客户升级 |
+| `MCU 产品模式` | `omcu_tn9k_mcu_top` | 已固化后持续交付软件的设备 | 独立 `.omcu` 经 UART 写入 User Flash；推荐客户路径 |
+
+旧 `.hex → FPGA .fs` 流程仍保留，是为了已有的 RTL/编译器/P&R 回归，而不是产品应用更新接口。不要将 `omcu_add_firmware()` 生成的 `.hex` 当作客户可烧录固件。
+
+## 证据边界
+
+工程中明确区分：源码实现、自动化仿真/构建、P&R 结果、实体 Tang 板实测和量产资格。通过编译或 CI 不等于板级验证；FPGA 实板通过也不等于 ASIC 流片或量产认证。发布前请以 [验证与发布状态](docs/zh-CN/validation-and-release.md) 和 [测试计划](tests/README.md) 逐项记录证据。
+
+## 许可与上游依赖
+
+当前可执行 CPU 适配器基于已固定版本的 [PicoRV32](https://github.com/YosysHQ/picorv32) 子模块；其来源、版本和许可见 [LICENSES.md](LICENSES.md)。OpenMCU 的公开外围设备 ABI 与平台封装不要求客户工程直接引用 PicoRV32。ARM/Cortex-M RTL 不包含在本仓库；原因和授权接入规则见 [ARM 后端边界](arm/README.md)。

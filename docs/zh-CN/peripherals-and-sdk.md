@@ -4,6 +4,7 @@
 
 | 基址 | 外设 | Tang 顶层连接 |
 | ---: | --- | --- |
+| `0x2000_0000` | User Flash 窗口 | GW1NR 独立 User Flash；由启动器管理 A/B 应用槽 |
 | `0x4000_0000` | GPIO0 | LED0..5、扩展 GPIO0..2 |
 | `0x4000_1000` | UART0 | package pad 17/18 |
 | `0x4000_2000` | TIMER0 | 片内计数器 |
@@ -25,7 +26,8 @@
 
 const uint32_t required = OMCU_FEATURE_GPIO0 | OMCU_FEATURE_UART0 |
                           OMCU_FEATURE_SPI0 | OMCU_FEATURE_I2C0 |
-                          OMCU_FEATURE_WDT0 | OMCU_FEATURE_PWM0;
+                          OMCU_FEATURE_WDT0 | OMCU_FEATURE_PWM0 |
+                          OMCU_FEATURE_USER_FLASH;
 
 if (!omcu_hw_abi_is_compatible(OMCU_HW_ABI_MAJOR) ||
     !omcu_hw_has_feature(required)) {
@@ -35,6 +37,8 @@ if (!omcu_hw_abi_is_compatible(OMCU_HW_ABI_MAJOR) ||
 
 不要仅凭 bitstream 文件名判断硬件版本。`SYSCTRL` 会报告 ABI 主版本、功能位和实际
 ROM/SRAM KiB；如果 ABI 主版本不同，应用应拒绝运行。
+
+`OMCU_USER_FLASH_BASE` 是启动器的底层存储窗口，不是应用的通用文件系统或应用配置区。正常客户应用不应直接擦写该区域：启动器需要保持 A/B 槽、镜像头、状态字和回退语义一致。应用固件请使用 `tools/omcu_flash.py` 更新，详见 [独立 MCU 固件开发与升级](mcu-firmware-update.md)。
 
 ## 常见任务
 
@@ -132,11 +136,14 @@ PWM 为单通道边沿对齐输出，`PERIOD` 为包含端点的 top 值。看�
 ## 把应用加进 SDK
 
 1. 新建 `sdk/examples/<name>/main.c`，只使用 `omcu.h` / `omcu_tn9k.h` 的公开 API。
-2. 在 `sdk/CMakeLists.txt` 增加 `omcu_add_firmware(omcu_<name> examples/<name>/main.c)`。
-3. 在 Windows 执行 `scripts/build-sdk.ps1`，或在 Linux/macOS 执行
-   `sh scripts/build-sdk.sh`，检查 `.elf`、`.map`、`.hex`。
-4. 将 `.hex` 作为 `build-tangnano9k-open.ps1 -RomInitFile` 输入，不要手改 RTL ROM。
-5. 为新外设事务补充 RTL testbench 和实体板清单，再发布。
+2. 在 `sdk/CMakeLists.txt` 增加：
 
-SDK 的当前链接脚本专门对应 Tang 满配 8 KiB ROM / 44 KiB SRAM。若为更小的实验配置
-编译，必须创建匹配的 target linker script，而不是让链接器静默生成越界镜像。
+   ```cmake
+   omcu_add_application(omcu_<name> examples/<name>/main.c)
+   ```
+
+3. 在 Windows 执行 `scripts/build-sdk.ps1`，或在 Linux/macOS 执行 `sh scripts/build-sdk.sh`，检查 `.elf`、`.map`、`.bin`、`.omcu`。
+4. 使用 `tools/omcu_image.py validate` 核对 `.omcu`，再通过 `tools/omcu_flash.py` 写入已经固化的产品 FPGA。
+5. 为新外设事务补充 RTL testbench、串口更新回归和实体板清单，再发布。
+
+`omcu_add_application()` 专门匹配固定的 40 KiB 应用 SRAM 与 User Flash A/B 槽；它不是把程序编进 FPGA ROM。`omcu_add_firmware()` 仅保留给旧式 bring-up 回归。若实验性改变 ROM/SRAM 几何，必须使用独立目标和匹配的链接脚本，不能混入产品 MCU 模式。

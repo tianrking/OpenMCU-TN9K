@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">OpenMCU-TN9K 产品固件分层流程</title>
+  <desc id="desc">上层是一次性的 FPGA 配置固化；下层是客户经 UART 重复升级 MCU 应用，应用储存在独立的 User Flash 双槽中。</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#071426"/>
+      <stop offset="1" stop-color="#17233e"/>
+    </linearGradient>
+    <linearGradient id="fpga" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#1b8d8c"/>
+      <stop offset="1" stop-color="#2dc9bd"/>
+    </linearGradient>
+    <linearGradient id="mcu" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#5261df"/>
+      <stop offset="1" stop-color="#8b78f2"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-opacity=".24"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#94a8cb"/>
+    </marker>
+    <style>
+      .label { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; fill: #ecf4ff; }
+      .muted { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; fill: #b6c4dc; }
+      .title { font: 700 31px "Segoe UI", "Microsoft YaHei", sans-serif; fill: #ffffff; }
+      .section { font: 700 18px "Segoe UI", "Microsoft YaHei", sans-serif; fill: #dbe9ff; letter-spacing: 1px; }
+      .cardtitle { font: 700 18px "Segoe UI", "Microsoft YaHei", sans-serif; fill: #ffffff; }
+      .cardbody { font: 14px "Segoe UI", "Microsoft YaHei", sans-serif; fill: #eff7ff; }
+      .small { font: 13px "Segoe UI", "Microsoft YaHei", sans-serif; fill: #c2d0e8; }
+    </style>
+  </defs>
+  <rect width="1200" height="630" rx="28" fill="url(#background)"/>
+  <text x="64" y="63" class="title">OpenMCU-TN9K：一次固化 FPGA，重复烧录 MCU 应用</text>
+  <text x="64" y="94" class="muted" font-size="16">FPGA 配置与客户程序是两条独立产物链；客户升级不需要重新综合、布局布线或重烧 FPGA。</text>
+
+  <rect x="50" y="132" width="1100" height="174" rx="18" fill="#112940" stroke="#2d8d8a" stroke-width="1"/>
+  <rect x="73" y="153" width="154" height="32" rx="16" fill="#1c5a59"/>
+  <text x="92" y="175" class="section">一次：FPGA 固化</text>
+  <text x="73" y="211" class="small">由硬件/工厂工程师完成，正常客户不接触这一层</text>
+  <g filter="url(#shadow)">
+    <rect x="73" y="231" width="206" height="52" rx="12" fill="url(#fpga)"/>
+    <rect x="367" y="231" width="206" height="52" rx="12" fill="url(#fpga)"/>
+    <rect x="661" y="231" width="206" height="52" rx="12" fill="url(#fpga)"/>
+    <rect x="955" y="231" width="154" height="52" rx="12" fill="url(#fpga)"/>
+  </g>
+  <text x="102" y="253" class="cardtitle">Bootloader .hex</text>
+  <text x="103" y="273" class="cardbody">不可变启动 ROM</text>
+  <text x="402" y="253" class="cardtitle">MCU FPGA .fs</text>
+  <text x="390" y="273" class="cardbody">CPU + 外设 + User Flash 控制器</text>
+  <text x="700" y="253" class="cardtitle">SRAM 试运行</text>
+  <text x="691" y="273" class="cardbody">功能确认、核对 manifest</text>
+  <text x="983" y="253" class="cardtitle">配置 Flash</text>
+  <text x="986" y="273" class="cardbody">断电保持</text>
+  <line x1="285" y1="257" x2="355" y2="257" stroke="#94a8cb" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="579" y1="257" x2="649" y2="257" stroke="#94a8cb" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="873" y1="257" x2="943" y2="257" stroke="#94a8cb" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="50" y="336" width="1100" height="238" rx="18" fill="#171c43" stroke="#6675df" stroke-width="1"/>
+  <rect x="73" y="357" width="166" height="32" rx="16" fill="#444fb7"/>
+  <text x="92" y="379" class="section">重复：MCU 应用更新</text>
+  <text x="73" y="415" class="small">由客户/固件开发者完成；只传输小型 .omcu 应用镜像</text>
+  <g filter="url(#shadow)">
+    <rect x="73" y="445" width="174" height="76" rx="12" fill="url(#mcu)"/>
+    <rect x="320" y="445" width="174" height="76" rx="12" fill="url(#mcu)"/>
+    <rect x="567" y="445" width="174" height="76" rx="12" fill="url(#mcu)"/>
+    <rect x="814" y="445" width="174" height="76" rx="12" fill="url(#mcu)"/>
+    <rect x="1061" y="445" width="64" height="76" rx="12" fill="url(#mcu)"/>
+  </g>
+  <text x="94" y="474" class="cardtitle">C/C++ 应用</text>
+  <text x="93" y="497" class="cardbody">编译为 .omcu</text>
+  <text x="347" y="474" class="cardtitle">UART0</text>
+  <text x="337" y="497" class="cardbody">115200 / 8N1</text>
+  <text x="591" y="474" class="cardtitle">启动器校验</text>
+  <text x="584" y="497" class="cardbody">帧 CRC、ABI、镜像 CRC</text>
+  <text x="839" y="474" class="cardtitle">User Flash A/B</text>
+  <text x="839" y="497" class="cardbody">双槽原子提交 / 回退</text>
+  <text x="1069" y="474" class="cardtitle">SRAM</text>
+  <text x="1072" y="497" class="cardbody">运行</text>
+  <line x1="253" y1="483" x2="308" y2="483" stroke="#aeb9ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="500" y1="483" x2="555" y2="483" stroke="#aeb9ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="747" y1="483" x2="802" y2="483" stroke="#aeb9ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="994" y1="483" x2="1049" y2="483" stroke="#aeb9ff" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="73" y="553" class="small">断电或串口中断发生在最终提交之前：旧的已提交槽仍可启动。CRC 负责完整性，不等于签名认证。</text>
+</svg>

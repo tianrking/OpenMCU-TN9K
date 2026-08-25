@@ -1,58 +1,70 @@
-# Tang Nano 9K OpenMCU platform backend
+# Tang Nano 9K 平台封装
 
-`omcu_tn9k_bringup_top.sv` is the executable Tang Nano 9K MCU wrapper for
-`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`. It runs the portable RV32IMC SoC at the
-board's 27 MHz input, synchronizes reset release, and maps portable peripherals
-onto actual top-level pads:
+此目录提供 `GW1NR-LV9QN88PC6/I5`（`GW1N-9C`）的 OpenMCU FPGA 后端。它处理 27 MHz 时钟、复位同步、Gowin RAM/Flash 原语和经过约束文件审查的外部管脚；通用 SoC 和寄存器 ABI 不应泄漏 Gowin 原语。
 
-- GPIO0[0:5] -> six active-low on-board LEDs;
-- UART0 -> package pads 17/18;
-- SPI0 -> pads 38/37/36/39 (shared J5/TF-card signal group);
-- I2C0 -> true open-drain pads 26/27;
-- PWM0 -> pad 25;
-- GPIO0[6:8] -> tri-state expansion pads 28/29/30.
+## 两个顶层，必须选对
 
-The default 8 KiB ROM + 44 KiB SRAM configuration is intentionally an
-all-BSRAM Tang design. The open P&R release flow produces the authoritative
-resource report; it has successfully placed and routed this geometry using
-26/26 BSRAMs. It is still parameterized for controlled experiments, but a
-different memory geometry requires a matching SDK linker script.
+| 顶层 | 用途 | ROM 内容 | 客户应用路径 |
+| --- | --- | --- | --- |
+| `omcu_tn9k_bringup_top` | 旧式 RTL / 外设 / P&R bring-up | 可替换 `.hex` 测试程序 | 不提供产品升级承诺 |
+| `omcu_tn9k_mcu_top` | 推荐的产品 MCU 模式 | 固定 `omcu_bootloader.hex` | `.omcu → UART0 → User Flash A/B` |
 
-## Build a manifest-bound `.fs`
+`omcu_tn9k_mcu_top` 使用 GW1NR 的 608 Kbit User Flash（76 KiB）控制器。它与 FPGA 配置 Flash 是不同的存储域：前者储存客户应用，后者只储存稳定的 FPGA 平台配置。
 
-Initialize the separately licensed CPU source, build an SDK ROM image, then
-run the pinned open Gowin flow:
+## 外设到实际管脚的映射
+
+| 逻辑资源 | Tang Nano 9K 管脚 / 说明 |
+| --- | --- |
+| GPIO0[0:5] | 六个板载低有效 LED |
+| UART0 | 封装管脚 17 / 18 |
+| SPI0 | 38 / 37 / 36 / 39，与 J5 / TF 信号组共享 |
+| I2C0 | 26 / 27，真正开漏结构，需要正确的外部上拉 |
+| PWM0 | 25 |
+| GPIO0[6:8] | 三态扩展管脚 28 / 29 / 30 |
+
+物理电平、连接器编号、SPI/TF 冲突和 I2C 上拉不是 RTL 仿真可证明的事项，接线前请先阅读 [硬件与引脚](../../../docs/zh-CN/hardware-and-pins.md)。
+
+## 构建产品 MCU 位流
+
+先构建 SDK，以获得启动器 ROM；再调用 `-McuMode`。该模式固定为 8 KiB ROM + 44 KiB SRAM，拒绝任意更改该产品内存几何，避免 SDK 链接脚本与硬件不一致。
 
 ```powershell
-git submodule update --init --recursive
 .\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
-
-$tools = 'C:\path\to\yowasp-gowin\Scripts'
-.\scripts\build-tangnano9k-open.ps1 -ToolBin $tools `
-  -BuildDirectory .\build\tangnano9k-board-demo `
-  -RomInitFile .\build\sdk\omcu_tn9k_board_demo.hex
+$tools = 'C:\toolchains\yowasp-gowin\Scripts'
+.\scripts\build-tangnano9k-open.ps1 -McuMode `
+  -ToolBin $tools `
+  -BuildDirectory .\build\tangnano9k-mcu
 ```
 
-The output directory contains a packed `.fs`, its SHA-256 manifest, synthesis
-log, P&R log and JSON reports. It also contains the generated dense
-`omcu_rom_image.hex`; the manifest hashes both the requested SDK image and this
-effective ROM image, then records matching synthesized/P&R BSRAM initialization
-fingerprints. The script checks the exact device, all canonical RTL sources,
-the CST/SDC constraint set and timing against 27 MHz.
+输出目录包含：
 
-## Download policy
+- `omcu_tn9k_mcu.fs`：待下载 FPGA 位流；
+- `omcu_tn9k_mcu_manifest.json`：设备、顶层、模式、位流哈希、ROM 初始化、User Flash 布局和资源报告；
+- `omcu_rom_image.hex`：为 `$readmemh` 生成的稠密启动器 ROM；
+- Yosys / nextpnr 日志和 JSON 报告。
 
-Use the provided hash/manifest-checked script. It defaults to volatile SRAM;
-Flash requires an additional deliberate confirmation:
+开放流程会检查设备、全部规范 RTL 源、CST/SDC 和 27 MHz 时序；它生成的 P&R 结果仍不等于实体板通过。
+
+## 下载策略
+
+始终使用受 manifest 与 SHA-256 保护的下载脚本。它默认写入易失 SRAM：
 
 ```powershell
 .\scripts\program-tangnano9k.ps1 `
-  -BitstreamPath .\build\tangnano9k-board-demo\omcu_tn9k_bringup.fs `
+  -BitstreamPath .\build\tangnano9k-mcu\omcu_tn9k_mcu.fs `
   -Destination sram
 ```
 
-See [`../../../docs/zh-CN/hardware-and-pins.md`](../../../docs/zh-CN/hardware-and-pins.md)
-for I/O voltages, I2C pull-ups, the SPI/TF-card conflict and the real-board
-release checklist. P&R and top-level simulation verify digital connectivity;
-they do not validate this particular board's USB programmer, voltage banks,
-connector numbering, LEDs or external-device behavior.
+只有复位、串口、LED、外设和异常恢复检查完成后，才使用：
+
+```powershell
+.\scripts\program-tangnano9k.ps1 `
+  -BitstreamPath .\build\tangnano9k-mcu\omcu_tn9k_mcu.fs `
+  -Destination flash -ConfirmFlash
+```
+
+`flash` 在此命令中指 FPGA 配置 Flash。产品交付后，客户不要再运行此命令更新业务程序；请改用 [`tools/omcu_flash.py`](../../../tools/omcu_flash.py) 更新 User Flash 应用槽。
+
+## 验证边界
+
+顶层仿真和 P&R 可以检查数字连接、复位释放、约束和资源；它们不能验证 USB 下载器、供电、Bank 电压、板载 LED 极性、真实串口电平、User Flash 擦写、TF 卡冲突或外围设备响应。板级测试必须单独记录，见 [测试计划](../../../tests/README.md)。

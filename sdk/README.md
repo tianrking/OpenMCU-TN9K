@@ -1,27 +1,25 @@
 # OpenMCU RV32IMC SDK
 
-This SDK builds freestanding `rv32imc` / `ilp32` firmware for the OpenMCU Tang
-Nano 9K target. The current public Tang linker layout is 8 KiB initialized ROM
-and 44 KiB SRAM; it matches the all-BSRAM FPGA top-level configuration. It
-emits an ELF, a map and a 32-bit-word Verilog `.hex` ROM image for each example.
+本 SDK 为 OpenMCU Tang Nano 9K 目标构建无操作系统的 `rv32imc` / `ilp32` 固件。它区分三种完全不同的产物，避免把客户应用误当成 FPGA ROM 输入。
 
-The source-level register API is portable OpenMCU v0.4. `omcu_tn9k.h` is the
-small board-support header: it provides the 27 MHz clock constant and logical
-LED / expansion GPIO masks, not raw FPGA package pin numbers.
+## 三种产物，三个用途
 
-## Prerequisites
+| CMake 目标类型 | 典型产物 | 用途 | 客户日常使用？ |
+| --- | --- | --- | --- |
+| `omcu_add_bootloader()` | `omcu_bootloader.elf` / `.hex` | 放入产品 FPGA 的 8 KiB Boot ROM | 否；随 FPGA 平台固化 |
+| `omcu_add_application()` | `my_app.elf` / `.bin` / `.omcu` | UART 写入独立 User Flash 后从 SRAM 运行 | **是** |
+| `omcu_add_firmware()` | `*.elf` / `*.hex` | 旧式 ROM、RTL 和 FPGA bring-up 回归 | 否；不得当作客户升级包 |
 
-- CMake 3.20 or later and Ninja;
-- a GNU bare-metal RISC-V toolchain with matching `gcc` and `objcopy`;
-- the PicoRV32 submodule initialized at its recorded revision.
+`omcu_mcu_blink` 是最小的独立 MCU 应用示例。它和以后客户写的应用一样，生成 `*.omcu`，不需要重新构建 FPGA 位流。
 
-The recommended xPack naming uses `riscv-none-elf-gcc` and
-`riscv-none-elf-objcopy`. Install a pinned xPack package with
-`@xpack-dev-tools/riscv-none-elf-gcc@15.2.0-1.1` (or provide an equivalent
-GNU bare-metal toolchain), put its `bin` directory on `PATH`, then run the
-checked build wrapper from the repository root.
+## 环境准备
 
-### Windows
+- CMake 3.20 或更新版本、Ninja；
+- 可用的 GNU bare-metal RISC-V `gcc` 与 `objcopy`；
+- PicoRV32 子模块处于记录的版本；
+- 只有实际串口升级时才需要 Python 3 和 `pyserial`。
+
+推荐使用 xPack 的 `riscv-none-elf-` 前缀。Windows 示例：
 
 ```powershell
 git submodule update --init --recursive
@@ -29,13 +27,9 @@ $env:PATH = 'C:\toolchains\riscv-none-elf\bin;' + $env:PATH
 .\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
 ```
 
-If CMake or Ninja is not on `PATH`, pass their absolute paths with `-Cmake` and
-`-Ninja`. The wrapper checks both compiler executables before configuring, so a
-wrong prefix fails before a partial firmware build is mistaken for a result.
-With CMake 3.24 or later, add `-Fresh` to discard generated CMake metadata in
-the explicitly selected SDK build directory before reconfiguring.
+如果 CMake 或 Ninja 不在 `PATH`，给包装脚本传入 `-Cmake`、`-Ninja` 的绝对路径。`-Fresh` 仅会清理明确指定的 SDK 构建目录，要求 CMake 3.24 或更新版本。
 
-### Linux and macOS
+Linux/macOS 使用同一 CMake 工程和链接脚本：
 
 ```sh
 git submodule update --init --recursive
@@ -43,53 +37,56 @@ export PATH="/opt/xpack-riscv-none-elf/bin:$PATH"
 sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 ```
 
-`build-sdk.sh` accepts `--build-dir`, `--cmake`, `--ninja` and `--fresh`, with
-the same intent as the PowerShell wrapper. It also honours
-`OMCU_SDK_BUILD_DIR`, `OMCU_RISCV_PREFIX`, `OMCU_CMAKE` and `OMCU_NINJA`.
-Both wrappers drive the same `sdk/cmake/riscv32-gcc.cmake` toolchain file, so
-the host operating system does not change the generated RV32IMC firmware ABI.
+## 新建一个可独立烧录的应用
 
-For a portable xPack bootstrap, install `xpm` from npm, initialize a temporary
-tooling directory, and install the pinned package there; xpm stores the binary
-in its platform-specific store and creates a local link. Do not add the
-temporary `package.json`, xPack cache, or generated build directory to a
-firmware commit.
+1. 新建 `sdk/examples/my_product_app/main.c`。
+2. 在 `sdk/CMakeLists.txt` 中添加：
 
-## Examples
+   ```cmake
+   omcu_add_application(my_product_app examples/my_product_app/main.c)
+   ```
 
-| Target | Purpose |
+3. 构建并校验生成物：
+
+   ```powershell
+   .\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
+   python .\tools\omcu_image.py inspect --image .\build\sdk\my_product_app.omcu
+   ```
+
+4. 将 `.omcu` 交给已固化 FPGA 平台的串口升级器：
+
+   ```powershell
+   python .\tools\omcu_flash.py --port COM5 `
+     --image .\build\sdk\my_product_app.omcu
+   ```
+
+详细升级流程、复位窗口、掉电恢复和安全限制见 [中文独立固件指南](../docs/zh-CN/mcu-firmware-update.md)。
+
+## 内存与 ABI 约定
+
+| 区域 | 地址 / 大小 | 归属 |
+| --- | --- | --- |
+| Boot ROM | `0x0000_0000`，8 KiB | FPGA 平台内固定启动器 |
+| 应用 SRAM | `0x1000_0000`，40 KiB | `omcu_add_application()` 的代码、数据、栈和中断帧 |
+| 启动器 SRAM | 应用区顶部之外的 4 KiB | 启动器校验、复制和 UART 会话；应用不可使用 |
+| User Flash | `0x2000_0000`，76 KiB | A/B 应用槽；由启动器控制 |
+
+应用镜像固定从 `0x1000_0000` 装载和入口，最大已对齐载荷为 36,800 字节。镜像包含硬件 ABI `0x00000005`、载荷长度、CRC32 和状态字；不要手工修改头部或绕开 `tools/omcu_image.py`。
+
+`omcu_tn9k.h` 只定义 27 MHz 时钟和逻辑 LED/GPIO 位掩码，不暴露 FPGA 封装管脚。物理管脚、电平和外设冲突请看 [Tang Nano 9K 平台说明](../rtl/platform/tangnano9k/README.md)。
+
+## 示例目录
+
+| 目标 | 目的 |
 | --- | --- |
-| `omcu_blink` | Logical LED blink. |
-| `omcu_uart_hello` | UART0 startup text. |
-| `omcu_isa_smoke` | RV32IMC compiler/CPU integration test. |
-| `omcu_peripheral_smoke` | GPIO, SPI0, PWM0 and WDT0 integration smoke test. |
-| `omcu_i2c_smoke` | I2C START/write/read/STOP target-fixture test. |
-| `omcu_irq_smoke` | TIMER0 -> IRQCTRL -> vector -> C hook -> `RETIRQ` integration test. |
-| `omcu_wdt_reset_smoke` | Intentional WDT reset through the Tang wrapper. |
-| `omcu_tn9k_board_demo` | UART, PWM, logical LED, three expansion GPIOs and WDT for a physical-board bring-up. |
+| `omcu_mcu_blink` | 独立 `.omcu` 形式的 LED 闪烁示例。 |
+| `omcu_blink` | 旧式 ROM LED 回归。 |
+| `omcu_uart_hello` | UART0 启动文字。 |
+| `omcu_isa_smoke` | 编译器、RV32IMC 指令和启动代码集成检查。 |
+| `omcu_peripheral_smoke` | GPIO、SPI0、PWM0、WDT0 集成检查。 |
+| `omcu_i2c_smoke` | I2C START/写/读/STOP 夹具检查。 |
+| `omcu_irq_smoke` | TIMER0 到 IRQCTRL、固定向量、C ISR、`RETIRQ` 的全链路检查。 |
+| `omcu_wdt_reset_smoke` | 经 Tang 封装的看门狗复位检查。 |
+| `omcu_tn9k_board_demo` | UART、PWM、逻辑 LED、扩展 GPIO 和 WDT 的板级 bring-up 示例。 |
 
-The public interrupt contract is intentionally PicoRV32-specific rather than a
-privileged RISC-V PLIC/CSR API. Applications define
-`omcu_irq_dispatch(uint32_t pending)` and use the `omcu_irqctrl_*` helpers;
-read [`docs/interrupts.md`](../docs/interrupts.md) before enabling a source.
-
-Use a generated `.hex` as the ROM input to the separate FPGA build; never edit
-an RTL ROM by hand:
-
-```powershell
-$tools = 'C:\toolchains\yowasp-gowin\Scripts'
-.\scripts\build-tangnano9k-open.ps1 -ToolBin $tools `
-  -RomInitFile .\build\sdk\omcu_tn9k_board_demo.hex
-```
-
-This creates a manifest-bound `.fs` bitstream; it does not program a board.
-Use `scripts/program-tangnano9k.ps1` for a manifest/hash-checked SRAM-first
-download after reading the Chinese [build and programming guide](../docs/zh-CN/build-and-program.md).
-
-## Memory-geometry rule
-
-`omcu_fpga_bringup.ld` belongs to the default 8 KiB ROM / 44 KiB RAM Tang
-configuration. If an experiment changes `-RomKiB` or `-SramKiB` in the FPGA
-build, create and select a matching linker script before building firmware.
-Using this linker file with a smaller hardware image can make an apparently
-successful build fail unpredictably at runtime.
+中断是 PicoRV32 自定义 ABI，而不是特权 RISC-V CSR/PLIC API。应用启用中断前必须阅读 [`docs/interrupts.md`](../docs/interrupts.md)。
