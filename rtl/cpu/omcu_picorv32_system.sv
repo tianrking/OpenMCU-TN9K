@@ -1,5 +1,10 @@
 `default_nettype none
 
+`ifndef OMCU_PCPI_DIVIDER_INCLUDED
+`include "rtl/cpu/omcu_pcpi_divider.sv"
+`endif
+`default_nettype none
+
 // `$readmemh` is elaborated while Yosys reads this module, before a parent
 // module parameter can reliably be changed with `chparam`.  FPGA build flows
 // that need a generated application image therefore provide this optional
@@ -30,6 +35,7 @@ module omcu_picorv32_system #(
   parameter integer PWM1_PRESENT = 0,
   parameter integer TIMER1_PRESENT = 0,
   parameter integer PINMUX_PRESENT = 0,
+  parameter integer DIAGNOSTICS_PRESENT = 0,
   // In product-loader mode applications execute from SRAM, so PicoRV32 must
   // enter external interrupts at the application's fixed SRAM vector.
   parameter integer APPLICATION_BOOT_MODE = 0,
@@ -41,6 +47,15 @@ module omcu_picorv32_system #(
 ) (
   input  logic                  clk_i,
   input  logic                  rst_ni,
+
+  // Retained by the platform reset sequencer.  They deliberately remain
+  // inputs to the portable SoC so an ASIC wrapper can supply equivalent
+  // reset-domain retention without importing Tang-specific logic here.
+  input  logic [31:0]           reset_cause_i,
+  input  logic [31:0]           reset_count_i,
+  input  logic                  boot_request_pending_i,
+  output logic                  software_boot_request_o,
+  output logic                  boot_request_ack_o,
 
   input  logic [GPIO_COUNT-1:0] gpio_in_i,
   output logic [GPIO_COUNT-1:0] gpio_out_o,
@@ -90,6 +105,7 @@ module omcu_picorv32_system #(
     ((UART1_PRESENT != 0) ? 32'h0000_0100 : 32'h0000_0000) |
     ((TIMER1_PRESENT != 0) ? 32'h0000_0200 : 32'h0000_0000) |
     ((PWM1_PRESENT != 0) ? 32'h0000_0400 : 32'h0000_0000) |
+    ((DIAGNOSTICS_PRESENT != 0) ? 32'h0000_0800 : 32'h0000_0000) |
     ((PINMUX_PRESENT != 0) ? 32'h0000_1000 : 32'h0000_0000) |
     ((USER_FLASH_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
   localparam logic [31:0] CPU_EXTERNAL_IRQ_BITS = 32'h0000_3f00 |
@@ -125,6 +141,14 @@ module omcu_picorv32_system #(
   logic user_flash_error;
   logic [31:0] cpu_irq_vector;
   logic [31:0] cpu_eoi;
+  logic        cpu_pcpi_valid;
+  logic [31:0] cpu_pcpi_insn;
+  logic [31:0] cpu_pcpi_rs1;
+  logic [31:0] cpu_pcpi_rs2;
+  logic        cpu_pcpi_wr;
+  logic [31:0] cpu_pcpi_rd;
+  logic        cpu_pcpi_wait;
+  logic        cpu_pcpi_ready;
 
   integer init_index;
 
@@ -196,10 +220,18 @@ module omcu_picorv32_system #(
     .UART1_PRESENT(UART1_PRESENT),
     .PWM1_PRESENT(PWM1_PRESENT),
     .TIMER1_PRESENT(TIMER1_PRESENT),
-    .PINMUX_PRESENT(PINMUX_PRESENT)
+    .PINMUX_PRESENT(PINMUX_PRESENT),
+    .BOOT_REQUEST_PRESENT(
+      ((APPLICATION_BOOT_MODE != 0) && (USER_FLASH_PRESENT != 0))
+    )
   ) mmio (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
+    .reset_cause_i(reset_cause_i),
+    .reset_count_i(reset_count_i),
+    .boot_request_pending_i(boot_request_pending_i),
+    .software_boot_request_o(software_boot_request_o),
+    .boot_request_ack_o(boot_request_ack_o),
     .req_i(mmio_select),
     .write_i(|cpu_mem_wstrb),
     .addr_i(cpu_mem_addr),
@@ -286,32 +318,51 @@ module omcu_picorv32_system #(
     end
   end
 
+  omcu_pcpi_divider compact_divider (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .pcpi_valid_i(cpu_pcpi_valid),
+    .pcpi_insn_i(cpu_pcpi_insn),
+    .pcpi_rs1_i(cpu_pcpi_rs1),
+    .pcpi_rs2_i(cpu_pcpi_rs2),
+    .pcpi_wr_o(cpu_pcpi_wr),
+    .pcpi_rd_o(cpu_pcpi_rd),
+    .pcpi_wait_o(cpu_pcpi_wait),
+    .pcpi_ready_o(cpu_pcpi_ready)
+  );
+
   picorv32 #(
-    .ENABLE_COUNTERS(1'b1),
-    .ENABLE_COUNTERS64(1'b1),
+    // Product diagnostics exposes a retained reset record and a coherent
+    // SYSCTRL run-tick counter. Omitting PicoRV32's duplicate cycle/instret
+    // CSRs preserves LUT headroom for the P1 peripheral profile.
+    .ENABLE_COUNTERS(1'b0),
+    .ENABLE_COUNTERS64(1'b0),
     .ENABLE_REGS_16_31(1'b1),
-    .ENABLE_REGS_DUALPORT(1'b1),
+    // One read port trades a small number of extra core cycles for the LUT
+    // headroom needed by the complete, physically routable P0/P1 MCU profile.
+    // It does not change the RV32IMC ISA or the firmware ABI.
+    .ENABLE_REGS_DUALPORT(1'b0),
     .LATCHED_MEM_RDATA(1'b0),
-    .TWO_STAGE_SHIFT(1'b1),
-    // The Tang Nano 9K profile intentionally spends LUTs on a barrel shifter
-    // and a fast multiplier instead of presenting a minimal RV32I demo. The
-    // selected ISA remains RV32IMC; external interrupts use the separately
-    // documented PicoRV32 custom-IRQ ABI, not privileged RISC-V CSRs.
-    .BARREL_SHIFTER(1'b1),
+    // A compact iterative shifter leaves enough fabric for the complete P1
+    // peripheral profile. Shift instructions remain part of RV32IMC; only
+    // their worst-case execution latency increases.
+    .TWO_STAGE_SHIFT(1'b0),
+    .BARREL_SHIFTER(1'b0),
     .TWO_CYCLE_COMPARE(1'b0),
     .TWO_CYCLE_ALU(1'b0),
     .COMPRESSED_ISA(1'b1),
     .CATCH_MISALIGN(1'b1),
     .CATCH_ILLINSN(1'b1),
-    .ENABLE_PCPI(1'b0),
+    .ENABLE_PCPI(1'b1),
     .ENABLE_MUL(1'b0),
     .ENABLE_FAST_MUL(1'b1),
-    .ENABLE_DIV(1'b1),
+    .ENABLE_DIV(1'b0),
     .ENABLE_IRQ(1'b1),
     .ENABLE_IRQ_QREGS(1'b1),
     .ENABLE_IRQ_TIMER(1'b0),
     // Bits 0..2 are PicoRV32-reserved; the portable IRQ controller owns bits
-    // 8..13 and, when advertised, UART1 at bit 14. Everything else is masked.
+    // 8..13 plus, when advertised, UART1 at bit 14 and TIMER1 at bit 15.
+    // Everything else is masked.
     .MASKED_IRQ(~CPU_EXTERNAL_IRQ_BITS),
     .LATCHED_IRQ(CPU_EXTERNAL_IRQ_BITS),
     .ENABLE_TRACE(1'b0),
@@ -336,14 +387,14 @@ module omcu_picorv32_system #(
     .mem_la_addr(),
     .mem_la_wdata(),
     .mem_la_wstrb(),
-    .pcpi_valid(),
-    .pcpi_insn(),
-    .pcpi_rs1(),
-    .pcpi_rs2(),
-    .pcpi_wr(1'b0),
-    .pcpi_rd(32'h0000_0000),
-    .pcpi_wait(1'b0),
-    .pcpi_ready(1'b0),
+    .pcpi_valid(cpu_pcpi_valid),
+    .pcpi_insn(cpu_pcpi_insn),
+    .pcpi_rs1(cpu_pcpi_rs1),
+    .pcpi_rs2(cpu_pcpi_rs2),
+    .pcpi_wr(cpu_pcpi_wr),
+    .pcpi_rd(cpu_pcpi_rd),
+    .pcpi_wait(cpu_pcpi_wait),
+    .pcpi_ready(cpu_pcpi_ready),
     .irq(cpu_irq_vector),
     .eoi(cpu_eoi),
     .trace_valid(),

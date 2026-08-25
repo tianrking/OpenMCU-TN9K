@@ -59,6 +59,10 @@ module omcu_tn9k_wdt_reset_tb;
     repeat (4) @(negedge clk);
     check(dut.sys_rst_ni === 1'b1,
           "Tang reset release logic must restart the SoC after watchdog expiry");
+    check(dut.reset_cause_q == 32'h0000_0002,
+          "watchdog reset must be retained as the next boot cause");
+    check(dut.reset_count_q == 32'd1,
+          "watchdog reset must increment the retained reset counter once");
     check(!dut.cpu_trap, "watchdog-reset firmware must not trap before reset");
 
     $display("PASS: omcu_tn9k_wdt_reset_tb");

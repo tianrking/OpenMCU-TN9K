@@ -15,4 +15,5 @@ rtl/peripherals/omcu_sysctrl.sv
 rtl/peripherals/omcu_pinmux.sv
 rtl/peripherals/omcu_user_flash.sv
 rtl/bus/omcu_mmio_fabric.sv
+rtl/cpu/omcu_pcpi_divider.sv
 rtl/cpu/omcu_picorv32_system.sv

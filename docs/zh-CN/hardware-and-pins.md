@@ -61,7 +61,7 @@ omcu_uart1_write_byte('U');
 不可同时使用；首次连接前应以 3.3 V USB 串口、短线、共地和逻辑分析仪完成 HIL。
 
 PWM1 的四路输出使用 GPIO4..7 / J5.12..15，分别为 CH0..3。它们共享一个 16-bit 分频、
-32-bit 周期和计数器，因此相位一致、每路只独立设置 duty 与 invert；复位或 `CTRL.ENABLE=0`
+16-bit 周期和计数器，因此相位一致、每路只独立设置 duty 与 invert；复位或 `CTRL.ENABLE=0`
 时四根线都主动输出低电平。下面是一个 1 kHz 左右、四种占空比的安全 GPIO→PWM 切换例子：
 
 ```c
@@ -88,13 +88,13 @@ const uint32_t ctrl = OMCU_TIMER1_CTRL_ENABLE |
                       OMCU_TIMER1_CTRL_CAPTURE_B_ENABLE |
                       OMCU_TIMER1_CTRL_QUADRATURE_ENABLE;
 
-if (!omcu_tn9k_timer1_configure(0u, UINT32_MAX, 4u, ctrl)) {
+if (!omcu_tn9k_timer1_configure(0u, UINT16_MAX, 4u, ctrl)) {
   /* TIMER1/PINMUX 不存在时保持 GPIO 所有权。 */
 }
 ```
 
 正向状态约定为 `00 -> 01 -> 11 -> 10 -> 00`；可用 `CTRL.QUADRATURE_REVERSE` 翻转方向，
-`ENCODER` 是可读写、二补码解释的 32-bit 环绕位置。两个信号同时跳变或非 Gray 转换会置
+`ENCODER` 是可读写、二补码解释的 16-bit 环绕位置（读取时符号扩展为 32-bit）。两个信号同时跳变或非 Gray 转换会置
 `STATUS.ENCODER_ILLEGAL`，软件应记录原因并 W1C 清除。它不是异步高速计数器，也不把原始
 pad 当普通 GPIO 输入使用；高速、跨时钟、长线或抗扰要求高的编码器需要专用前端和实体板 HIL。
 两根线同样与 RGB LCD 共线，不能与显示器同时启用。

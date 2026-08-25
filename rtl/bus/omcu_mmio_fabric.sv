@@ -12,10 +12,20 @@ module omcu_mmio_fabric #(
   parameter integer UART1_PRESENT = 0,
   parameter integer PWM1_PRESENT = 0,
   parameter integer TIMER1_PRESENT = 0,
-  parameter integer PINMUX_PRESENT = 0
+  parameter integer PINMUX_PRESENT = 0,
+  parameter integer BOOT_REQUEST_PRESENT = 0
 ) (
   input  logic                  clk_i,
   input  logic                  rst_ni,
+
+  // These values are retained by the platform reset sequencer rather than
+  // this resettable fabric, so software can inspect the reset that brought
+  // the current CPU/SoC instance up.
+  input  logic [31:0]           reset_cause_i,
+  input  logic [31:0]           reset_count_i,
+  input  logic                  boot_request_pending_i,
+  output logic                  software_boot_request_o,
+  output logic                  boot_request_ack_o,
 
   input  logic                  req_i,
   input  logic                  write_i,
@@ -348,14 +358,24 @@ module omcu_mmio_fabric #(
     .ROM_BYTES(ROM_BYTES),
     .SRAM_BYTES(SRAM_BYTES),
     .ABI_MINOR(ABI_MINOR),
-    .FEATURE_BITS(FEATURE_BITS)
+    .FEATURE_BITS(FEATURE_BITS),
+    .BOOT_REQUEST_PRESENT(BOOT_REQUEST_PRESENT)
   ) sysctrl (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
     .req_i(sysctrl_select),
     .write_i(write_i),
     .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
     .ready_o(sysctrl_ready),
     .read_data_o(sysctrl_read_data),
-    .error_o()
+    .error_o(),
+    .reset_cause_i(reset_cause_i),
+    .reset_count_i(reset_count_i),
+    .boot_request_pending_i(boot_request_pending_i),
+    .software_boot_request_o(software_boot_request_o),
+    .boot_request_ack_o(boot_request_ack_o)
   );
 
   always_comb begin

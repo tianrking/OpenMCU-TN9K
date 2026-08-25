@@ -114,23 +114,23 @@ typedef struct {
 typedef struct {
   volatile uint32_t ctrl; /* +0x00: shared enable and per-channel invert bits */
   volatile uint32_t prescale; /* +0x04: shared PWM counter clocks minus one */
-  volatile uint32_t period; /* +0x08: inclusive shared PWM counter top */
-  volatile uint32_t duty0; /* +0x0c: channel 0 high while shared COUNT is strictly lower */
-  volatile uint32_t duty1; /* +0x10: channel 1 high while shared COUNT is strictly lower */
-  volatile uint32_t duty2; /* +0x14: channel 2 high while shared COUNT is strictly lower */
-  volatile uint32_t duty3; /* +0x18: channel 3 high while shared COUNT is strictly lower */
-  volatile const uint32_t count; /* +0x1c: current shared PWM counter */
+  volatile uint32_t period; /* +0x08: low 16 bits: inclusive shared PWM counter top */
+  volatile uint32_t duty0; /* +0x0c: low 16 bits: channel 0 high while shared COUNT is strictly lower */
+  volatile uint32_t duty1; /* +0x10: low 16 bits: channel 1 high while shared COUNT is strictly lower */
+  volatile uint32_t duty2; /* +0x14: low 16 bits: channel 2 high while shared COUNT is strictly lower */
+  volatile uint32_t duty3; /* +0x18: low 16 bits: channel 3 high while shared COUNT is strictly lower */
+  volatile const uint32_t count; /* +0x1c: low 16 bits: current shared PWM counter */
 } omcu_pwm1_regs_t;
 
 typedef struct {
   volatile uint32_t ctrl; /* +0x00: timer, capture and quadrature enable/configuration bits */
   volatile uint32_t prescale; /* +0x04: timer clocks per count minus one */
-  volatile uint32_t count; /* +0x08: current capture timestamp counter */
-  volatile uint32_t compare; /* +0x0c: compare value for timer event */
-  volatile uint32_t filter; /* +0x10: consecutive mismatched synchronized samples required minus zero */
-  volatile const uint32_t capture_a; /* +0x14: timestamp of latest configured channel A edge */
-  volatile const uint32_t capture_b; /* +0x18: timestamp of latest configured channel B edge */
-  volatile uint32_t encoder; /* +0x1c: wrapping signed quadrature position accumulator */
+  volatile uint32_t count; /* +0x08: low 16 bits: current capture timestamp counter */
+  volatile uint32_t compare; /* +0x0c: low 16 bits: compare value for timer event */
+  volatile uint32_t filter; /* +0x10: low 8 bits: consecutive mismatched synchronized samples required minus zero */
+  volatile const uint32_t capture_a; /* +0x14: low 16 bits: timestamp of latest configured channel A edge */
+  volatile const uint32_t capture_b; /* +0x18: low 16 bits: timestamp of latest configured channel B edge */
+  volatile uint32_t encoder; /* +0x1c: low 16 bits: wrapping signed quadrature position accumulator */
   volatile uint32_t status; /* +0x20: event pending W1C plus filtered input and direction observation */
 } omcu_timer1_regs_t;
 
@@ -144,6 +144,11 @@ typedef struct {
   volatile const uint32_t features; /* +0x08: implemented peripheral feature bits */
   volatile const uint32_t build_id; /* +0x0c: platform build identifier */
   volatile const uint32_t memory_kib; /* +0x10: SRAM KiB in bits 31:16, ROM KiB in bits 15:0 */
+  volatile const uint32_t reset_cause; /* +0x14: last retained reset cause one-hot value */
+  volatile const uint32_t run_ticks_lo; /* +0x18: low 32 bits of 64-bit SoC-running clock tick counter */
+  volatile const uint32_t run_ticks_hi; /* +0x1c: high 32 bits of 64-bit SoC-running clock tick counter */
+  volatile const uint32_t reset_count; /* +0x20: retained watchdog/software reset count since external reset */
+  volatile uint32_t boot_ctrl; /* +0x24: bootloader request pending/support status plus exact full-word request/ack commands */
 } omcu_sysctrl_regs_t;
 
 #define OMCU_GPIO0               ((omcu_gpio_regs_t *)(uintptr_t)OMCU_GPIO0_BASE)
@@ -172,9 +177,17 @@ enum {
   OMCU_FEATURE_UART1               = 1u << 8,
   OMCU_FEATURE_TIMER1              = 1u << 9,
   OMCU_FEATURE_PWM1                = 1u << 10,
+  OMCU_FEATURE_DIAGNOSTICS         = 1u << 11,
   OMCU_FEATURE_PINMUX              = 1u << 12,
   OMCU_FEATURE_GPIO_EXPANSION      = 1u << 13,
   OMCU_FEATURE_USER_FLASH          = 1u << 14,
+  OMCU_RESET_CAUSE_EXTERNAL        = 1u << 0,
+  OMCU_RESET_CAUSE_WATCHDOG        = 1u << 1,
+  OMCU_RESET_CAUSE_SOFTWARE        = 1u << 2,
+  OMCU_SYSCTRL_BOOT_CTRL_REQUEST_PENDING = 1u << 0,
+  OMCU_SYSCTRL_BOOT_CTRL_REQUEST_SUPPORTED = 1u << 1,
+  OMCU_SYSCTRL_BOOT_REQUEST_MAGIC  = UINT32_C(0xB00710AD),
+  OMCU_SYSCTRL_BOOT_REQUEST_ACK_MAGIC = UINT32_C(0xACCE5501),
   OMCU_IRQ_GPIO0                   = 1u << 8,
   OMCU_IRQ_UART0                   = 1u << 9,
   OMCU_IRQ_TIMER0                  = 1u << 10,
@@ -217,10 +230,13 @@ enum {
   OMCU_PWM_CTRL_ENABLE             = 1u << 0,
   OMCU_PWM_CTRL_INVERT             = 1u << 1,
   OMCU_PWM1_CHANNEL_COUNT          = 4u,
+  OMCU_PWM1_VALUE_MASK             = UINT32_C(0x0000FFFF),
   OMCU_PWM1_CTRL_ENABLE            = 1u << 0,
   OMCU_PWM1_CTRL_INVERT_SHIFT      = 4u,
   OMCU_PWM1_CTRL_INVERT_MASK       = UINT32_C(0x000000F0),
   OMCU_TIMER1_CTRL_ENABLE          = 1u << 0,
+  OMCU_TIMER1_VALUE_MASK           = UINT32_C(0x0000FFFF),
+  OMCU_TIMER1_FILTER_MASK          = UINT32_C(0x000000FF),
   OMCU_TIMER1_CTRL_IRQ_ENABLE      = 1u << 1,
   OMCU_TIMER1_CTRL_AUTO_RELOAD     = 1u << 2,
   OMCU_TIMER1_CTRL_CAPTURE_A_ENABLE = 1u << 3,

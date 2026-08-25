@@ -150,12 +150,12 @@
       "registers": [
         { "name": "ctrl", "offset": "0x00", "access": "rw", "comment": "shared enable and per-channel invert bits" },
         { "name": "prescale", "offset": "0x04", "access": "rw", "comment": "shared PWM counter clocks minus one" },
-        { "name": "period", "offset": "0x08", "access": "rw", "comment": "inclusive shared PWM counter top" },
-        { "name": "duty0", "offset": "0x0c", "access": "rw", "comment": "channel 0 high while shared COUNT is strictly lower" },
-        { "name": "duty1", "offset": "0x10", "access": "rw", "comment": "channel 1 high while shared COUNT is strictly lower" },
-        { "name": "duty2", "offset": "0x14", "access": "rw", "comment": "channel 2 high while shared COUNT is strictly lower" },
-        { "name": "duty3", "offset": "0x18", "access": "rw", "comment": "channel 3 high while shared COUNT is strictly lower" },
-        { "name": "count", "offset": "0x1c", "access": "ro", "comment": "current shared PWM counter" }
+        { "name": "period", "offset": "0x08", "access": "rw", "comment": "low 16 bits: inclusive shared PWM counter top" },
+        { "name": "duty0", "offset": "0x0c", "access": "rw", "comment": "low 16 bits: channel 0 high while shared COUNT is strictly lower" },
+        { "name": "duty1", "offset": "0x10", "access": "rw", "comment": "low 16 bits: channel 1 high while shared COUNT is strictly lower" },
+        { "name": "duty2", "offset": "0x14", "access": "rw", "comment": "low 16 bits: channel 2 high while shared COUNT is strictly lower" },
+        { "name": "duty3", "offset": "0x18", "access": "rw", "comment": "low 16 bits: channel 3 high while shared COUNT is strictly lower" },
+        { "name": "count", "offset": "0x1c", "access": "ro", "comment": "low 16 bits: current shared PWM counter" }
       ]
     },
     {
@@ -165,12 +165,12 @@
       "registers": [
         { "name": "ctrl", "offset": "0x00", "access": "rw", "comment": "timer, capture and quadrature enable/configuration bits" },
         { "name": "prescale", "offset": "0x04", "access": "rw", "comment": "timer clocks per count minus one" },
-        { "name": "count", "offset": "0x08", "access": "rw", "comment": "current capture timestamp counter" },
-        { "name": "compare", "offset": "0x0c", "access": "rw", "comment": "compare value for timer event" },
-        { "name": "filter", "offset": "0x10", "access": "rw", "comment": "consecutive mismatched synchronized samples required minus zero" },
-        { "name": "capture_a", "offset": "0x14", "access": "ro", "comment": "timestamp of latest configured channel A edge" },
-        { "name": "capture_b", "offset": "0x18", "access": "ro", "comment": "timestamp of latest configured channel B edge" },
-        { "name": "encoder", "offset": "0x1c", "access": "rw", "comment": "wrapping signed quadrature position accumulator" },
+        { "name": "count", "offset": "0x08", "access": "rw", "comment": "low 16 bits: current capture timestamp counter" },
+        { "name": "compare", "offset": "0x0c", "access": "rw", "comment": "low 16 bits: compare value for timer event" },
+        { "name": "filter", "offset": "0x10", "access": "rw", "comment": "low 8 bits: consecutive mismatched synchronized samples required minus zero" },
+        { "name": "capture_a", "offset": "0x14", "access": "ro", "comment": "low 16 bits: timestamp of latest configured channel A edge" },
+        { "name": "capture_b", "offset": "0x18", "access": "ro", "comment": "low 16 bits: timestamp of latest configured channel B edge" },
+        { "name": "encoder", "offset": "0x1c", "access": "rw", "comment": "low 16 bits: wrapping signed quadrature position accumulator" },
         { "name": "status", "offset": "0x20", "access": "rw", "comment": "event pending W1C plus filtered input and direction observation" }
       ]
     },
@@ -191,7 +191,12 @@
         { "name": "abi", "offset": "0x04", "access": "ro", "comment": "major in bits 31:16, minor in bits 15:0" },
         { "name": "features", "offset": "0x08", "access": "ro", "comment": "implemented peripheral feature bits" },
         { "name": "build_id", "offset": "0x0c", "access": "ro", "comment": "platform build identifier" },
-        { "name": "memory_kib", "offset": "0x10", "access": "ro", "comment": "SRAM KiB in bits 31:16, ROM KiB in bits 15:0" }
+        { "name": "memory_kib", "offset": "0x10", "access": "ro", "comment": "SRAM KiB in bits 31:16, ROM KiB in bits 15:0" },
+        { "name": "reset_cause", "offset": "0x14", "access": "ro", "comment": "last retained reset cause one-hot value" },
+        { "name": "run_ticks_lo", "offset": "0x18", "access": "ro", "comment": "low 32 bits of 64-bit SoC-running clock tick counter" },
+        { "name": "run_ticks_hi", "offset": "0x1c", "access": "ro", "comment": "high 32 bits of 64-bit SoC-running clock tick counter" },
+        { "name": "reset_count", "offset": "0x20", "access": "ro", "comment": "retained watchdog/software reset count since external reset" },
+        { "name": "boot_ctrl", "offset": "0x24", "access": "rw", "comment": "bootloader request pending/support status plus exact full-word request/ack commands" }
       ]
     }
   ],
@@ -207,9 +212,17 @@
     { "name": "OMCU_FEATURE_UART1", "value": "1u << 8" },
     { "name": "OMCU_FEATURE_TIMER1", "value": "1u << 9" },
     { "name": "OMCU_FEATURE_PWM1", "value": "1u << 10" },
+    { "name": "OMCU_FEATURE_DIAGNOSTICS", "value": "1u << 11" },
     { "name": "OMCU_FEATURE_PINMUX", "value": "1u << 12" },
     { "name": "OMCU_FEATURE_GPIO_EXPANSION", "value": "1u << 13" },
     { "name": "OMCU_FEATURE_USER_FLASH", "value": "1u << 14" },
+    { "name": "OMCU_RESET_CAUSE_EXTERNAL", "value": "1u << 0" },
+    { "name": "OMCU_RESET_CAUSE_WATCHDOG", "value": "1u << 1" },
+    { "name": "OMCU_RESET_CAUSE_SOFTWARE", "value": "1u << 2" },
+    { "name": "OMCU_SYSCTRL_BOOT_CTRL_REQUEST_PENDING", "value": "1u << 0" },
+    { "name": "OMCU_SYSCTRL_BOOT_CTRL_REQUEST_SUPPORTED", "value": "1u << 1" },
+    { "name": "OMCU_SYSCTRL_BOOT_REQUEST_MAGIC", "value": "UINT32_C(0xB00710AD)" },
+    { "name": "OMCU_SYSCTRL_BOOT_REQUEST_ACK_MAGIC", "value": "UINT32_C(0xACCE5501)" },
     { "name": "OMCU_IRQ_GPIO0", "value": "1u << 8" },
     { "name": "OMCU_IRQ_UART0", "value": "1u << 9" },
     { "name": "OMCU_IRQ_TIMER0", "value": "1u << 10" },
@@ -252,10 +265,13 @@
     { "name": "OMCU_PWM_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_PWM_CTRL_INVERT", "value": "1u << 1" },
     { "name": "OMCU_PWM1_CHANNEL_COUNT", "value": "4u" },
+    { "name": "OMCU_PWM1_VALUE_MASK", "value": "UINT32_C(0x0000FFFF)" },
     { "name": "OMCU_PWM1_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_PWM1_CTRL_INVERT_SHIFT", "value": "4u" },
     { "name": "OMCU_PWM1_CTRL_INVERT_MASK", "value": "UINT32_C(0x000000F0)" },
     { "name": "OMCU_TIMER1_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_TIMER1_VALUE_MASK", "value": "UINT32_C(0x0000FFFF)" },
+    { "name": "OMCU_TIMER1_FILTER_MASK", "value": "UINT32_C(0x000000FF)" },
     { "name": "OMCU_TIMER1_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_TIMER1_CTRL_AUTO_RELOAD", "value": "1u << 2" },
     { "name": "OMCU_TIMER1_CTRL_CAPTURE_A_ENABLE", "value": "1u << 3" },

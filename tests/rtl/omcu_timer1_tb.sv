@@ -114,8 +114,8 @@ module omcu_timer1_tb;
     check((value & STATUS_CAPTURE_A) != 0,
           "stable A edge must become a filtered capture event");
     read_reg(8'h14, value);
-    check(value == 32'h1234_5678,
-          "CAPTURE_A must timestamp the current timer count rather than raw input time");
+    check(value == 32'h0000_5678,
+          "CAPTURE_A must retain TIMER1's low-16-bit timestamp rather than raw input time");
     write_reg(8'h20, STATUS_CAPTURE_A);
     drive_inputs(1'b0, 1'b0, 7);
 
@@ -130,7 +130,7 @@ module omcu_timer1_tb;
     check((value & STATUS_CAPTURE_B) != 0,
           "selected B falling edge must create a capture event");
     read_reg(8'h18, value);
-    check(value == 32'h89ab_cdef, "CAPTURE_B must retain its own timestamp");
+    check(value == 32'h0000_cdef, "CAPTURE_B must retain its own low-16-bit timestamp");
 
     // Forward Gray sequence: 00 -> 01 -> 11 -> 10 -> 00.  The filtered
     // decoder must count every legal transition exactly once.

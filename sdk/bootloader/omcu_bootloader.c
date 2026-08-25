@@ -623,21 +623,30 @@ void omcu_bootloader_main(void) {
   omcu_boot_frame_t frame;
   bool has_image;
   bool saw_valid_frame = false;
+  bool force_loader;
 
   omcu_boot_timer_start();
   omcu_boot_uart_init();
+  /* A running application may request this path through SYSCTRL.  Consume the
+   * retained flag before deciding whether a valid A/B image gets its normal
+   * short boot window.  After acknowledgement the local variable deliberately
+   * remains true: the loader stays available until the host sends BOOT. */
+  force_loader = omcu_bootloader_request_pending();
+  if (force_loader) {
+    (void)omcu_bootloader_ack_request();
+  }
   has_image = omcu_boot_find_valid_image(&selected);
 
   for (;;) {
     enum omcu_boot_frame_result result = omcu_boot_receive_frame(
       &frame,
-      (has_image && !saw_valid_frame && !session.active)
+      (has_image && !force_loader && !saw_valid_frame && !session.active)
         ? OMCU_BOOT_LISTEN_US
         : OMCU_BOOT_SESSION_TIMEOUT_US
     );
 
     if (result == OMCU_BOOT_FRAME_TIMEOUT) {
-      if (has_image && !session.active) {
+      if (has_image && !force_loader && !session.active) {
         omcu_boot_start_application(&selected);
       }
       if (session.active) {

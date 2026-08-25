@@ -13,7 +13,7 @@
 
 ## 这是什么
 
-OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 RV32IMC CPU、ROM/SRAM、GPIO、UART、定时器、SPI、I2C、看门狗、PWM、IRQCTRL、SYSCTRL 和 User Flash 控制器组合成一个具有固定寄存器 ABI 的 MCU 平台。
+OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 RV32IMC CPU、ROM/SRAM、18 位 GPIO 档案（其中 12 路为外扩）、UART0/1、TIMER0/1、SPI、I2C、看门狗、PWM0/四路 PWM1、IRQCTRL、诊断 SYSCTRL 和 User Flash 控制器组合成一个固定 ABI 0.6 的 MCU 平台。
 
 PicoRV32 是 FPGA 配置内部使用的 CPU IP 依赖；它不是客户每次开发应用都要“引用”的库。对应用开发者而言，本项目提供的是普通的裸机 SDK、链接脚本、应用镜像格式和串口升级工具。
 
@@ -104,6 +104,8 @@ python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
 
 工具默认在 8 秒内寻找启动器。若设备已经运行旧应用，先启动工具，再按一次复位键；串口使用 `115200 / 8N1`、3.3 V TTL 电平、TX/RX 交叉并共地。
 
+若业务应用复用了 UART0，应用先结束关键写入并调用 `omcu_tn9k_request_bootloader()`；平台会记录软件原因、复位进入 Bootloader，并保持 UART0 更新会话，无需抢启动窗口。该机制仍需要本板实机 HIL；外部复位始终保留为独立恢复路径。
+
 ## 产品级应用存储模型
 
 | 项目 | 固定值 | 目的 |
@@ -142,6 +144,7 @@ arm/                         ARM 后端授权边界（不含 ARM IP）
 - [构建与烧录](docs/zh-CN/build-and-program.md)
 - [硬件与引脚](docs/zh-CN/hardware-and-pins.md)
 - [外设与 SDK](docs/zh-CN/peripherals-and-sdk.md)
+- [ABI 0.6 寄存器参考](docs/registers.md)
 - [中断开发约定](docs/zh-CN/interrupts.md)
 - [测试计划](tests/README.md)
 - [ASIC 交接边界](asic/README.md)

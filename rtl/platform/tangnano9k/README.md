@@ -11,6 +11,14 @@
 
 `omcu_tn9k_mcu_top` 使用 GW1NR 的 608 Kbit User Flash（76 KiB）控制器。它与 FPGA 配置 Flash 是不同的存储域：前者储存客户应用，后者只储存稳定的 FPGA 平台配置。
 
+## 复位诊断与回到启动器
+
+Tang 包装器在 SoC 重启时保留最后原因（外部/上电、看门狗、软件）、内部复位计数和未消费的
+Bootloader 请求，随后通过 `SYSCTRL` 给下一轮软件读取。只有 `omcu_tn9k_mcu_top` 的 User Flash
+产品模式接受应用的 `BOOT_CTRL` 请求：应用写入完整命令后，顶层复位，Boot ROM 确认请求并保持
+UART0 更新会话。`omcu_tn9k_bringup_top` 仍保留外部复位/替换 ROM 的 bring-up 语义，不能误当作
+客户升级接口。任意外部复位都会清零内部复位计数和待处理的软件请求，因此它始终是独立救砖路径。
+
 ## 外设到实际管脚的映射
 
 | 逻辑资源 | Tang Nano 9K 管脚 / 说明 |

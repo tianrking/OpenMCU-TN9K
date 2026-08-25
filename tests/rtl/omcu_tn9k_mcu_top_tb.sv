@@ -19,6 +19,7 @@ module omcu_tn9k_mcu_top_tb;
   tri1 [11:0] gpio;
   logic saw_physical_flash_access = 1'b0;
   logic saw_bus_error = 1'b0;
+  logic saw_boot_request_ack = 1'b0;
 
   always #18.518 clk_27m = ~clk_27m;
 
@@ -45,6 +46,9 @@ module omcu_tn9k_mcu_top_tb;
     if (dut.platform.bus_error) begin
       saw_bus_error <= 1'b1;
     end
+    if (dut.platform.system.mmio.sysctrl.boot_request_ack_o) begin
+      saw_boot_request_ack <= 1'b1;
+    end
   end
 
   task automatic check(input logic condition, input string message);
@@ -60,18 +64,35 @@ module omcu_tn9k_mcu_top_tb;
     repeat (4) @(negedge clk_27m);
     resetn = 1'b1;
 
+    // Model the retained request produced by a running application.  The
+    // immutable checked-in Boot ROM must consume it by issuing SYSCTRL's ACK
+    // command before it enters its UART session.  Force is released on that
+    // actual MMIO pulse; the request-production/reset path is covered by the
+    // separate compiled-firmware Tang wrapper test.
+    force dut.platform.boot_request_pending_q = 1'b1;
+    fork
+      begin
+        wait (dut.platform.system.mmio.sysctrl.boot_request_ack_o == 1'b1);
+        release dut.platform.boot_request_pending_q;
+      end
+    join_none
+
     // Two all-erased slot headers are scanned before the loader settles in
     // its UART wait loop. This proves the product wrapper selected the
     // physical FLASH608K branch, without claiming hardware flash behavior.
     repeat (12000) @(negedge clk_27m);
     check(saw_physical_flash_access,
           "product MCU top must access the FLASH608K primitive during boot scan");
+    check(dut.platform.system.mmio.sysctrl.boot_ctrl_read[1],
+          "product MCU top must advertise the retained Bootloader request path");
     check(!saw_bus_error,
           "erased User Flash header scans must stay inside the mapped window");
     check(led_n == 6'b111111,
           "bootloader must leave all active-low LEDs off before an app runs");
     check(!dut.platform.cpu_trap,
           "checked-in bootloader image must not trap during initial header scan");
+    check(saw_boot_request_ack,
+          "checked-in Boot ROM must acknowledge a retained software boot request");
 
     $display("PASS: omcu_tn9k_mcu_top_tb");
     $finish;

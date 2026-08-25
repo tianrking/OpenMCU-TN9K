@@ -50,8 +50,12 @@ module omcu_tn9k_bringup_top_tb;
     resetn = 1'b1;
 
     repeat (90) @(negedge clk_27m);
-    check((dut.system.SYSTEM_FEATURE_BITS & 32'h0000_3700) == 32'h0000_3700,
-          "Tang wrapper must advertise UART1, TIMER1, PWM1, PINMUX and GPIO expansion");
+    check((dut.system.SYSTEM_FEATURE_BITS & 32'h0000_3f00) == 32'h0000_3f00,
+          "Tang wrapper must advertise UART1, TIMER1, PWM1, diagnostics, PINMUX and GPIO expansion");
+    check(dut.reset_cause_q == 32'h0000_0001 && dut.reset_count_q == 32'd0,
+          "external reset must initialize retained diagnostics deterministically");
+    check(!dut.system.mmio.sysctrl.boot_ctrl_read[1],
+          "bring-up wrapper must not claim the product Bootloader request path");
     check(led_n == 6'b111110,
           "the board adapter must turn on only active-low LED0 after firmware bring-up");
 

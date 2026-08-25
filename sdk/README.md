@@ -85,6 +85,7 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 | `omcu_uart1_loopback` | 独立 `.omcu` 的 UART1 回显/HIL 示例；UART0 保持给升级器。 |
 | `omcu_pwm1_demo` | 独立 `.omcu` 的四路共享计数器 PWM/HIL 示例。 |
 | `omcu_timer1_encoder_demo` | 独立 `.omcu` 的 TIMER1 捕获/正交编码器模板；GPIO8/9 经输入 pinmux 使用。 |
+| `omcu_bootloader_request_demo` | 独立 `.omcu` 的软件请求回 UART0 Bootloader 示例；只适用于产品 MCU 位流。 |
 | `omcu_blink` | 旧式 ROM LED 回归。 |
 | `omcu_uart_hello` | UART0 启动文字。 |
 | `omcu_isa_smoke` | 编译器、RV32IMC 指令和启动代码集成检查。 |
@@ -130,7 +131,7 @@ UART1 没有 FIFO；主循环必须及时读取 `DATA`，否则下一字节会�
 
 `omcu_pwm1_demo` 生成独立 `.omcu`，演示 GPIO4..7/J5.12..15 的 PWM1 CH0..3。调用
 `omcu_tn9k_pwm1_configure()` 会先完成安全的低电平寄存器配置，再显式交给 pinmux；四个 duty
-使用同一个计数器和周期，适合同步灯带/舵机/低压驱动的逻辑输入。它不具备死区、互补对、
+使用同一个 **16-bit** 计数器和周期（0..65535），适合同步灯带/舵机/低压驱动的逻辑输入。它不具备死区、互补对、
 制动、DMA 或高压功率级保护，不能直接驱动电机/继电器/MOSFET gate。
 
 测试时 UART0 保留给下载器，先以示波器或逻辑分析仪验证 J5.12..15 的频率、四路占空比和
@@ -141,10 +142,35 @@ UART1 没有 FIFO；主循环必须及时读取 `DATA`，否则下一字节会�
 `omcu_timer1_encoder_demo` 是独立应用镜像。它检查 `OMCU_FEATURE_TIMER1 |
 OMCU_FEATURE_PINMUX`，配置两级同步、`FILTER=4` 的稳定样本滤波、A/B 捕获和 Gray 正交解码，
 然后将 GPIO8/J5.16、GPIO9/J5.17 归 TIMER1 输入所有。正向约定是
-`00 -> 01 -> 11 -> 10 -> 00`；位置由 `omcu_timer1_encoder_position()` 以有符号 32-bit 环绕值
-返回，`STATUS.ENCODER_ILLEGAL` 可用于发现非 Gray/同时双边沿变化。
+`00 -> 01 -> 11 -> 10 -> 00`；位置是有符号 16-bit 环绕值，helper 将读回值符号扩展为 `int32_t`，
+`STATUS.ENCODER_ILLEGAL` 可用于发现非 Gray/同时双边沿变化。TIMER1 的 compare/capture/count 也均为
+16-bit，`FILTER` 为 8-bit，API 参数刻意使用 `uint16_t`/`uint8_t`，避免未实现高位的错误预期。
 
 `FILTER=N` 需要 `N+1` 个连续同步样本，并不是固定毫秒去抖器，也没有 DMA、FIFO、高速异步
 计数或速度计算。J5.16/J5.17 与 RGB LCD 共线；先保留 UART0 下载通道，再用 3.3 V、共地的
 低速已知 Gray 序列和逻辑分析仪完成实板 HIL。当前已通过 RTL、MMIO、编译固件到最终 pad 的
 数字仿真，不应把它表述为真实编码器、电压或抗噪 HIL。
+
+## 复位诊断与软件回 Bootloader
+
+产品 Tang 位流会报告 `OMCU_FEATURE_DIAGNOSTICS`。`SYSCTRL` 提供上一次复位原因、从当前
+SoC 释放复位开始的 64-bit `RUN_TICKS`、自外部复位以来的 watchdog/software `RESET_COUNT`，
+以及受完整魔数保护的 `BOOT_CTRL`。建议使用公开 helper：
+
+```c
+uint32_t cause = omcu_sysctrl_reset_cause();
+uint32_t reset_count = omcu_sysctrl_reset_count();
+uint64_t ticks = omcu_sysctrl_run_ticks();
+
+if (omcu_tn9k_request_bootloader()) {
+  for (;;) {
+  }
+}
+```
+
+`omcu_tn9k_request_bootloader()` 只在同时具备诊断和 User Flash 产品特性的位流上成功。成功代表
+命令已经发出，随后 SoC 会复位；不要把它放在仍需继续执行的关键写入之前。Boot ROM 会确认待处理
+请求并保持 UART0 会话，主机可直接使用现有 `omcu_flash.py` 更新；外部复位和空白设备的持续监听
+仍是独立恢复路径。`RUN_TICKS` 是 27 MHz SoC 时钟 tick，不是 RTC 秒表；helper 用高/低/高读取
+避免 32-bit rollover 撕裂。诊断寄存器的 RTL 与 Boot ROM 路径有数字回归，实际复位键、串口和
+User Flash 恢复行为仍需要实板 HIL。

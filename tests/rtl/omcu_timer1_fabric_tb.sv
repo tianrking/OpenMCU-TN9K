@@ -98,8 +98,8 @@ module omcu_timer1_fabric_tb;
     check((value & STATUS_CAPTURE_A) != 0,
           "filtered TIMER1 capture A event must be visible through its MMIO page");
     read_reg(TIMER1_BASE + 32'h14, value);
-    check(value == 32'h1020_3040,
-          "TIMER1 capture timestamp must survive the fabric decode path");
+    check(value == 32'h0000_3040,
+          "TIMER1 low-16-bit capture timestamp must survive the fabric decode path");
     check((irq_vector & IRQ_TIMER1) != 0,
           "TIMER1 event must reach IRQCTRL fixed CPU bit 15 when enabled");
 

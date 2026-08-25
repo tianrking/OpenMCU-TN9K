@@ -71,11 +71,11 @@ static inline bool omcu_tn9k_uart1_release_pins(void) {
  */
 static inline bool omcu_tn9k_pwm1_configure(
   uint16_t prescale,
-  uint32_t period,
-  uint32_t duty0,
-  uint32_t duty1,
-  uint32_t duty2,
-  uint32_t duty3,
+  uint16_t period,
+  uint16_t duty0,
+  uint16_t duty1,
+  uint16_t duty2,
+  uint16_t duty3,
   uint8_t invert_mask
 ) {
   if (!omcu_hw_has_feature(OMCU_FEATURE_PWM1 | OMCU_FEATURE_PINMUX)) {
@@ -98,8 +98,8 @@ static inline bool omcu_tn9k_pwm1_release_pins(void) {
  */
 static inline bool omcu_tn9k_timer1_configure(
   uint16_t prescale,
-  uint32_t compare,
-  uint16_t filter,
+  uint16_t compare,
+  uint8_t filter,
   uint32_t ctrl
 ) {
   if (!omcu_hw_has_feature(OMCU_FEATURE_TIMER1 | OMCU_FEATURE_PINMUX)) {
@@ -111,6 +111,21 @@ static inline bool omcu_tn9k_timer1_configure(
 
 static inline bool omcu_tn9k_timer1_release_pins(void) {
   return omcu_pinmux_timer1_enable(false);
+}
+
+/*
+ * Request the product MCU's UART0 Bootloader without rebuilding the FPGA
+ * configuration.  This is unavailable on a bring-up-only bitstream: it needs
+ * both the retained diagnostics/reset sequencer and the User Flash product
+ * memory contract.  On success, the caller should immediately stop normal
+ * work because the SoC will reset into the Bootloader.
+ */
+static inline bool omcu_tn9k_request_bootloader(void) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_DIAGNOSTICS |
+                           OMCU_FEATURE_USER_FLASH)) {
+    return false;
+  }
+  return omcu_request_bootloader();
 }
 
 #endif  /* OMCU_TN9K_H_ */

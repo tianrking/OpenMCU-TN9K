@@ -33,6 +33,72 @@ static inline bool omcu_hw_has_feature(uint32_t feature) {
 }
 
 /*
+ * SYSCTRL diagnostics are intentionally feature-gated: a v0-compatible
+ * smaller fabric can retain the identity registers while omitting the board
+ * reset sequencer that supplies meaningful cause/count values.
+ */
+static inline bool omcu_sysctrl_has_diagnostics(void) {
+  return omcu_hw_has_feature(OMCU_FEATURE_DIAGNOSTICS);
+}
+
+static inline uint32_t omcu_sysctrl_reset_cause(void) {
+  return OMCU_SYSCTRL->reset_cause;
+}
+
+static inline uint32_t omcu_sysctrl_reset_count(void) {
+  return OMCU_SYSCTRL->reset_count;
+}
+
+/* Read a stable 64-bit tick snapshot on the 32-bit CPU, including rollover. */
+static inline uint64_t omcu_sysctrl_run_ticks(void) {
+  uint32_t high_before;
+  uint32_t low;
+  uint32_t high_after;
+
+  do {
+    high_before = OMCU_SYSCTRL->run_ticks_hi;
+    low = OMCU_SYSCTRL->run_ticks_lo;
+    high_after = OMCU_SYSCTRL->run_ticks_hi;
+  } while (high_before != high_after);
+  return ((uint64_t)high_after << 32u) | (uint64_t)low;
+}
+
+/*
+ * A software Bootloader request exists only in a product configuration with
+ * a retained reset sequencer and User Flash.  A successful return means the
+ * command was issued; the caller must not rely on any following instructions
+ * running because the top-level reset sequence will restart the SoC shortly.
+ */
+static inline bool omcu_bootloader_request_supported(void) {
+  return omcu_sysctrl_has_diagnostics() &&
+         (OMCU_SYSCTRL->boot_ctrl &
+          OMCU_SYSCTRL_BOOT_CTRL_REQUEST_SUPPORTED) != 0u;
+}
+
+static inline bool omcu_bootloader_request_pending(void) {
+  return omcu_bootloader_request_supported() &&
+         (OMCU_SYSCTRL->boot_ctrl &
+          OMCU_SYSCTRL_BOOT_CTRL_REQUEST_PENDING) != 0u;
+}
+
+static inline bool omcu_request_bootloader(void) {
+  if (!omcu_bootloader_request_supported()) {
+    return false;
+  }
+  OMCU_SYSCTRL->boot_ctrl = OMCU_SYSCTRL_BOOT_REQUEST_MAGIC;
+  return true;
+}
+
+/* Intended for the immutable Boot ROM after it has consumed a pending request. */
+static inline bool omcu_bootloader_ack_request(void) {
+  if (!omcu_bootloader_request_pending()) {
+    return false;
+  }
+  OMCU_SYSCTRL->boot_ctrl = OMCU_SYSCTRL_BOOT_REQUEST_ACK_MAGIC;
+  return true;
+}
+
+/*
  * PicoRV32 custom-IRQ control functions implemented by startup/omcu_irq.S.
  * They are intentionally ordinary C ABI functions so applications never need
  * to emit custom opcodes themselves.  The returned mask is the mask that was
@@ -238,16 +304,16 @@ static inline void omcu_timer_start_periodic(
 }
 
 /*
- * Configure TIMER1's timestamp counter, filtered capture channels and/or
- * quadrature decoder. FILTER=N accepts an input state only after N+1
+ * Configure TIMER1's 16-bit timestamp counter, filtered capture channels and/or
+ * quadrature decoder. FILTER=N (0..255) accepts an input state only after N+1
  * consecutive synchronized samples disagree with the previous filtered state.
  * This is a digital glitch filter, not a substitute for an external front end
  * for signals faster than the 27 MHz system clock.
  */
 static inline void omcu_timer1_configure(
   uint16_t prescale,
-  uint32_t compare,
-  uint16_t filter,
+  uint16_t compare,
+  uint8_t filter,
   uint32_t ctrl
 ) {
   OMCU_TIMER1->ctrl = 0u;
@@ -276,8 +342,8 @@ static inline int32_t omcu_timer1_encoder_position(void) {
   return (int32_t)OMCU_TIMER1->encoder;
 }
 
-static inline void omcu_timer1_set_encoder_position(int32_t position) {
-  OMCU_TIMER1->encoder = (uint32_t)position;
+static inline void omcu_timer1_set_encoder_position(int16_t position) {
+  OMCU_TIMER1->encoder = (uint32_t)(int32_t)position;
 }
 
 static inline void omcu_spi0_init(uint16_t clkdiv, bool enable_done_irq) {
@@ -316,7 +382,8 @@ static inline bool omcu_spi0_transfer(uint8_t tx, uint8_t *rx) {
  * Keep CS asserted across separately started SPI bytes.  This is required by
  * framed devices such as W5500 and MCP3008.  Set it before the first START,
  * wait for the final transfer to finish, then clear it to release CS.  The
- * default remains one automatic CS assertion per byte for ABI 0.5 software.
+ * default remains one automatic CS assertion per byte for compatibility with
+ * the original OpenMCU SPI API.
  */
 static inline void omcu_spi0_set_cs_hold(bool hold) {
   uint32_t ctrl = OMCU_SPI0->ctrl;
@@ -425,18 +492,18 @@ static inline void omcu_pwm0_configure(
 }
 
 /*
- * Configure four PWM1 channels that share one prescaler, period and phase.
+ * Configure four PWM1 channels that share one prescaler, 16-bit period and phase.
  * Bit n of invert_mask controls channel n.  The caller may update DUTY0..3
  * directly between cycles when a synchronized multi-register update is not
  * required by the attached power stage.
  */
 static inline void omcu_pwm1_configure(
   uint16_t prescale,
-  uint32_t period,
-  uint32_t duty0,
-  uint32_t duty1,
-  uint32_t duty2,
-  uint32_t duty3,
+  uint16_t period,
+  uint16_t duty0,
+  uint16_t duty1,
+  uint16_t duty2,
+  uint16_t duty3,
   uint8_t invert_mask
 ) {
   OMCU_PWM1->ctrl = 0u;

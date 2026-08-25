@@ -11,7 +11,7 @@ int main(void) {
 
   if (!omcu_hw_abi_is_compatible(OMCU_HW_ABI_MAJOR) ||
       !omcu_hw_has_feature(required) ||
-      !omcu_tn9k_timer1_configure(0u, UINT32_MAX, 0u, ctrl)) {
+      !omcu_tn9k_timer1_configure(0u, UINT16_MAX, 0u, ctrl)) {
     for (;;) {
     }
   }

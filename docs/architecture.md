@@ -21,6 +21,10 @@ OpenMCU 是一个小型、常规、便于软件开发的 RISC-V MCU。它不是 
 | <code>0x4000_5000–0x4000_5FFF</code> | WDT0 | 独立看门狗 |
 | <code>0x4000_6000–0x4000_6FFF</code> | PWM0 | 边沿对齐 PWM 发生器 |
 | <code>0x4000_7000–0x4000_7FFF</code> | IRQCTRL | 外部事件锁存、屏蔽、软件触发与优先级视图 |
+| <code>0x4000_8000–0x4000_8FFF</code> | UART1 | 无大 FIFO 的可复用第二串口 |
+| <code>0x4000_9000–0x4000_9FFF</code> | TIMER1 | 16-bit 捕获、滤波与正交编码器 |
+| <code>0x4000_A000–0x4000_AFFF</code> | PWM1 | 四路共享相位、16-bit PWM |
+| <code>0x4000_B000–0x4000_BFFF</code> | PINMUX | UART1/PWM1/TIMER1 的显式 pad 所有权 |
 | <code>0x4000_F000–0x4000_FFFF</code> | SYSCTRL | 芯片 ID、ABI、特性位、构建 ID、实际 ROM/SRAM KiB |
 
 兼容发布不得移动既有模块。新增能力必须使用新的地址范围；不兼容行为必须对应新的主设备版本。
@@ -44,13 +48,14 @@ req, write, address[31:0], write_data[31:0], write_strobe[3:0]
 
 ~~~text
 PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric
-                                      -> GPIO0 + UART0 + TIMER0 + SPI0 + I2C0 + WDT0 + PWM0
-                                      -> IRQCTRL -> PicoRV32 IRQ 位 8..13
+                                      -> GPIO0 + UART0/1 + TIMER0/1 + SPI0 + I2C0 + WDT0 + PWM0/1
+                                      -> PINMUX + SYSCTRL diagnostics
+                                      -> IRQCTRL -> PicoRV32 IRQ 位 8..15
 ~~~
 
-该适配器启用已批准的 <code>M</code>、<code>C</code> 指令扩展和桶形移位器。它刻意不承诺 <code>Zicsr</code>、特权机器态、标准 RISC-V Trap CSR、PLIC/CLINT、调试支持、原子操作或浮点。
+该适配器启用已批准的 <code>M</code>、<code>C</code> 指令扩展。快速乘法器和紧凑 32 步 PCPI 除法器保留标准 RV32M 语义；为给完整 P1 外设腾出资源，寄存器堆为单端口、移位器为迭代实现。它刻意不承诺 <code>Zicsr</code>、特权机器态、标准 RISC-V Trap CSR、PLIC/CLINT、调试支持、原子操作或浮点；PicoRV32 内部 <code>cycle/instret</code> 也不属于公开 ABI，软件使用 SYSCTRL 64-bit tick。
 
-它实现了单独版本化的 PicoRV32 自定义 IRQ ABI：IRQCTRL 将可移植外设源映射到 CPU 位 8 至 13，SDK 独占固定 <code>0x10</code> 向量并完整保存 C ABI 上下文。精确的非标准边界与确认顺序见 <a href="interrupts.md">中断约定</a>。非法事务或写 ROM 事务会被应答并作为仿真/bring-up 诊断呈现；这个最小适配器暂不把它们转换为 RISC-V 访问异常。
+它实现了单独版本化的 PicoRV32 自定义 IRQ ABI：IRQCTRL 将八个外设源映射到 CPU 位 8 至 15，SDK 独占固定 <code>0x10</code> 向量并完整保存 C ABI 上下文。精确的非标准边界与确认顺序见 <a href="interrupts.md">中断约定</a>。非法事务或写 ROM 事务会被应答并作为仿真/bring-up 诊断呈现；这个最小适配器暂不把它们转换为 RISC-V 访问异常。
 
 ROM 初始化文件只是仿真/FPGA bring-up 机制，不是客户更新方案。Tang Nano 9K 产品启动路径为：
 
@@ -69,7 +74,7 @@ ROM 初始化文件只是仿真/FPGA bring-up 机制，不是客户更新方案�
 
 ## 硬件/软件版本握手
 
-已实现的 v0 SYSCTRL 模块公开 <code>OMCU</code> 芯片标识、ABI 主/次版本、特性位图、构建标识和实际 ROM/SRAM KiB。固件必须拒绝 ABI 主版本不受支持的设备，不能意外写入不兼容寄存器。复位原因和完整构建摘要仍是后续扩展。详见 <a href="registers.md">寄存器参考</a>。
+已实现的 v0 SYSCTRL 模块公开 <code>OMCU</code> 芯片标识、ABI 主/次版本、特性位图、构建标识、实际 ROM/SRAM KiB、复位原因、64-bit 运行 tick、内部复位计数和受控的 Bootloader 请求。固件必须拒绝 ABI 主版本不受支持的设备，不能意外写入不兼容寄存器。详见 <a href="registers.md">寄存器参考</a>。
 
 ## 平台拆分
 

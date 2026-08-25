@@ -17,7 +17,7 @@
 | `0x4000_9000` | TIMER1 | 两路同步滤波捕获、比较定时器和正交编码器；Tang 上经 PINMUX 连接 GPIO8/9（J5.16/J5.17） |
 | `0x4000_A000` | PWM1 | 四路共享计数器 PWM；Tang 上经 PINMUX 连接 GPIO4..7（J5.12..15） |
 | `0x4000_B000` | PINMUX | 显式选择已审查的扩展 pad 替代功能；复位时所有可用 pad 归 GPIO |
-| `0x4000_F000` | SYSCTRL | `OMCU` ID、ABI、功能位、内存容量 |
+| `0x4000_F000` | SYSCTRL | `OMCU` ID、ABI、功能位、内存容量、复位诊断与产品 Bootloader 请求 |
 
 所有寄存器是 32-bit little-endian；SDK 不建议使用裸常数地址。包含 `omcu.h` 后可使用
 `OMCU_GPIO0`、`OMCU_UART0` 等寄存器结构和封装函数。包含 `omcu_tn9k.h` 后可使用
@@ -189,9 +189,10 @@ PWM 为单通道边沿对齐输出，`PERIOD` 为包含端点的 top 值。看�
 在 Tang 顶层仿真中验证会重启 SoC；实际板上复位行为仍需记录。
 
 PWM1 由 `OMCU_FEATURE_PWM1` 和 `OMCU_FEATURE_PINMUX` 共同声明，地址为
-`0x4000_A000`。四个 `DUTY` 寄存器共享 `PRESCALE`、`PERIOD` 和 `COUNT`，因此不会占用
-大 FIFO 或 BSRAM，也不会产生可独立相移的通道。默认/disable 时输出均为低；`CTRL` bit 4..7
-分别反相 CH0..3。Tang 的推荐调用是：
+`0x4000_A000`。四个 `DUTY` 寄存器共享 `PRESCALE`、**16-bit** `PERIOD` 和 `COUNT`，因此不会占用
+大 FIFO 或 BSRAM，也不会产生可独立相移的通道。`PERIOD`、`DUTY0..3` 和 `COUNT` 的有效范围均为
+0..65535，SDK 以 `uint16_t` 表达，MMIO 写入高 16 bit 会被忽略。默认/disable 时输出均为低；
+`CTRL` bit 4..7 分别反相 CH0..3。Tang 的推荐调用是：
 
 ```c
 (void)omcu_tn9k_pwm1_configure(26u, 999u,
@@ -206,10 +207,12 @@ PWM1 由 `OMCU_FEATURE_PWM1` 和 `OMCU_FEATURE_PINMUX` 共同声明，地址为
 ### TIMER1：滤波输入捕获与正交编码器
 
 TIMER1 由 `OMCU_FEATURE_TIMER1` 与 `OMCU_FEATURE_PINMUX` 共同声明，地址为
-`0x4000_9000`。它保留 TIMER0 的 16-bit 分频、32-bit 比较和单次/自动重装行为，同时增加 A/B
-两路输入。每路严格经过两级同步器和 `FILTER` 连续稳定样本滤波后，才会触发选定上升/下降沿的
-`CAPTURE_A` / `CAPTURE_B` 时间戳，或送入正交 Gray 解码器。`FILTER=N` 需要 `N+1` 个连续的
-不一致同步样本才接受新电平；改写该寄存器会清掉正在累积的滤波计数。
+`0x4000_9000`。它使用 16-bit 分频、**16-bit** 比较/计数/时间戳和单次/自动重装行为，同时增加 A/B
+两路输入。每路严格经过两级同步器和 8-bit `FILTER` 连续稳定样本滤波后，才会触发选定上升/下降沿的
+`CAPTURE_A` / `CAPTURE_B` 时间戳，或送入正交 Gray 解码器。`FILTER=N`（0..255）需要 `N+1` 个连续的
+不一致同步样本才接受新电平；改写该寄存器会清掉正在累积的滤波计数。`ENCODER` 是低 16-bit 有符号
+二补码位置，读取时符号扩展到 `int32_t`；SDK 配置 API 用 `uint16_t` compare 和 `uint8_t` filter，避免
+对未实现的高位产生错误预期。
 
 ```c
 const uint32_t ctrl = OMCU_TIMER1_CTRL_ENABLE |
@@ -217,7 +220,7 @@ const uint32_t ctrl = OMCU_TIMER1_CTRL_ENABLE |
                       OMCU_TIMER1_CTRL_CAPTURE_B_ENABLE |
                       OMCU_TIMER1_CTRL_QUADRATURE_ENABLE;
 
-if (omcu_tn9k_timer1_configure(0u, UINT32_MAX, 4u, ctrl)) {
+if (omcu_tn9k_timer1_configure(0u, UINT16_MAX, 4u, ctrl)) {
   int32_t position = omcu_timer1_encoder_position();
   omcu_timer1_clear_status(OMCU_TIMER1_STATUS_ENCODER_ILLEGAL);
 }
@@ -229,6 +232,31 @@ if (omcu_tn9k_timer1_configure(0u, UINT32_MAX, 4u, ctrl)) {
 `00 -> 01 -> 11 -> 10 -> 00`；`CTRL.QUADRATURE_REVERSE` 只翻转位置方向。它没有 DMA、FIFO、
 边沿排队、速度计算或异步高速计数能力；外部信号必须满足同步/滤波时序，且 GPIO8/9 与 RGB LCD
 共线。RTL 和编译固件仿真已覆盖，但真实编码器、电压、线缆与噪声 HIL 仍待完成。
+
+### SYSCTRL：复位诊断与产品 Bootloader 请求
+
+`OMCU_FEATURE_DIAGNOSTICS` 表示当前平台提供可信的顶层复位诊断值。`RESET_CAUSE` 是当前
+SoC 这一轮启动的最后原因：外部/上电为 `OMCU_RESET_CAUSE_EXTERNAL`，看门狗为
+`OMCU_RESET_CAUSE_WATCHDOG`，软件请求为 `OMCU_RESET_CAUSE_SOFTWARE`。`RUN_TICKS_LO/HI`
+是从当前 SoC 释放复位开始的 64-bit 27 MHz 时钟计数，`RESET_COUNT` 是本次外部复位后已发生的
+watchdog/software 内部复位数；外部复位会清零该计数和任何未消费的软件请求。
+
+```c
+if (omcu_sysctrl_has_diagnostics()) {
+  uint32_t cause = omcu_sysctrl_reset_cause();
+  uint32_t count = omcu_sysctrl_reset_count();
+  uint64_t ticks = omcu_sysctrl_run_ticks();
+  (void)cause;
+  (void)count;
+  (void)ticks;
+}
+```
+
+`BOOT_CTRL.REQUEST_SUPPORTED=1` 只出现在带 User Flash 的产品 Bootloader 模式。应用不得写
+裸魔数，应调用 `omcu_tn9k_request_bootloader()`；它会请求一次 SoC 复位，随后 Boot ROM 确认
+pending 并持续保持 UART0 更新会话，直到主机完成常规 `BOOT` 命令或外部复位。该机制不是调试器、
+硬件复位替代品或安全边界，也不改变 A/B、CRC、外部复位和空白设备恢复合同。完整流程见
+[独立 MCU 固件开发与升级](mcu-firmware-update.md)。
 
 ## 把应用加进 SDK
 

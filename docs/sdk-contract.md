@@ -14,19 +14,19 @@ v0 的机器可读规范是 <a href="../spec/omcu-v0.json">spec/omcu-v0.json</a>
 
 ## 版本规则
 
-- 硬件在 SYSCTRL 元数据中采用 <code>major.minor.patch</code> 语义化版本；
+- 硬件在 SYSCTRL 元数据中采用 <code>major.minor</code> ABI 版本；
 - 只有不兼容的寄存器行为才允许提升主版本；
 - 新的可选模块必须通过特性位图声明；
 - SDK 版本固定交叉工具链版本，并记录支持的硬件 ABI 范围。
 
 ## 必须提供的公开 SDK 功能
 
-ABI 0.5 SDK 包括设备/特性发现、GPIO、定时器、UART 控制台、轮询式 SPI 单字节传输、可组合的 I2C START/STOP/读写字节辅助函数、看门狗启停与喂狗、PWM 配置，以及可执行的外部 IRQ 入口：<code>omcu_irq_set_mask()</code>、<code>omcu_irq_wait()</code>、<code>omcu_irq_global_enable()</code> 和 IRQCTRL 辅助函数。
+ABI 0.6 SDK 包括设备/特性发现、18-bit GPIO 档案、UART0/1、TIMER0/1、轮询式 SPI 单字节和连续 CS 帧传输、可组合的 I2C START/STOP/读写字节辅助函数、看门狗启停与喂狗、PWM0/四路 PWM1、PINMUX、复位诊断、软件请求 Bootloader，以及可执行的外部 IRQ 入口：<code>omcu_irq_set_mask()</code>、<code>omcu_irq_wait()</code>、<code>omcu_irq_global_enable()</code> 和 IRQCTRL 辅助函数。
 
 应用通过提供强符号 <code>omcu_irq_dispatch(uint32_t pending)</code> 实现中断分发。SDK 的向量包装器负责 PicoRV32 自定义指令和全部整数寄存器保护。精确的非标准边界与确认顺序见 <a href="interrupts.md">中断约定</a>。
 
-<code>omcu_tn9k.h</code> 公开 27 MHz 板级定义及逻辑 LED/扩展 GPIO 掩码，不把 FPGA 封装引脚号泄漏给应用。I2C 辅助函数在硬件未启用、命令顺序非法或目标 NACK 时返回 <code>false</code>；它们不会暗中伪造事务超时，应用须自行选择外层超时策略。硬件特性位图是唯一权威：SDK 不能只因某个基址被保留，就假定可选外设存在。
+<code>omcu_tn9k.h</code> 公开 27 MHz 板级定义、逻辑 LED/扩展 GPIO 掩码和受控的 UART1/PWM1/TIMER1 pinmux helper，不把 FPGA 封装引脚号泄漏给应用。P1 资源边界是 SDK 合同的一部分：PWM1/TIMER1 的相关数值为 16-bit，TIMER1 滤波为 8-bit。I2C 辅助函数在硬件未启用、命令顺序非法或目标 NACK 时返回 <code>false</code>；它们不会暗中伪造事务超时，应用须自行选择外层超时策略。硬件特性位图是唯一权威：SDK 不能只因某个基址被保留，就假定可选外设存在。
 
 受检构建入口是 Windows 的 <code>scripts/build-sdk.ps1</code> 和 Linux/macOS 的 <code>scripts/build-sdk.sh</code>。两者均要求显式 GNU 工具链前缀，并驱动同一份 CMake 工具链文件、链接脚本和生成的寄存器头文件。支持主机的 CI 矩阵会在 Windows、Linux 与 macOS 构建所有 SDK 目标；其通过仍不能替代实板测试。
 
-SDK 还包含 Tang Nano 9K User Flash A/B 路径的独立应用镜像打包器与 UART 串口下载工具。板卡信息 CLI、标准 QSPI/XIP 路径和符合标准特权 RISC-V 的异常/中断内核仍属未来能力，不应被误认为 ABI 已承诺的属性。
+SDK 还包含 Tang Nano 9K User Flash A/B 路径的独立应用镜像打包器与 UART 串口下载工具，以及外置 DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 驱动。W5500 是外置 SPI 网络控制器，不是 FPGA MAC/PHY。板卡信息 CLI、标准 QSPI/XIP 路径和符合标准特权 RISC-V 的异常/中断内核仍属未来能力，不应被误认为 ABI 已承诺的属性。

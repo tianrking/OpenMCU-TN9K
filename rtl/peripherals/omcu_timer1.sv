@@ -1,11 +1,14 @@
 `default_nettype none
 
-// TIMER1 combines a conventional compare timer with two explicitly
-// synchronized input channels.  Each input passes through a two-flop
-// synchronizer and a programmable consecutive-sample filter before it can
-// create a capture event or enter the quadrature Gray decoder.  It is not a
-// high-speed asynchronous counter; external signals faster than the system
-// clock/filter contract need a dedicated front end.
+// Resource-bounded TIMER1 for the Tang Nano 9K profile. It combines a
+// 16-bit prescaled compare timer, dual filtered input capture, and a
+// quadrature decoder. The two inputs always pass through a two-flop
+// synchronizer followed by a programmable 0..255-cycle stability filter;
+// this is deliberately not an asynchronous high-speed counter.
+//
+// The MMIO page stays word addressed, but TIMER1 count/capture/position use
+// their documented low 16 bits. Keeping this peripheral narrow is what lets
+// the complete P0/P1 profile fit in the GW1NR-9C alongside Boot ROM/User Flash.
 module omcu_timer1 (
   input  logic        clk_i,
   input  logic        rst_ni,
@@ -45,21 +48,21 @@ module omcu_timer1 (
   logic        encoder_reverse_q;
   logic [15:0] prescale_q;
   logic [15:0] prescale_count_q;
-  logic [31:0] count_q;
-  logic [31:0] compare_q;
-  logic [15:0] filter_q;
-  logic [31:0] capture_a_q;
-  logic [31:0] capture_b_q;
-  logic [31:0] encoder_position_q;
+  logic [15:0] count_q;
+  logic [15:0] compare_q;
+  logic [7:0]  filter_q;
+  logic [15:0] capture_a_q;
+  logic [15:0] capture_b_q;
+  logic [15:0] encoder_position_q;
 
   logic capture_a_meta_q;
   logic capture_a_sync_q;
   logic capture_a_filtered_q;
-  logic [15:0] capture_a_filter_count_q;
+  logic [7:0] capture_a_filter_count_q;
   logic capture_b_meta_q;
   logic capture_b_sync_q;
   logic capture_b_filtered_q;
-  logic [15:0] capture_b_filter_count_q;
+  logic [7:0] capture_b_filter_count_q;
   logic [1:0] encoder_state_q;
   logic       encoder_direction_q;
 
@@ -89,9 +92,18 @@ module omcu_timer1 (
 
   logic [31:0] ctrl_read;
   logic [31:0] status_read;
-  logic [31:0] ctrl_merged;
-  logic [31:0] prescale_merged;
-  logic [31:0] filter_merged;
+
+  function automatic logic [15:0] merge_low16(
+    input logic [15:0] old_value,
+    input logic [31:0] new_value,
+    input logic [3:0] strobe
+  );
+    logic [15:0] byte_mask;
+    begin
+      byte_mask = {{8{strobe[1]}}, {8{strobe[0]}}};
+      merge_low16 = (old_value & ~byte_mask) | (new_value[15:0] & byte_mask);
+    end
+  endfunction
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
@@ -119,21 +131,16 @@ module omcu_timer1 (
                            (capture_b_falling_q ? capture_b_fall_event :
                                                   capture_b_rise_event);
   assign encoder_input_next = {capture_a_filtered_next, capture_b_filtered_next};
-  assign ctrl_merged = `OMCU_MERGE_WRITE(ctrl_read, write_data_i, write_strobe_i);
-  assign prescale_merged = `OMCU_MERGE_WRITE(
-    {16'h0000, prescale_q}, write_data_i, write_strobe_i
-  );
-  assign filter_merged = `OMCU_MERGE_WRITE(
-    {16'h0000, filter_q}, write_data_i, write_strobe_i
-  );
+  assign encoder_increment_event = encoder_step_event &&
+                                   (encoder_forward_event ^ encoder_reverse_q);
 
   always_comb begin
     encoder_step_event = 1'b0;
     encoder_illegal_event = 1'b0;
     encoder_forward_event = 1'b0;
     if (encoder_enable_q && (encoder_input_next != encoder_state_q)) begin
-      // Forward state order is 00 -> 01 -> 11 -> 10 -> 00.  A simultaneous
-      // two-bit change is invalid rather than silently becoming two steps.
+      // Forward order: 00 -> 01 -> 11 -> 10 -> 00. A simultaneous two-bit
+      // transition is an explicit diagnostic event, never two inferred steps.
       unique case ({encoder_state_q, encoder_input_next})
         4'b0001, 4'b0111, 4'b1110, 4'b1000: begin
           encoder_step_event = 1'b1;
@@ -141,17 +148,11 @@ module omcu_timer1 (
         end
         4'b0010, 4'b1011, 4'b1101, 4'b0100: begin
           encoder_step_event = 1'b1;
-          encoder_forward_event = 1'b0;
         end
-        default: begin
-          encoder_illegal_event = 1'b1;
-        end
+        default: encoder_illegal_event = 1'b1;
       endcase
     end
   end
-
-  assign encoder_increment_event = encoder_step_event &&
-                                   (encoder_forward_event ^ encoder_reverse_q);
 
   always_comb begin
     ctrl_read = '0;
@@ -181,12 +182,12 @@ module omcu_timer1 (
     unique case (addr_i[7:2])
       REG_CTRL:      read_data_o = ctrl_read;
       REG_PRESCALE:  read_data_o = {16'h0000, prescale_q};
-      REG_COUNT:     read_data_o = count_q;
-      REG_COMPARE:   read_data_o = compare_q;
-      REG_FILTER:    read_data_o = {16'h0000, filter_q};
-      REG_CAPTURE_A: read_data_o = capture_a_q;
-      REG_CAPTURE_B: read_data_o = capture_b_q;
-      REG_ENCODER:   read_data_o = encoder_position_q;
+      REG_COUNT:     read_data_o = {16'h0000, count_q};
+      REG_COMPARE:   read_data_o = {16'h0000, compare_q};
+      REG_FILTER:    read_data_o = {24'h000000, filter_q};
+      REG_CAPTURE_A: read_data_o = {16'h0000, capture_a_q};
+      REG_CAPTURE_B: read_data_o = {16'h0000, capture_b_q};
+      REG_ENCODER:   read_data_o = {{16{encoder_position_q[15]}}, encoder_position_q};
       REG_STATUS:    read_data_o = status_read;
       default:       read_data_o = '0;
     endcase
@@ -205,24 +206,22 @@ module omcu_timer1 (
       encoder_reverse_q <= 1'b0;
       prescale_q <= 16'h0000;
       prescale_count_q <= 16'h0000;
-      count_q <= 32'h0000_0000;
-      compare_q <= 32'hffff_ffff;
-      filter_q <= 16'h0000;
-      capture_a_q <= 32'h0000_0000;
-      capture_b_q <= 32'h0000_0000;
-      encoder_position_q <= 32'h0000_0000;
-
+      count_q <= 16'h0000;
+      compare_q <= 16'hffff;
+      filter_q <= 8'h00;
+      capture_a_q <= 16'h0000;
+      capture_b_q <= 16'h0000;
+      encoder_position_q <= 16'h0000;
       capture_a_meta_q <= 1'b0;
       capture_a_sync_q <= 1'b0;
       capture_a_filtered_q <= 1'b0;
-      capture_a_filter_count_q <= 16'h0000;
+      capture_a_filter_count_q <= 8'h00;
       capture_b_meta_q <= 1'b0;
       capture_b_sync_q <= 1'b0;
       capture_b_filtered_q <= 1'b0;
-      capture_b_filter_count_q <= 16'h0000;
+      capture_b_filter_count_q <= 8'h00;
       encoder_state_q <= 2'b00;
       encoder_direction_q <= 1'b0;
-
       compare_pending_q <= 1'b0;
       capture_a_pending_q <= 1'b0;
       capture_b_pending_q <= 1'b0;
@@ -236,23 +235,21 @@ module omcu_timer1 (
       capture_b_sync_q <= capture_b_meta_q;
 
       if (capture_a_sync_q == capture_a_filtered_q) begin
-        capture_a_filter_count_q <= 16'h0000;
+        capture_a_filter_count_q <= 8'h00;
       end else if (capture_a_filter_accept) begin
         capture_a_filtered_q <= capture_a_sync_q;
-        capture_a_filter_count_q <= 16'h0000;
+        capture_a_filter_count_q <= 8'h00;
       end else begin
-        capture_a_filter_count_q <= capture_a_filter_count_q + 16'd1;
+        capture_a_filter_count_q <= capture_a_filter_count_q + 8'd1;
       end
       if (capture_b_sync_q == capture_b_filtered_q) begin
-        capture_b_filter_count_q <= 16'h0000;
+        capture_b_filter_count_q <= 8'h00;
       end else if (capture_b_filter_accept) begin
         capture_b_filtered_q <= capture_b_sync_q;
-        capture_b_filter_count_q <= 16'h0000;
+        capture_b_filter_count_q <= 8'h00;
       end else begin
-        capture_b_filter_count_q <= capture_b_filter_count_q + 16'd1;
+        capture_b_filter_count_q <= capture_b_filter_count_q + 8'd1;
       end
-      // Track filtered inputs even with QDEC disabled so enabling it does not
-      // synthesize a step from a stale state.
       encoder_state_q <= encoder_input_next;
 
       if (timer_enable_q) begin
@@ -260,13 +257,12 @@ module omcu_timer1 (
           prescale_count_q <= 16'h0000;
           if (count_q == compare_q) begin
             if (auto_reload_q) begin
-              count_q <= 32'h0000_0000;
+              count_q <= 16'h0000;
             end else begin
-              // Same one-shot semantics as TIMER0: stop at compare.
               timer_enable_q <= 1'b0;
             end
           end else begin
-            count_q <= count_q + 32'd1;
+            count_q <= count_q + 16'd1;
           end
         end else begin
           prescale_count_q <= prescale_count_q + 16'd1;
@@ -275,9 +271,7 @@ module omcu_timer1 (
         prescale_count_q <= 16'h0000;
       end
 
-      if (compare_event) begin
-        compare_pending_q <= 1'b1;
-      end
+      if (compare_event) compare_pending_q <= 1'b1;
       if (capture_a_event) begin
         capture_a_q <= count_q;
         capture_a_pending_q <= 1'b1;
@@ -288,68 +282,48 @@ module omcu_timer1 (
       end
       if (encoder_step_event) begin
         if (encoder_increment_event) begin
-          encoder_position_q <= encoder_position_q + 32'd1;
+          encoder_position_q <= encoder_position_q + 16'd1;
           encoder_direction_q <= 1'b1;
         end else begin
-          encoder_position_q <= encoder_position_q - 32'd1;
+          encoder_position_q <= encoder_position_q - 16'd1;
           encoder_direction_q <= 1'b0;
         end
         encoder_step_pending_q <= 1'b1;
       end
-      if (encoder_illegal_event) begin
-        encoder_illegal_pending_q <= 1'b1;
-      end
+      if (encoder_illegal_event) encoder_illegal_pending_q <= 1'b1;
 
       if (req_i && write_i) begin
         unique case (addr_i[7:2])
-          REG_CTRL: begin
-            timer_enable_q <= ctrl_merged[0];
-            irq_enable_q <= ctrl_merged[1];
-            auto_reload_q <= ctrl_merged[2];
-            capture_a_enable_q <= ctrl_merged[3];
-            capture_b_enable_q <= ctrl_merged[4];
-            capture_a_falling_q <= ctrl_merged[5];
-            capture_b_falling_q <= ctrl_merged[6];
-            encoder_enable_q <= ctrl_merged[7];
-            encoder_reverse_q <= ctrl_merged[8];
+          REG_CTRL: if (write_strobe_i[0]) begin
+            timer_enable_q <= write_data_i[0];
+            irq_enable_q <= write_data_i[1];
+            auto_reload_q <= write_data_i[2];
+            capture_a_enable_q <= write_data_i[3];
+            capture_b_enable_q <= write_data_i[4];
+            capture_a_falling_q <= write_data_i[5];
+            capture_b_falling_q <= write_data_i[6];
+            encoder_enable_q <= write_data_i[7];
+            encoder_reverse_q <= write_data_i[8];
           end
-          REG_PRESCALE: begin
-            prescale_q <= prescale_merged[15:0];
+          REG_PRESCALE: prescale_q <= merge_low16(
+            prescale_q, write_data_i, write_strobe_i
+          );
+          REG_COUNT: count_q <= merge_low16(count_q, write_data_i, write_strobe_i);
+          REG_COMPARE: compare_q <= merge_low16(compare_q, write_data_i, write_strobe_i);
+          REG_FILTER: if (write_strobe_i[0]) begin
+            filter_q <= write_data_i[7:0];
+            capture_a_filter_count_q <= 8'h00;
+            capture_b_filter_count_q <= 8'h00;
           end
-          REG_COUNT: begin
-            count_q <= `OMCU_MERGE_WRITE(count_q, write_data_i, write_strobe_i);
-          end
-          REG_COMPARE: begin
-            compare_q <= `OMCU_MERGE_WRITE(compare_q, write_data_i, write_strobe_i);
-          end
-          REG_FILTER: begin
-            filter_q <= filter_merged[15:0];
-            // Do not let a partial run counted under an old filter setting
-            // become an immediate edge under the new setting.
-            capture_a_filter_count_q <= 16'h0000;
-            capture_b_filter_count_q <= 16'h0000;
-          end
-          REG_ENCODER: begin
-            encoder_position_q <= `OMCU_MERGE_WRITE(
-              encoder_position_q, write_data_i, write_strobe_i
-            );
-          end
-          REG_STATUS: begin
-            if (write_strobe_i[0] && write_data_i[0]) begin
-              compare_pending_q <= compare_event;
-            end
-            if (write_strobe_i[0] && write_data_i[1]) begin
-              capture_a_pending_q <= capture_a_event;
-            end
-            if (write_strobe_i[0] && write_data_i[2]) begin
-              capture_b_pending_q <= capture_b_event;
-            end
-            if (write_strobe_i[0] && write_data_i[3]) begin
-              encoder_step_pending_q <= encoder_step_event;
-            end
-            if (write_strobe_i[0] && write_data_i[4]) begin
-              encoder_illegal_pending_q <= encoder_illegal_event;
-            end
+          REG_ENCODER: encoder_position_q <= merge_low16(
+            encoder_position_q, write_data_i, write_strobe_i
+          );
+          REG_STATUS: if (write_strobe_i[0]) begin
+            if (write_data_i[0]) compare_pending_q <= compare_event;
+            if (write_data_i[1]) capture_a_pending_q <= capture_a_event;
+            if (write_data_i[2]) capture_b_pending_q <= capture_b_event;
+            if (write_data_i[3]) encoder_step_pending_q <= encoder_step_event;
+            if (write_data_i[4]) encoder_illegal_pending_q <= encoder_illegal_event;
           end
           default: begin
           end

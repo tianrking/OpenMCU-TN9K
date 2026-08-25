@@ -7,7 +7,7 @@ Tang Nano 9K v1 硬件与 SDK 固定使用 **<code>rv32imc</code> 与 <code>ilp3
 | 组成 | OpenMCU-TN9K v1 的承诺 |
 | --- | --- |
 | 基础整数 ISA | RV32I，32 个通用 32 位寄存器 |
-| 乘除法 | <code>M</code>，由 PicoRV32 的快速乘法与除法 PCPI 单元实现 |
+| 乘除法 | <code>M</code>，快速乘法器加 OpenMCU 的资源受控 32 步 PCPI 除法器；保留零除和有符号溢出语义 |
 | 代码密度 | <code>C</code>，在取指和译码路径中启用 |
 | 编译器 ABI | <code>ilp32</code>、小端、无操作系统裸机环境 |
 | 同步 | CPU 适配器接受 <code>FENCE</code>；v1 总线仅有一个主设备，MMIO 保持顺序 |
@@ -24,12 +24,12 @@ Tang Nano 9K v1 硬件与 SDK 固定使用 **<code>rv32imc</code> 与 <code>ilp3
 - 标准 RISC-V 中断控制器、PLIC/CLINT、特权中断 CSR，或应用直接使用 PicoRV32 自定义 IRQ 指令码；
 - 非对齐访问、缓存一致性、DMA 或 Linux 支持。
 
-CPU 可以通过 PicoRV32 支持的计数器编码读取内部周期/指令计数器，但这不构成完整 <code>Zicsr</code> 扩展承诺。ABI 0.5 通过 <code>omcu.h</code> 提供了一条刻意收窄、已经文档化的 PicoRV32 自定义 IRQ 路径：六个外部源使用位 8 至 13，SDK 独占 <code>0x10</code> 向量，应用提供 C 语言分发钩子。这不会使内核成为特权 RISC-V 实现。
+PicoRV32 的内部周期/指令计数器为节省 LUT 已禁用，不是公开 CSR 或 ABI；运行时间请使用 SYSCTRL 的 64-bit `RUN_TICKS`。ABI 0.6 通过 <code>omcu.h</code> 提供了一条刻意收窄、已经文档化的 PicoRV32 自定义 IRQ 路径：八个外部源使用位 8 至 15，SDK 独占 <code>0x10</code> 向量，应用提供 C 语言分发钩子。这不会使内核成为特权 RISC-V 实现。
 
 今后若接入标准完整的异常/中断内核适配器，属于新的硬件能力，必须同步更新 SYSCTRL 特性位和 SDK 支持。具体的非标准边界见 <a href="interrupts.md">中断约定</a>。
 
 ## 为什么它是 9K 的默认配置
 
-9K FPGA 应服务于产品级微控制器外形：完整 32 寄存器 ABI、紧凑代码、硬件乘除法和桶形移位器。浮点、原子操作和向量会占用宝贵的 LUT/BRAM，却不是常见 GPIO、传感器、显示和控制固件的刚需。
+9K FPGA 应服务于产品级微控制器外形：完整 32 寄存器 ABI、紧凑代码、硬件乘法和可验证的 RV32M 除法。为留出 GPIO/UART1/PWM1/TIMER1/诊断资源，当前实现采用单端口寄存器堆和迭代移位器；这改变某些指令时延，不改变 `rv32imc` 语义。浮点、原子操作和向量会占用宝贵的 LUT/BRAM，却不是常见 GPIO、传感器、显示和控制固件的刚需。
 
 最终资源与时序边界必须以实际构建和布局布线报告为准，不能以文字估算代替。

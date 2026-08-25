@@ -82,7 +82,10 @@ module omcu_pwm1_fabric_tb;
     check(!error && value == 32'h0000_0000 && pwm1 == 4'b0000,
           "PWM1 page must decode with all four outputs safely low after reset");
     write_reg(PWM1_BASE + 32'h04, 32'd0);
-    write_reg(PWM1_BASE + 32'h08, 32'd3);
+    write_reg(PWM1_BASE + 32'h08, 32'hbeef_0003);
+    read_reg(PWM1_BASE + 32'h08, value);
+    check(value == 32'h0000_0003,
+          "PWM1 period must retain only the documented low 16 bits through fabric");
     write_reg(PWM1_BASE + 32'h0c, 32'd1);
     write_reg(PWM1_BASE + 32'h10, 32'd2);
     write_reg(PWM1_BASE + 32'h14, 32'd0);

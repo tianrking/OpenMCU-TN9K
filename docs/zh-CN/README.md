@@ -65,12 +65,13 @@ python -m pip install pyserial
 python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
 ```
 
-启动器在复位后短暂监听 UART；先运行 PC 工具、再按复位键即可进入更新。更新器使用带序号和 CRC32 的停等协议，始终写入非当前槽，全部验证后才原子提交新槽。它是客户使用的“烧录 MCU 程序”通道。
+启动器在复位后短暂监听 UART；先运行 PC 工具、再按复位键即可进入更新。若应用还在运行且复用了 UART0，先完成业务安全收尾后调用 `omcu_tn9k_request_bootloader()`，平台会记录软件复位原因并让 Bootloader 持续保持 UART0 会话，无需抢启动窗口。更新器使用带序号和 CRC32 的停等协议，始终写入非当前槽，全部验证后才原子提交新槽。它是客户使用的“烧录 MCU 程序”通道。
 
 ## 当前 ABI 与边界
 
-- ISA / ABI：`rv32imc` / `ilp32`，PicoRV32 适配器；当前硬件 ABI `0x00000005`。
-- 外设：GPIO0、UART0、TIMER0、SPI0、I2C0、WDT0、PWM0、IRQCTRL、SYSCTRL、User Flash 控制器。
+- ISA / ABI：`rv32imc` / `ilp32`，PicoRV32 适配器；当前硬件 ABI `0x00000006`。PicoRV32 的内部 `cycle/instret` 计数器不属于公开 ABI，运行时间请读 SYSCTRL 64-bit tick。
+- 外设：18-bit GPIO 档案（6 LED + 12 外扩）、UART0/1、TIMER0/1、SPI0、I2C0、WDT0、PWM0/四路 PWM1、IRQCTRL、PINMUX、诊断 SYSCTRL 和 User Flash 控制器。
+- P0 SDK：已有 DS3231、AT24Cxx、TMP102、MCP3008、MCP4921 与 W5500 外置 SPI 网络控制器驱动；真实器件总线/电气 HIL 尚待完成。
 - 更新完整性：镜像头和载荷均使用 CRC32，支持断电前的旧槽回退；它不是签名安全启动。
 - 真实硬件：RTL、SDK 和 P&R 检查的证据与实体板电气、擦写寿命、掉电和量产验证是不同层级，不能相互替代。
 - 旧 `.hex → .fs` 路径：仅为 RTL / FPGA bring-up 回归保留；客户交付一律使用 `.omcu → UART → User Flash`。
