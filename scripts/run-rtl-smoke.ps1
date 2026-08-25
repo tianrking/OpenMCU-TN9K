@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('timer', 'gpio', 'uart', 'spi', 'i2c', 'wdt', 'pwm', 'irqctrl', 'sysctrl', 'user-flash', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', 'tn9k')]
+    [ValidateSet('timer', 'gpio', 'uart', 'spi', 'i2c', 'wdt', 'pwm', 'irqctrl', 'sysctrl', 'user-flash', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', 'tn9k', 'mcu-top')]
     [string]$Test = 'timer'
 )
 
@@ -401,6 +401,38 @@ switch ($Test) {
         Push-Location $projectRoot
         try {
             & $iverilogPath -g2012 -s omcu_tn9k_peripheral_io_tb -o $output @sources
+            if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+            & $vvpPath $output
+            if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+        } finally {
+            Pop-Location
+        }
+    }
+    'mcu-top' {
+        $output = Join-Path $buildDir 'omcu_tn9k_mcu_top_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'third_party\picorv32\picorv32.v'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
+            (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
+            (Join-Path $projectRoot 'rtl\platform\tangnano9k\omcu_tn9k_bringup_top.sv'),
+            (Join-Path $projectRoot 'rtl\platform\tangnano9k\omcu_tn9k_mcu_top.sv'),
+            (Join-Path $projectRoot 'tests\rtl\gowin_flash608k_stub.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_tn9k_mcu_top_tb.sv')
+        )
+        Push-Location $projectRoot
+        try {
+            & $iverilogPath -g2012 -s omcu_tn9k_mcu_top_tb -o $output @sources
             if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
             & $vvpPath $output
             if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }

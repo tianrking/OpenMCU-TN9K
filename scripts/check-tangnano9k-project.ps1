@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$ProjectPath
+    [string]$ProjectPath,
+    [switch]$McuMode
 )
 
 Set-StrictMode -Version Latest
@@ -8,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
-    $ProjectPath = Join-Path $projectRoot 'rtl\platform\tangnano9k\project\omcu_tn9k_bringup.gprj'
+    $projectName = if ($McuMode) { 'omcu_tn9k_mcu.gprj' } else { 'omcu_tn9k_bringup.gprj' }
+    $ProjectPath = Join-Path $projectRoot ('rtl\platform\tangnano9k\project\' + $projectName)
 }
 if (-not (Test-Path -LiteralPath $ProjectPath -PathType Leaf)) {
     throw "Tang Nano 9K project file is missing: $ProjectPath"
@@ -49,9 +51,13 @@ $requiredSources = @(
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and -not $_.TrimStart().StartsWith('#') } |
         ForEach-Object { [System.IO.Path]::GetFullPath((Join-Path $projectRoot $_.Trim())) }
 )
-$requiredSources += [System.IO.Path]::GetFullPath(
-    (Join-Path $projectRoot 'rtl\platform\tangnano9k\omcu_tn9k_bringup_top.sv')
-)
+$requiredTopSources = @('rtl\platform\tangnano9k\omcu_tn9k_bringup_top.sv')
+if ($McuMode) {
+    $requiredTopSources += 'rtl\platform\tangnano9k\omcu_tn9k_mcu_top.sv'
+}
+$requiredSources += @($requiredTopSources | ForEach-Object {
+    [System.IO.Path]::GetFullPath((Join-Path $projectRoot $_))
+})
 
 $missingSources = @($requiredSources | Where-Object { -not $projectFileSet.Contains($_) })
 if ($missingSources.Count -ne 0) {
@@ -96,4 +102,5 @@ foreach ($padBinding in $requiredPadBindings) {
     }
 }
 
-Write-Output "PASS: Tang Nano 9K project covers $($requiredSources.Count) canonical RTL sources and $($requiredPadBindings.Count) MCU pad bindings for $expectedDevice"
+$modeLabel = if ($McuMode) { 'MCU product' } else { 'bring-up' }
+Write-Output "PASS: Tang Nano 9K $modeLabel project covers $($requiredSources.Count) canonical RTL sources and $($requiredPadBindings.Count) MCU pad bindings for $expectedDevice"

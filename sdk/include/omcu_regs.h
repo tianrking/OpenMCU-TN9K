@@ -10,6 +10,7 @@
 
 #define OMCU_ROM_BASE            UINT32_C(0x00000000)
 #define OMCU_SRAM_BASE           UINT32_C(0x10000000)
+#define OMCU_USER_FLASH_BASE     UINT32_C(0x20000000)
 #define OMCU_QSPI_XIP_BASE       UINT32_C(0x20000000)
 #define OMCU_GPIO0_BASE          UINT32_C(0x40000000)
 #define OMCU_UART0_BASE          UINT32_C(0x40001000)
@@ -22,7 +23,7 @@
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
-#define OMCU_HW_ABI_MINOR      4u
+#define OMCU_HW_ABI_MINOR      5u
 
 #define OMCU_CHIP_ID             UINT32_C(0x4F4D4355)
 #define OMCU_SYSCTRL_ABI_MAJOR_SHIFT 16u
@@ -126,6 +127,7 @@ enum {
   OMCU_FEATURE_WDT0                = 1u << 5,
   OMCU_FEATURE_PWM0                = 1u << 6,
   OMCU_FEATURE_IRQCTRL             = 1u << 7,
+  OMCU_FEATURE_USER_FLASH          = 1u << 14,
   OMCU_IRQ_GPIO0                   = 1u << 8,
   OMCU_IRQ_UART0                   = 1u << 9,
   OMCU_IRQ_TIMER0                  = 1u << 10,

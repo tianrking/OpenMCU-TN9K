@@ -24,7 +24,11 @@ module omcu_tn9k_bringup_top #(
   parameter ROM_INIT_FILE = "rtl/platform/tangnano9k/firmware/gpio_bringup.hex",
 `endif
   parameter integer ROM_WORDS = 2048,
-  parameter integer SRAM_BYTES = 45056
+  parameter integer SRAM_BYTES = 45056,
+  parameter integer USER_FLASH_BYTES = 4,
+  parameter integer USER_FLASH_PRESENT = 0,
+  parameter integer USER_FLASH_USE_GOWIN_PRIMITIVE = 0,
+  parameter integer APPLICATION_BOOT_MODE = 0
 ) (
   input  logic       clk_27m_i,
   input  logic       resetn_i,
@@ -80,6 +84,10 @@ module omcu_tn9k_bringup_top #(
     .GPIO_COUNT(9),
     .ROM_WORDS(ROM_WORDS),
     .SRAM_BYTES(SRAM_BYTES),
+    .USER_FLASH_BYTES(USER_FLASH_BYTES),
+    .USER_FLASH_PRESENT(USER_FLASH_PRESENT),
+    .USER_FLASH_USE_GOWIN_PRIMITIVE(USER_FLASH_USE_GOWIN_PRIMITIVE),
+    .APPLICATION_BOOT_MODE(APPLICATION_BOOT_MODE),
     .ROM_INIT_FILE(ROM_INIT_FILE)
   ) system (
     .clk_i(clk_27m_i),

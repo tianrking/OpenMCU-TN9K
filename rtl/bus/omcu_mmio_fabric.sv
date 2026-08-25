@@ -6,7 +6,9 @@
 module omcu_mmio_fabric #(
   parameter integer GPIO_COUNT = 24,
   parameter integer ROM_BYTES = 4096,
-  parameter integer SRAM_BYTES = 32768
+  parameter integer SRAM_BYTES = 32768,
+  parameter logic [15:0] ABI_MINOR = 16'h0005,
+  parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff
 ) (
   input  logic                  clk_i,
   input  logic                  rst_ni,
@@ -239,7 +241,8 @@ module omcu_mmio_fabric #(
   omcu_sysctrl #(
     .ROM_BYTES(ROM_BYTES),
     .SRAM_BYTES(SRAM_BYTES),
-    .FEATURE_BITS(32'h0000_00ff)
+    .ABI_MINOR(ABI_MINOR),
+    .FEATURE_BITS(FEATURE_BITS)
   ) sysctrl (
     .req_i(sysctrl_select),
     .write_i(write_i),

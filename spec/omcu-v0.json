@@ -3,11 +3,12 @@
   "device": {
     "name": "OpenMCU",
     "abi_major": 0,
-    "abi_minor": 4
+    "abi_minor": 5
   },
   "memory": [
     { "macro": "OMCU_ROM_BASE", "address": "0x00000000" },
     { "macro": "OMCU_SRAM_BASE", "address": "0x10000000" },
+    { "macro": "OMCU_USER_FLASH_BASE", "address": "0x20000000" },
     { "macro": "OMCU_QSPI_XIP_BASE", "address": "0x20000000" },
     { "macro": "OMCU_GPIO0_BASE", "address": "0x40000000" },
     { "macro": "OMCU_UART0_BASE", "address": "0x40001000" },
@@ -149,6 +150,7 @@
     { "name": "OMCU_FEATURE_WDT0", "value": "1u << 5" },
     { "name": "OMCU_FEATURE_PWM0", "value": "1u << 6" },
     { "name": "OMCU_FEATURE_IRQCTRL", "value": "1u << 7" },
+    { "name": "OMCU_FEATURE_USER_FLASH", "value": "1u << 14" },
     { "name": "OMCU_IRQ_GPIO0", "value": "1u << 8" },
     { "name": "OMCU_IRQ_UART0", "value": "1u << 9" },
     { "name": "OMCU_IRQ_TIMER0", "value": "1u << 10" },

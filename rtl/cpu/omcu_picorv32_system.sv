@@ -21,7 +21,10 @@ module omcu_picorv32_system #(
   // 0x2000_0000. Generic simulation/bring-up builds leave it absent.
   parameter integer USER_FLASH_BYTES = 4,
   parameter integer USER_FLASH_PRESENT = 0,
+  parameter integer USER_FLASH_USE_GOWIN_PRIMITIVE = 0,
   parameter integer CLOCK_HZ = 27000000,
+  parameter logic [15:0] ABI_MINOR = 16'h0005,
+  parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
   // In product-loader mode applications execute from SRAM, so PicoRV32 must
   // enter external interrupts at the application's fixed SRAM vector.
   parameter integer APPLICATION_BOOT_MODE = 0,
@@ -67,6 +70,8 @@ module omcu_picorv32_system #(
   localparam logic [31:0] MMIO_BASE = 32'h4000_0000;
   localparam logic [31:0] MMIO_END = 32'h4001_0000;
   localparam logic [31:0] BOOT_ROM_BYTES = ROM_WORDS * 4;
+  localparam logic [31:0] SYSTEM_FEATURE_BITS = FEATURE_BITS |
+    ((USER_FLASH_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
   localparam logic [31:0] STACK_ADDRESS = SRAM_BASE + SRAM_BYTES - 4;
   localparam integer ROM_ADDR_BITS = $clog2(ROM_WORDS);
   localparam integer SRAM_WORDS = SRAM_BYTES / 4;
@@ -162,7 +167,9 @@ module omcu_picorv32_system #(
   omcu_mmio_fabric #(
     .GPIO_COUNT(GPIO_COUNT),
     .ROM_BYTES(BOOT_ROM_BYTES),
-    .SRAM_BYTES(SRAM_BYTES)
+    .SRAM_BYTES(SRAM_BYTES),
+    .ABI_MINOR(ABI_MINOR),
+    .FEATURE_BITS(SYSTEM_FEATURE_BITS)
   ) mmio (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
@@ -205,7 +212,8 @@ module omcu_picorv32_system #(
   omcu_user_flash #(
     .FLASH_BYTES(USER_FLASH_BYTES),
     .CLOCK_HZ(CLOCK_HZ),
-    .PRESENT(USER_FLASH_PRESENT)
+    .PRESENT(USER_FLASH_PRESENT),
+    .USE_GOWIN_USER_FLASH(USER_FLASH_USE_GOWIN_PRIMITIVE)
   ) user_flash (
     .clk_i(clk_i),
     .rst_ni(rst_ni),

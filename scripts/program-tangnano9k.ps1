@@ -41,7 +41,8 @@ function Resolve-Programmer {
 }
 
 $actualHash = (Get-FileHash -LiteralPath $bitstreamPath -Algorithm SHA256).Hash.ToLowerInvariant()
-$manifestPath = Join-Path (Split-Path -Parent $bitstreamPath) 'omcu_tn9k_bringup_manifest.json'
+$artifactStem = [System.IO.Path]::GetFileNameWithoutExtension($bitstreamPath)
+$manifestPath = Join-Path (Split-Path -Parent $bitstreamPath) ($artifactStem + '_manifest.json')
 if (-not $AllowUnverifiedArtifact) {
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         throw "Refusing an artifact without its build manifest: $manifestPath. Use -AllowUnverifiedArtifact only for an artifact you independently verified."

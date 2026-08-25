@@ -9,14 +9,16 @@
 // narrow write rules make destructive erase/program operations explicit in
 // firmware.
 //
-// With OMCU_GOWIN_USER_FLASH defined, FLASH608K is the Gowin primitive used by
-// the physical Tang target.  Without it, a deterministic behavioural model is
-// used by RTL simulation.  The behavioural model is never a substitute for
-// hardware programming validation.
+// Product wrappers select the documented FLASH608K primitive; generic RTL
+// builds select a deterministic behavioural model instead. The model is never
+// a substitute for hardware programming validation.
 module omcu_user_flash #(
   parameter integer FLASH_BYTES = 77824,
   parameter integer CLOCK_HZ = 27000000,
-  parameter integer PRESENT = 0
+  parameter integer PRESENT = 0,
+  // Product wrappers set this to use the vendor FLASH608K primitive. Generic
+  // simulation keeps it clear and uses the deterministic model below.
+  parameter integer USE_GOWIN_USER_FLASH = 0
 ) (
   input  logic        clk_i,
   input  logic        rst_ni,
@@ -81,22 +83,22 @@ module omcu_user_flash #(
   logic flash_prog;
   logic flash_erase;
   logic flash_nvstr;
-  logic [31:0] flash_dout;
+  wire [31:0] flash_dout;
+  logic [31:0] physical_flash_dout;
 
   wire [FLASH_ADDR_BITS-1:0] word_index = addr_q[FLASH_ADDR_BITS+1:2];
   wire [FLASH_ADDR_BITS-1:0] page_word_index =
     (word_index / PAGE_WORDS) * PAGE_WORDS;
   wire address_in_range = (addr_q < FLASH_BYTES);
 
-`ifdef OMCU_GOWIN_USER_FLASH
   generate
-    if (PRESENT != 0) begin : physical_flash
+    if ((PRESENT != 0) && (USE_GOWIN_USER_FLASH != 0)) begin : physical_flash
       // FLASH608K is a documented GW1NR-9C primitive.  Do not replace this
       // primitive with a configuration-flash interface: user flash is a
       // distinct nonvolatile resource and is what makes MCU firmware updates
       // independent from the FPGA bitstream.
       FLASH608K flash_primitive (
-        .DOUT(flash_dout),
+        .DOUT(physical_flash_dout),
         .XE(flash_xe),
         .YE(flash_ye),
         .SE(flash_se),
@@ -110,30 +112,46 @@ module omcu_user_flash #(
         .YADR(addr_q[7:2]),
         .DIN(write_data_q)
       );
-    end else begin : absent_physical_flash
+      assign flash_dout = physical_flash_dout;
+    end else if (PRESENT != 0) begin : behavioural_flash
+      // Keep the simulation array entirely out of a physical product build.
+      // A 76 KiB array would otherwise be elaborated before generate pruning
+      // and can exhaust lightweight WebAssembly synthesis environments.
+      logic [31:0] flash_model [0:MODEL_WORDS-1];
+      integer model_init_index;
+      integer model_erase_index;
+
+      initial begin
+        for (model_init_index = 0; model_init_index < MODEL_WORDS;
+             model_init_index = model_init_index + 1) begin
+          flash_model[model_init_index] = 32'hffff_ffff;
+        end
+      end
+
+      assign flash_dout = address_in_range ? flash_model[word_index]
+                                            : 32'hffff_ffff;
+
+      always_ff @(posedge clk_i) begin
+        if (rst_ni && state_q == STATE_ERASE_FINISH &&
+            delay_count_q + 1 >= ERASE_FINISH_CYCLES) begin
+          for (model_erase_index = 0;
+               model_erase_index < PAGE_WORDS;
+               model_erase_index = model_erase_index + 1) begin
+            if ((page_word_index + model_erase_index) < FLASH_WORDS) begin
+              flash_model[page_word_index + model_erase_index] <= 32'hffff_ffff;
+            end
+          end
+        end
+        if (rst_ni && state_q == STATE_PROGRAM_YE &&
+            delay_count_q + 1 >= PROGRAM_YE_CYCLES) begin
+          flash_model[word_index] <= flash_model[word_index] & write_data_q;
+        end
+      end
+    end else begin : absent_flash
+      assign physical_flash_dout = 32'hffff_ffff;
       assign flash_dout = 32'hffff_ffff;
     end
   endgenerate
-`else
-  logic [31:0] flash_model [0:MODEL_WORDS-1];
-  integer model_init_index;
-  integer model_erase_index;
-
-  initial begin
-    for (model_init_index = 0; model_init_index < MODEL_WORDS;
-         model_init_index = model_init_index + 1) begin
-      flash_model[model_init_index] = 32'hffff_ffff;
-    end
-  end
-
-  always_comb begin
-    if ((PRESENT != 0) && address_in_range) begin
-      flash_dout = flash_model[word_index];
-    end else begin
-      flash_dout = 32'hffff_ffff;
-    end
-  end
-`endif
 
   assign ready_o = (state_q == STATE_DONE);
   assign read_data_o = read_data_q;
@@ -267,14 +285,6 @@ module omcu_user_flash #(
         end
         STATE_ERASE_FINISH: begin
           if (delay_count_q + 1 >= ERASE_FINISH_CYCLES) begin
-`ifndef OMCU_GOWIN_USER_FLASH
-            for (model_erase_index = 0; model_erase_index < PAGE_WORDS;
-                 model_erase_index = model_erase_index + 1) begin
-              if ((page_word_index + model_erase_index) < FLASH_WORDS) begin
-                flash_model[page_word_index + model_erase_index] <= 32'hffff_ffff;
-              end
-            end
-`endif
             delay_count_q <= 32'h0000_0000;
             state_q <= STATE_DONE;
           end else begin
@@ -300,9 +310,6 @@ module omcu_user_flash #(
         end
         STATE_PROGRAM_YE: begin
           if (delay_count_q + 1 >= PROGRAM_YE_CYCLES) begin
-`ifndef OMCU_GOWIN_USER_FLASH
-            flash_model[word_index] <= flash_model[word_index] & write_data_q;
-`endif
             delay_count_q <= 32'h0000_0000;
             state_q <= STATE_PROGRAM_RELEASE;
           end else begin

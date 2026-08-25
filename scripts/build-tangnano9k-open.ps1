@@ -7,6 +7,7 @@ param(
     [int]$RomKiB = 8,
     [ValidateRange(1, 44)]
     [int]$SramKiB = 44,
+    [switch]$McuMode,
     [switch]$SkipPack
 )
 
@@ -19,7 +20,14 @@ if ([string]::IsNullOrWhiteSpace($BuildDirectory)) {
     $BuildDirectory = Join-Path $projectRoot 'build\tangnano9k-open'
 }
 if ([string]::IsNullOrWhiteSpace($RomInitFile)) {
-    $RomInitFile = Join-Path $projectRoot 'rtl\platform\tangnano9k\firmware\gpio_bringup.hex'
+    $RomInitFile = if ($McuMode) {
+        Join-Path $projectRoot 'build\sdk\omcu_bootloader.hex'
+    } else {
+        Join-Path $projectRoot 'rtl\platform\tangnano9k\firmware\gpio_bringup.hex'
+    }
+}
+if ($McuMode -and ($RomKiB -ne 8 -or $SramKiB -ne 44)) {
+    throw 'McuMode fixes the validated geometry at 8 KiB boot ROM plus 44 KiB SRAM (40 KiB application + 4 KiB loader scratch).'
 }
 
 function Resolve-OpenTool {
@@ -48,7 +56,11 @@ $yosys = Resolve-OpenTool 'yowasp-yosys'
 $nextpnr = Resolve-OpenTool 'yowasp-nextpnr-himbaechel-gowin'
 $gowinPack = if ($SkipPack) { $null } else { Resolve-OpenTool 'gowin_pack' }
 
-& (Join-Path $PSScriptRoot 'check-tangnano9k-project.ps1')
+if ($McuMode) {
+    & (Join-Path $PSScriptRoot 'check-tangnano9k-project.ps1') -McuMode
+} else {
+    & (Join-Path $PSScriptRoot 'check-tangnano9k-project.ps1')
+}
 
 New-Item -ItemType Directory -Force -Path $BuildDirectory | Out-Null
 $buildDirectory = (Resolve-Path -LiteralPath $BuildDirectory).Path
@@ -69,10 +81,12 @@ if (-not $romInitFile.StartsWith($projectRootPrefix, [System.StringComparison]::
     throw "RomInitFile must be inside the repository because the YoWASP WebAssembly tools require project-relative paths: $romInitFile"
 }
 
-$jsonPath = Join-Path $buildDirectory 'omcu_tn9k_bringup.json'
-$pnrPath = Join-Path $buildDirectory 'omcu_tn9k_bringup_pnr.json'
-$reportPath = Join-Path $buildDirectory 'omcu_tn9k_bringup_report.json'
-$bitstreamPath = Join-Path $buildDirectory 'omcu_tn9k_bringup.fs'
+$artifactStem = if ($McuMode) { 'omcu_tn9k_mcu' } else { 'omcu_tn9k_bringup' }
+$topModule = if ($McuMode) { 'omcu_tn9k_mcu_top' } else { 'omcu_tn9k_bringup_top' }
+$jsonPath = Join-Path $buildDirectory ($artifactStem + '.json')
+$pnrPath = Join-Path $buildDirectory ($artifactStem + '_pnr.json')
+$reportPath = Join-Path $buildDirectory ($artifactStem + '_report.json')
+$bitstreamPath = Join-Path $buildDirectory ($artifactStem + '.fs')
 $yosysLogPath = Join-Path $buildDirectory 'yosys.log'
 $pnrLogPath = Join-Path $buildDirectory 'nextpnr.log'
 $romImagePath = Join-Path $buildDirectory 'omcu_rom_image.hex'
@@ -157,12 +171,22 @@ $sourceList = @(
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and -not $_.TrimStart().StartsWith('#') } |
         ForEach-Object { $_.Trim().Replace('\', '/') }
 )
-$tangTopSource = 'rtl/platform/tangnano9k/omcu_tn9k_bringup_top.sv'
+$bringupTopSource = 'rtl/platform/tangnano9k/omcu_tn9k_bringup_top.sv'
+$tangTopSource = if ($McuMode) {
+    'rtl/platform/tangnano9k/omcu_tn9k_mcu_top.sv'
+} else {
+    $bringupTopSource
+}
 $romAwareSources = @(
-    'rtl/cpu/omcu_picorv32_system.sv',
-    $tangTopSource
+    'rtl/cpu/omcu_picorv32_system.sv'
 )
-$sourceList += $tangTopSource
+if ($McuMode) {
+    $romAwareSources += @($bringupTopSource, $tangTopSource)
+    $sourceList += @($bringupTopSource, $tangTopSource)
+} else {
+    $romAwareSources += $tangTopSource
+    $sourceList += $tangTopSource
+}
 
 function Quote-YosysPath {
     param([string]$Path)
@@ -199,7 +223,7 @@ function Get-BootRomInitEvidence {
     $cells = $netlist['modules'][$ModuleName]['cells']
     $romCellNames = @(
         $cells.Keys | Where-Object {
-            $_ -like 'system.boot_rom.*' -and
+            $_ -like '*boot_rom.*' -and
             $cells[$_]['parameters'].ContainsKey('INIT_RAM_00')
         } | Sort-Object
     )
@@ -242,9 +266,9 @@ try {
         }
     }
     $yosysProgram = ($readCommands + @(
-        "chparam -set ROM_WORDS $romWords omcu_tn9k_bringup_top",
-        "chparam -set SRAM_BYTES $sramBytes omcu_tn9k_bringup_top",
-        "synth_gowin -top omcu_tn9k_bringup_top -family gw1n -json $(Quote-YosysPath $relativeJsonPath)"
+        "chparam -set ROM_WORDS $romWords $topModule",
+        "chparam -set SRAM_BYTES $sramBytes $topModule",
+        "synth_gowin -top $topModule -family gw1n -json $(Quote-YosysPath $relativeJsonPath)"
     )) -join '; '
 
     & $yosys -q -l $relativeYosysLogPath -p $yosysProgram
@@ -260,7 +284,7 @@ if (-not (Test-Path -LiteralPath $jsonPath -PathType Leaf)) {
 }
 $sourceBootRomEvidence = Get-BootRomInitEvidence `
     -NetlistPath $jsonPath `
-    -ModuleName 'omcu_tn9k_bringup_top'
+    -ModuleName $topModule
 
 Push-Location $projectRoot
 try {
@@ -342,6 +366,8 @@ $manifest = [ordered]@{
     generated_utc = [DateTime]::UtcNow.ToString('o')
     device = 'GW1NR-LV9QN88PC6/I5'
     family = 'GW1N-9C'
+    top_module = $topModule
+    mcu_mode = [bool]$McuMode
     yosys = Get-ExternalToolVersion $yosys
     nextpnr = Get-ExternalToolVersion $nextpnr
     json_netlist = $relativeJsonPath
@@ -364,6 +390,16 @@ $manifest = [ordered]@{
         sram_kib = $SramKiB
         sram_bytes = $sramBytes
     }
+    user_flash = if ($McuMode) {
+        [ordered]@{
+            bytes = 77824
+            slots = 2
+            slot_bytes = 36864
+            application_payload_max_bytes = 36800
+        }
+    } else {
+        $null
+    }
     bitstream = if ($SkipPack) { $null } else { $relativeBitstreamPath }
     bitstream_sha256 = if ($SkipPack) { $null } else { (Get-FileHash -LiteralPath $bitstreamPath -Algorithm SHA256).Hash.ToLowerInvariant() }
     timing = [ordered]@{
@@ -374,7 +410,7 @@ $manifest = [ordered]@{
     }
     utilization = $utilizationSummary
 }
-$manifestPath = Join-Path $buildDirectory 'omcu_tn9k_bringup_manifest.json'
+$manifestPath = Join-Path $buildDirectory ($artifactStem + '_manifest.json')
 [System.IO.File]::WriteAllText(
     $manifestPath,
     ($manifest | ConvertTo-Json -Depth 4),
@@ -391,6 +427,9 @@ Write-Output ("Timing: {0} achieved {1:N3} MHz / {2:N3} MHz constraint; slack {3
     $clockName, $achievedMhz, $constraintMhz, $manifest.timing.slack_ns)
 Write-Output "ROM init: $relativeRomInitFile"
 Write-Output "Memory: ROM $RomKiB KiB ($romWords words), SRAM $SramKiB KiB ($sramBytes bytes)"
+if ($McuMode) {
+    Write-Output 'MCU mode: bootloader in FPGA configuration; applications use the separate 76 KiB User Flash A/B slots.'
+}
 foreach ($resourceName in $utilizationSummary.Keys) {
     $resource = $utilizationSummary[$resourceName]
     $percent = if ($resource.available -eq 0) { 0.0 } else { 100.0 * $resource.used / $resource.available }
