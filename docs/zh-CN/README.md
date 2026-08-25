@@ -33,6 +33,7 @@ flowchart LR
 5. [外设与 SDK](peripherals-and-sdk.md)：C API、寄存器和示例边界。
 6. [中断开发约定](interrupts.md)：PicoRV32 自定义 IRQ ABI、固定向量和 ISR 规则。
 7. [验证与发布状态](validation-and-release.md)：证据层级与对外发布门槛。
+8. [资源与外设扩展路线图](resource-expansion-roadmap.md)：LUT/BSRAM/IOB 约束、可扩展外设、优先级与每项功能的放行门槛。
 
 ## 平台首次构建：FPGA 工程
 
