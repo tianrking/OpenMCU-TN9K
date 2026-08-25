@@ -7,6 +7,7 @@ rtl/peripherals/omcu_timer.sv
 rtl/peripherals/omcu_timer1.sv
 rtl/peripherals/omcu_alarm.sv
 rtl/peripherals/omcu_pulse.sv
+rtl/peripherals/omcu_fault.sv
 rtl/peripherals/omcu_spi.sv
 rtl/peripherals/omcu_i2c.sv
 rtl/peripherals/omcu_wdt.sv

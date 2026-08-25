@@ -52,6 +52,8 @@ module omcu_tn9k_bringup_top_tb;
     repeat (90) @(negedge clk_27m);
     check((dut.system.SYSTEM_FEATURE_BITS & 32'h0000_3f00) == 32'h0000_3f00,
           "Tang wrapper must advertise UART1, TIMER1, PWM1, diagnostics, PINMUX and GPIO expansion");
+    check((dut.system.SYSTEM_FEATURE_BITS & 32'h000f_8000) == 32'h000f_8000,
+          "Tang wrapper must advertise reliable GPIO, ALARM0, PULSE0, FAULT0 and WDT supervision");
     check(dut.reset_cause_q == 32'h0000_0001 && dut.reset_count_q == 32'd0,
           "external reset must initialize retained diagnostics deterministically");
     check(!dut.system.mmio.sysctrl.boot_ctrl_read[1],
@@ -147,6 +149,45 @@ module omcu_tn9k_bringup_top_tb;
     release dut.system.mmio.pinmux.pulse0_enable_q;
     release dut.system.mmio.gpio0.gpio_out_q[8:6];
     release dut.system.mmio.gpio0.gpio_oe_q[8:6];
+
+    // FAULT0 is the separately reviewed J5.11 input-only interlock.  A
+    // pinmux claim must release the final pad and pass the raw pad level into
+    // the monitor synchronizer, even before its programmable filter acts.
+    force dut.system.mmio.gpio0.gpio_oe_q[9] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_out_q[9] = 1'b0;
+    force dut.system.mmio.pinmux.fault0_enable_q = 1'b1;
+    #1 check(gpio[3] == 1'b1,
+             "FAULT0 pinmux must release J5.11 despite generic GPIO output-enable");
+    force gpio[3] = 1'b0;
+    #1 check(dut.system.fault0_i == 1'b0,
+             "released FAULT0 pad must reach the system fault monitor input");
+    release gpio[3];
+    release dut.system.mmio.pinmux.fault0_enable_q;
+    release dut.system.mmio.gpio0.gpio_out_q[9];
+    release dut.system.mmio.gpio0.gpio_oe_q[9];
+
+    // A latched trip applies its selected gates after every normal pinmux
+    // decision: PWM outputs go low and a selected generic GPIO pad is high-Z.
+    force dut.system.mmio.gpio0.gpio_oe_q[6] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_out_q[6] = 1'b1;
+    force dut.pwm0_raw = 1'b1;
+    force dut.pwm1_raw = 4'b1111;
+    force dut.system.mmio.fault0.trip_q = 1'b1;
+    force dut.system.mmio.fault0.gate_pwm0_q = 1'b1;
+    force dut.system.mmio.fault0.gate_pwm1_q = 1'b1;
+    force dut.system.mmio.fault0.gate_gpio_q = 1'b1;
+    force dut.system.mmio.fault0.gpio_hiz_mask_q[6] = 1'b1;
+    #1 check(pwm0 == 1'b0 && dut.pwm1 == 4'b0000 && gpio[0] == 1'b1,
+             "FAULT0 trip must force PWM low and selected GPIO output-enable high-Z");
+    release dut.system.mmio.fault0.gpio_hiz_mask_q[6];
+    release dut.system.mmio.fault0.gate_gpio_q;
+    release dut.system.mmio.fault0.gate_pwm1_q;
+    release dut.system.mmio.fault0.gate_pwm0_q;
+    release dut.system.mmio.fault0.trip_q;
+    release dut.pwm1_raw;
+    release dut.pwm0_raw;
+    release dut.system.mmio.gpio0.gpio_out_q[6];
+    release dut.system.mmio.gpio0.gpio_oe_q[6];
 
     $display("PASS: omcu_tn9k_bringup_top_tb");
     $finish;

@@ -26,6 +26,7 @@
 #define OMCU_PINMUX_BASE         UINT32_C(0x4000B000)
 #define OMCU_ALARM0_BASE         UINT32_C(0x4000C000)
 #define OMCU_PULSE0_BASE         UINT32_C(0x4000D000)
+#define OMCU_FAULT0_BASE         UINT32_C(0x4000E000)
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
@@ -101,10 +102,16 @@ typedef struct {
 } omcu_i2c_regs_t;
 
 typedef struct {
-  volatile uint32_t ctrl; /* +0x00: ENABLE, RESET_ENABLE and EXPIRED interrupt enable */
+  volatile uint32_t ctrl; /* +0x00: legacy enable/reset/expiry IRQ plus pretimeout, window and heartbeat supervisor controls */
   volatile uint32_t timeout; /* +0x04: watchdog count limit before expiry */
   volatile uint32_t feed; /* +0x08: write OMCU_WDT_FEED_MAGIC to restart the watchdog count */
-  volatile uint32_t status; /* +0x0c: EXPIRED is write-one-to-clear; RESET_REQUEST reports an active pulse */
+  volatile uint32_t status; /* +0x0c: expiry/pretimeout/window/heartbeat/rejected-feed diagnostics, sticky W1C except reset pulse */
+  volatile uint32_t pretimeout; /* +0x10: warning count; zero disables pretimeout stage */
+  volatile uint32_t window_min; /* +0x14: minimum count before a valid feed when window supervisor is enabled */
+  volatile uint32_t heartbeat_required; /* +0x18: low 8 bits: software task heartbeat mask required before feed */
+  volatile const uint32_t heartbeat_seen; /* +0x1c: low 8 bits: accumulated heartbeat bits in current watchdog epoch */
+  volatile uint32_t heartbeat_kick; /* +0x20: low 8 bits write-one-to-set task heartbeat bits */
+  volatile const uint32_t count; /* +0x24: current watchdog count for diagnostics */
 } omcu_wdt_regs_t;
 
 typedef struct {
@@ -188,6 +195,18 @@ typedef struct {
 } omcu_pulse_regs_t;
 
 typedef struct {
+  volatile uint32_t ctrl; /* +0x00: enable, polarity, IRQ and PWM/GPIO safety-gate selection */
+  volatile uint32_t filter; /* +0x04: low 8 bits: consecutive mismatched synchronized samples required minus zero */
+  volatile uint32_t gpio_hiz_mask; /* +0x08: logical GPIO output-enable bits forced high impedance after a trip */
+  volatile uint32_t status; /* +0x0c: TRIPPED, filtered input, pinmux claim and clear-rejected diagnostic */
+  volatile uint32_t clear; /* +0x10: exact full-word OMCU_FAULT_CLEAR_MAGIC clears only an inactive claimed input */
+  volatile const uint32_t snapshot_tick; /* +0x14: low 32-bit SYSCTRL run-tick timestamp of first trip */
+  volatile const uint32_t snapshot_gpio; /* +0x18: GPIO input snapshot at first trip */
+  volatile const uint32_t snapshot_irq; /* +0x1c: IRQCTRL active CPU IRQ mask at first trip */
+  volatile const uint32_t snapshot_reset; /* +0x20: retained reset cause at first trip */
+} omcu_fault_regs_t;
+
+typedef struct {
   volatile const uint32_t chip_id; /* +0x00: OpenMCU chip identifier */
   volatile const uint32_t abi; /* +0x04: major in bits 31:16, minor in bits 15:0 */
   volatile const uint32_t features; /* +0x08: implemented peripheral feature bits */
@@ -214,6 +233,7 @@ typedef struct {
 #define OMCU_PINMUX              ((omcu_pinmux_regs_t *)(uintptr_t)OMCU_PINMUX_BASE)
 #define OMCU_ALARM0              ((omcu_alarm_regs_t *)(uintptr_t)OMCU_ALARM0_BASE)
 #define OMCU_PULSE0              ((omcu_pulse_regs_t *)(uintptr_t)OMCU_PULSE0_BASE)
+#define OMCU_FAULT0              ((omcu_fault_regs_t *)(uintptr_t)OMCU_FAULT0_BASE)
 #define OMCU_SYSCTRL             ((omcu_sysctrl_regs_t *)(uintptr_t)OMCU_SYSCTRL_BASE)
 
 enum {
@@ -235,6 +255,8 @@ enum {
   OMCU_FEATURE_GPIO_RELIABILITY    = 1u << 15,
   OMCU_FEATURE_ALARM0              = 1u << 16,
   OMCU_FEATURE_PULSE0              = 1u << 17,
+  OMCU_FEATURE_FAULT0              = 1u << 18,
+  OMCU_FEATURE_WDT_SUPERVISOR      = 1u << 19,
   OMCU_RESET_CAUSE_EXTERNAL        = 1u << 0,
   OMCU_RESET_CAUSE_WATCHDOG        = 1u << 1,
   OMCU_RESET_CAUSE_SOFTWARE        = 1u << 2,
@@ -252,11 +274,13 @@ enum {
   OMCU_IRQ_TIMER1                  = 1u << 15,
   OMCU_IRQ_ALARM0                  = 1u << 16,
   OMCU_IRQ_PULSE0                  = 1u << 17,
-  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x0003FF00),
+  OMCU_IRQ_FAULT0                  = 1u << 18,
+  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x0007FF00),
   OMCU_PINMUX_CTRL_UART1_ENABLE    = 1u << 0,
   OMCU_PINMUX_CTRL_PWM1_ENABLE     = 1u << 1,
   OMCU_PINMUX_CTRL_TIMER1_ENABLE   = 1u << 2,
   OMCU_PINMUX_CTRL_PULSE0_ENABLE   = 1u << 3,
+  OMCU_PINMUX_CTRL_FAULT0_ENABLE   = 1u << 4,
   OMCU_GPIO_FILTER_CYCLES_MASK     = UINT32_C(0x000000FF),
   OMCU_GPIO_SNAPSHOT_CTRL_ENABLE   = 1u << 0,
   OMCU_GPIO_SNAPSHOT_CTRL_IRQ_ENABLE = 1u << 1,
@@ -298,8 +322,30 @@ enum {
   OMCU_WDT_CTRL_ENABLE             = 1u << 0,
   OMCU_WDT_CTRL_RESET_ENABLE       = 1u << 1,
   OMCU_WDT_CTRL_IRQ_ENABLE         = 1u << 2,
+  OMCU_WDT_CTRL_PRETIMEOUT_IRQ_ENABLE = 1u << 3,
+  OMCU_WDT_CTRL_WINDOW_ENABLE      = 1u << 4,
+  OMCU_WDT_CTRL_HEARTBEAT_ENABLE   = 1u << 5,
   OMCU_WDT_STATUS_EXPIRED          = 1u << 0,
+  OMCU_WDT_STATUS_RESET_REQUEST    = 1u << 1,
+  OMCU_WDT_STATUS_PRETIMEOUT       = 1u << 2,
+  OMCU_WDT_STATUS_WINDOW_VIOLATION = 1u << 3,
+  OMCU_WDT_STATUS_HEARTBEAT_MISSING = 1u << 4,
+  OMCU_WDT_STATUS_FEED_REJECTED    = 1u << 5,
+  OMCU_WDT_HEARTBEAT_MASK          = UINT32_C(0x000000FF),
   OMCU_WDT_FEED_MAGIC              = UINT32_C(0x51F15EED),
+  OMCU_FAULT_FILTER_MASK           = UINT32_C(0x000000FF),
+  OMCU_FAULT_CTRL_ENABLE           = 1u << 0,
+  OMCU_FAULT_CTRL_ACTIVE_HIGH      = 1u << 1,
+  OMCU_FAULT_CTRL_IRQ_ENABLE       = 1u << 2,
+  OMCU_FAULT_CTRL_GATE_PWM0        = 1u << 3,
+  OMCU_FAULT_CTRL_GATE_PWM1        = 1u << 4,
+  OMCU_FAULT_CTRL_GATE_GPIO        = 1u << 5,
+  OMCU_FAULT_STATUS_TRIPPED        = 1u << 0,
+  OMCU_FAULT_STATUS_FILTERED_INPUT = 1u << 1,
+  OMCU_FAULT_STATUS_INPUT_CLAIMED  = 1u << 2,
+  OMCU_FAULT_STATUS_CLEAR_REJECTED = 1u << 3,
+  OMCU_FAULT_STATUS_ACTIVE         = 1u << 4,
+  OMCU_FAULT_CLEAR_MAGIC           = UINT32_C(0xFA17C1EA),
   OMCU_PWM_CTRL_ENABLE             = 1u << 0,
   OMCU_PWM_CTRL_INVERT             = 1u << 1,
   OMCU_PWM1_CHANNEL_COUNT          = 4u,

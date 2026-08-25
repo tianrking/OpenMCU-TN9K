@@ -76,11 +76,17 @@ module omcu_tn9k_bringup_top #(
   logic       bus_error;
   logic       watchdog_reset_request;
   logic       uart1_tx;
+  logic       pwm0_raw;
+  logic [3:0] pwm1_raw;
   logic [3:0] pwm1;
   logic       pinmux_uart1_enable;
   logic       pinmux_pwm1_enable;
   logic       pinmux_timer1_enable;
   logic       pinmux_pulse0_enable;
+  logic       pinmux_fault0_enable;
+  logic       fault_pwm0_kill;
+  logic       fault_pwm1_kill;
+  logic [17:0] fault_gpio_hiz_mask;
   logic [11:0] gpio_pad_out;
   logic [11:0] gpio_pad_oe;
 
@@ -126,6 +132,7 @@ module omcu_tn9k_bringup_top #(
     .TIMER1_PRESENT(1),
     .ALARM0_PRESENT(1),
     .PULSE0_PRESENT(1),
+    .FAULT0_PRESENT(1),
     .PINMUX_PRESENT(1),
     .DIAGNOSTICS_PRESENT(1),
     .ROM_WORDS(ROM_WORDS),
@@ -160,6 +167,8 @@ module omcu_tn9k_bringup_top #(
     .pulse0_i(gpio_io[2:0]),
     .alarm_irq_o(),
     .pulse0_irq_o(),
+    .fault0_i(gpio_io[3]),
+    .fault0_irq_o(),
     .spi_miso_i(spi0_miso_i),
     .spi_mosi_o(spi0_mosi_o),
     .spi_sck_o(spi0_sck_o),
@@ -172,12 +181,16 @@ module omcu_tn9k_bringup_top #(
     .i2c_irq_o(),
     .wdt_irq_o(),
     .wdt_reset_req_o(watchdog_reset_request),
-    .pwm_o(pwm0_o),
-    .pwm1_o(pwm1),
+    .pwm_o(pwm0_raw),
+    .pwm1_o(pwm1_raw),
     .pinmux_uart1_enable_o(pinmux_uart1_enable),
     .pinmux_pwm1_enable_o(pinmux_pwm1_enable),
     .pinmux_timer1_enable_o(pinmux_timer1_enable),
     .pinmux_pulse0_enable_o(pinmux_pulse0_enable),
+    .pinmux_fault0_enable_o(pinmux_fault0_enable),
+    .fault_pwm0_kill_o(fault_pwm0_kill),
+    .fault_pwm1_kill_o(fault_pwm1_kill),
+    .fault_gpio_hiz_mask_o(fault_gpio_hiz_mask),
     .cpu_trap_o(cpu_trap),
     .bus_error_o(bus_error)
   );
@@ -188,6 +201,8 @@ module omcu_tn9k_bringup_top #(
   // permanently driven FPGA output.
   assign gpio_in[5:0] = 6'b000000;
   assign gpio_in[17:6] = gpio_io;
+  assign pwm0_o = fault_pwm0_kill ? 1'b0 : pwm0_raw;
+  assign pwm1 = fault_pwm1_kill ? 4'b0000 : pwm1_raw;
 
   always_comb begin
     gpio_pad_out = gpio_out[17:6];
@@ -227,6 +242,14 @@ module omcu_tn9k_bringup_top #(
       gpio_pad_oe[1] = 1'b0;
       gpio_pad_oe[2] = 1'b0;
     end
+    if (pinmux_fault0_enable) begin
+      // FAULT0 owns GPIO3 / J5.11 as an input-only interlock signal. The
+      // fault monitor itself refuses to trip until this explicit claim exists.
+      gpio_pad_oe[3] = 1'b0;
+    end
+    // Apply the fault high-impedance mask *after* every alternate function;
+    // otherwise a selected UART/PWM could accidentally defeat the interlock.
+    gpio_pad_oe = gpio_pad_oe & ~fault_gpio_hiz_mask[17:6];
   end
 
   genvar gpio_index;

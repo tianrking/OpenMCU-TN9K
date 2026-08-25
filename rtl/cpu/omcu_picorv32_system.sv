@@ -29,13 +29,14 @@ module omcu_picorv32_system #(
   parameter integer USER_FLASH_USE_GOWIN_PRIMITIVE = 0,
   parameter integer CLOCK_HZ = 27000000,
   parameter logic [15:0] ABI_MINOR = 16'h0007,
-  parameter logic [31:0] FEATURE_BITS = 32'h0000_80ff,
+  parameter logic [31:0] FEATURE_BITS = 32'h0008_80ff,
   parameter integer GPIO_EXPANSION_PRESENT = 0,
   parameter integer UART1_PRESENT = 0,
   parameter integer PWM1_PRESENT = 0,
   parameter integer TIMER1_PRESENT = 0,
   parameter integer ALARM0_PRESENT = 0,
   parameter integer PULSE0_PRESENT = 0,
+  parameter integer FAULT0_PRESENT = 0,
   parameter integer PINMUX_PRESENT = 0,
   parameter integer DIAGNOSTICS_PRESENT = 0,
   // In product-loader mode applications execute from SRAM, so PicoRV32 must
@@ -76,6 +77,8 @@ module omcu_picorv32_system #(
   input  logic [2:0]            pulse0_i,
   output logic                  alarm_irq_o,
   output logic                  pulse0_irq_o,
+  input  logic                  fault0_i,
+  output logic                  fault0_irq_o,
   input  logic                  spi_miso_i,
   output logic                  spi_mosi_o,
   output logic                  spi_sck_o,
@@ -94,6 +97,10 @@ module omcu_picorv32_system #(
   output logic                  pinmux_pwm1_enable_o,
   output logic                  pinmux_timer1_enable_o,
   output logic                  pinmux_pulse0_enable_o,
+  output logic                  pinmux_fault0_enable_o,
+  output logic                  fault_pwm0_kill_o,
+  output logic                  fault_pwm1_kill_o,
+  output logic [GPIO_COUNT-1:0] fault_gpio_hiz_mask_o,
 
   output logic                  cpu_trap_o,
   output logic                  bus_error_o
@@ -113,6 +120,7 @@ module omcu_picorv32_system #(
     ((PWM1_PRESENT != 0) ? 32'h0000_0400 : 32'h0000_0000) |
     ((ALARM0_PRESENT != 0) ? 32'h0001_0000 : 32'h0000_0000) |
     ((PULSE0_PRESENT != 0) ? 32'h0002_0000 : 32'h0000_0000) |
+    ((FAULT0_PRESENT != 0) ? 32'h0004_0000 : 32'h0000_0000) |
     ((DIAGNOSTICS_PRESENT != 0) ? 32'h0000_0800 : 32'h0000_0000) |
     ((PINMUX_PRESENT != 0) ? 32'h0000_1000 : 32'h0000_0000) |
     ((USER_FLASH_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
@@ -120,7 +128,8 @@ module omcu_picorv32_system #(
     ((UART1_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000) |
     ((TIMER1_PRESENT != 0) ? 32'h0000_8000 : 32'h0000_0000) |
     ((ALARM0_PRESENT != 0) ? 32'h0001_0000 : 32'h0000_0000) |
-    ((PULSE0_PRESENT != 0) ? 32'h0002_0000 : 32'h0000_0000);
+    ((PULSE0_PRESENT != 0) ? 32'h0002_0000 : 32'h0000_0000) |
+    ((FAULT0_PRESENT != 0) ? 32'h0004_0000 : 32'h0000_0000);
   localparam logic [31:0] STACK_ADDRESS = SRAM_BASE + SRAM_BYTES - 4;
   localparam integer ROM_ADDR_BITS = $clog2(ROM_WORDS);
   localparam integer SRAM_WORDS = SRAM_BYTES / 4;
@@ -232,6 +241,7 @@ module omcu_picorv32_system #(
     .TIMER1_PRESENT(TIMER1_PRESENT),
     .ALARM0_PRESENT(ALARM0_PRESENT),
     .PULSE0_PRESENT(PULSE0_PRESENT),
+    .FAULT0_PRESENT(FAULT0_PRESENT),
     .PINMUX_PRESENT(PINMUX_PRESENT),
     .BOOT_REQUEST_PRESENT(
       ((APPLICATION_BOOT_MODE != 0) && (USER_FLASH_PRESENT != 0))
@@ -269,6 +279,8 @@ module omcu_picorv32_system #(
     .pulse0_i(pulse0_i),
     .alarm_irq_o(alarm_irq_o),
     .pulse0_irq_o(pulse0_irq_o),
+    .fault0_i(fault0_i),
+    .fault0_irq_o(fault0_irq_o),
     .spi_miso_i(spi_miso_i),
     .spi_mosi_o(spi_mosi_o),
     .spi_sck_o(spi_sck_o),
@@ -287,6 +299,10 @@ module omcu_picorv32_system #(
     .pinmux_pwm1_enable_o(pinmux_pwm1_enable_o),
     .pinmux_timer1_enable_o(pinmux_timer1_enable_o),
     .pinmux_pulse0_enable_o(pinmux_pulse0_enable_o),
+    .pinmux_fault0_enable_o(pinmux_fault0_enable_o),
+    .fault_pwm0_kill_o(fault_pwm0_kill_o),
+    .fault_pwm1_kill_o(fault_pwm1_kill_o),
+    .fault_gpio_hiz_mask_o(fault_gpio_hiz_mask_o),
     .irq_vector_o(cpu_irq_vector)
   );
 

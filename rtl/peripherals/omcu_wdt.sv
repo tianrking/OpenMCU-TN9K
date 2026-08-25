@@ -1,9 +1,9 @@
 `default_nettype none
 
-// A clock-domain-local watchdog.  Expiry latches a software-visible status,
-// can raise an interrupt for diagnostics, and can emit a single reset request
-// pulse for the platform reset controller.  The system wrapper deliberately
-// keeps the reset controller outside this portable peripheral.
+// A clock-domain-local watchdog with an ABI-compatible basic mode plus an
+// optional supervised mode: pretimeout warning, minimum feed window and up to
+// eight software heartbeats. The platform wrapper still owns reset length and
+// retained reset cause; this peripheral emits only a single reset-request pulse.
 module omcu_wdt #(
   parameter logic [31:0] FEED_MAGIC = 32'h51f1_5eed
 ) (
@@ -23,45 +23,116 @@ module omcu_wdt #(
   output logic        reset_req_o
 );
 
-  localparam logic [5:0] REG_CTRL    = 6'h00;
-  localparam logic [5:0] REG_TIMEOUT = 6'h01;
-  localparam logic [5:0] REG_FEED    = 6'h02;
-  localparam logic [5:0] REG_STATUS  = 6'h03;
+  localparam logic [5:0] REG_CTRL               = 6'h00;
+  localparam logic [5:0] REG_TIMEOUT            = 6'h01;
+  localparam logic [5:0] REG_FEED               = 6'h02;
+  localparam logic [5:0] REG_STATUS             = 6'h03;
+  localparam logic [5:0] REG_PRETIMEOUT         = 6'h04;
+  localparam logic [5:0] REG_WINDOW_MIN         = 6'h05;
+  localparam logic [5:0] REG_HEARTBEAT_REQUIRED = 6'h06;
+  localparam logic [5:0] REG_HEARTBEAT_SEEN     = 6'h07;
+  localparam logic [5:0] REG_HEARTBEAT_KICK     = 6'h08;
+  localparam logic [5:0] REG_COUNT              = 6'h09;
 
   logic        enable_q;
   logic        reset_enable_q;
   logic        irq_enable_q;
+  logic        pretimeout_irq_enable_q;
+  logic        window_enable_q;
+  logic        heartbeat_enable_q;
   logic [31:0] timeout_q;
+  logic [31:0] pretimeout_q;
+  logic [31:0] window_min_q;
   logic [31:0] count_q;
+  logic [7:0]  heartbeat_required_q;
+  logic [7:0]  heartbeat_seen_q;
   logic        expired_q;
+  logic        pretimeout_pending_q;
+  logic        window_violation_q;
+  logic        heartbeat_missing_q;
+  logic        feed_rejected_q;
   logic        reset_req_q;
   logic [31:0] ctrl_read;
   logic [31:0] status_read;
   logic [31:0] timeout_merged;
+  logic [31:0] pretimeout_merged;
+  logic [31:0] window_min_merged;
+  logic [31:0] heartbeat_required_merged;
+  logic [31:0] write_masked_data;
+  logic        feed_command;
+  logic [7:0]  heartbeat_kick_bits;
+  logic        heartbeat_complete;
+  logic        pretimeout_event;
+  logic        expiry_event;
+  logic        feed_window_violation;
+  logic        feed_heartbeat_missing;
+  logic        feed_failure;
+  logic        feed_expired;
+  logic        feed_accepted;
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
-  assign irq_o = expired_q & irq_enable_q;
+  assign irq_o = (expired_q && irq_enable_q) ||
+                 (pretimeout_pending_q && pretimeout_irq_enable_q);
   assign reset_req_o = reset_req_q;
+  assign write_masked_data = write_data_i & `OMCU_WRITE_STROBE_MASK(write_strobe_i);
   assign timeout_merged = `OMCU_MERGE_WRITE(timeout_q, write_data_i, write_strobe_i);
+  assign pretimeout_merged = `OMCU_MERGE_WRITE(
+    pretimeout_q, write_data_i, write_strobe_i
+  );
+  assign window_min_merged = `OMCU_MERGE_WRITE(
+    window_min_q, write_data_i, write_strobe_i
+  );
+  assign heartbeat_required_merged = `OMCU_MERGE_WRITE(
+    {24'h000000, heartbeat_required_q}, write_data_i, write_strobe_i
+  );
+  assign feed_command = req_i && write_i && (addr_i[7:2] == REG_FEED) &&
+                        (write_strobe_i == 4'b1111) && (write_data_i == FEED_MAGIC);
+  assign heartbeat_kick_bits = (req_i && write_i &&
+                                (addr_i[7:2] == REG_HEARTBEAT_KICK)) ?
+                               write_masked_data[7:0] : 8'h00;
+  assign heartbeat_complete =
+    (heartbeat_seen_q & heartbeat_required_q) == heartbeat_required_q;
+  // PRETIMEOUT=0 deliberately disables the warning stage, preserving the
+  // simple legacy watchdog contract without a second control bit.
+  assign pretimeout_event = enable_q && (pretimeout_q != 32'h0000_0000) &&
+                            (count_q == pretimeout_q);
+  assign expiry_event = enable_q && (count_q >= timeout_q);
+  assign feed_window_violation = feed_command && window_enable_q &&
+                                 (count_q < window_min_q);
+  assign feed_heartbeat_missing = feed_command && heartbeat_enable_q &&
+                                  !heartbeat_complete;
+  assign feed_failure = feed_window_violation || feed_heartbeat_missing;
+  assign feed_expired = feed_command && expiry_event;
+  assign feed_accepted = feed_command && !feed_failure && !expiry_event;
 
   always_comb begin
     ctrl_read = '0;
     ctrl_read[0] = enable_q;
     ctrl_read[1] = reset_enable_q;
     ctrl_read[2] = irq_enable_q;
+    ctrl_read[3] = pretimeout_irq_enable_q;
+    ctrl_read[4] = window_enable_q;
+    ctrl_read[5] = heartbeat_enable_q;
     status_read = '0;
     status_read[0] = expired_q;
     status_read[1] = reset_req_q;
-  end
+    status_read[2] = pretimeout_pending_q;
+    status_read[3] = window_violation_q;
+    status_read[4] = heartbeat_missing_q;
+    status_read[5] = feed_rejected_q;
 
-  always_comb begin
     read_data_o = '0;
     unique case (addr_i[7:2])
-      REG_CTRL:    read_data_o = ctrl_read;
-      REG_TIMEOUT: read_data_o = timeout_q;
-      REG_STATUS:  read_data_o = status_read;
-      default:     read_data_o = '0;
+      REG_CTRL:               read_data_o = ctrl_read;
+      REG_TIMEOUT:            read_data_o = timeout_q;
+      REG_STATUS:             read_data_o = status_read;
+      REG_PRETIMEOUT:         read_data_o = pretimeout_q;
+      REG_WINDOW_MIN:         read_data_o = window_min_q;
+      REG_HEARTBEAT_REQUIRED: read_data_o = {24'h000000, heartbeat_required_q};
+      REG_HEARTBEAT_SEEN:     read_data_o = {24'h000000, heartbeat_seen_q};
+      REG_COUNT:              read_data_o = count_q;
+      default:                read_data_o = '0;
     endcase
   end
 
@@ -70,23 +141,56 @@ module omcu_wdt #(
       enable_q <= 1'b0;
       reset_enable_q <= 1'b0;
       irq_enable_q <= 1'b0;
+      pretimeout_irq_enable_q <= 1'b0;
+      window_enable_q <= 1'b0;
+      heartbeat_enable_q <= 1'b0;
       timeout_q <= 32'hffff_ffff;
+      pretimeout_q <= 32'h0000_0000;
+      window_min_q <= 32'h0000_0000;
       count_q <= 32'h0000_0000;
+      heartbeat_required_q <= 8'h00;
+      heartbeat_seen_q <= 8'h00;
       expired_q <= 1'b0;
+      pretimeout_pending_q <= 1'b0;
+      window_violation_q <= 1'b0;
+      heartbeat_missing_q <= 1'b0;
+      feed_rejected_q <= 1'b0;
       reset_req_q <= 1'b0;
     end else begin
-      // Reset requests are pulses.  A platform reset sequencer decides how
-      // long to hold the full MCU in reset and how to record the reset cause.
+      // Reset requests are pulses. A platform sequencer records the cause and
+      // holds the complete SoC in reset for its own defined interval.
       reset_req_q <= 1'b0;
 
       if (enable_q) begin
-        if (count_q >= timeout_q) begin
+        if (expiry_event) begin
           count_q <= 32'h0000_0000;
           expired_q <= 1'b1;
           reset_req_q <= reset_enable_q;
         end else begin
           count_q <= count_q + 32'd1;
         end
+      end
+      if (pretimeout_event) begin
+        pretimeout_pending_q <= 1'b1;
+      end
+      if (heartbeat_kick_bits != 8'h00) begin
+        heartbeat_seen_q <= heartbeat_seen_q | heartbeat_kick_bits;
+      end
+      if (feed_accepted) begin
+        count_q <= 32'h0000_0000;
+        heartbeat_seen_q <= 8'h00;
+      end
+      if (feed_failure) begin
+        count_q <= 32'h0000_0000;
+        expired_q <= 1'b1;
+        window_violation_q <= window_violation_q || feed_window_violation;
+        heartbeat_missing_q <= heartbeat_missing_q || feed_heartbeat_missing;
+        feed_rejected_q <= 1'b1;
+        heartbeat_seen_q <= 8'h00;
+        reset_req_q <= reset_enable_q;
+      end else if (feed_expired) begin
+        // A feed exactly on the expiry clock never rescues the watchdog.
+        feed_rejected_q <= 1'b1;
       end
 
       if (req_i && write_i) begin
@@ -96,22 +200,46 @@ module omcu_wdt #(
               enable_q <= write_data_i[0];
               reset_enable_q <= write_data_i[1];
               irq_enable_q <= write_data_i[2];
-              if (!write_data_i[0]) begin
+              pretimeout_irq_enable_q <= write_data_i[3];
+              window_enable_q <= write_data_i[4];
+              heartbeat_enable_q <= write_data_i[5];
+              // Beginning a new enabled epoch or disabling the WDT discards
+              // stale progress/heartbeats. Reconfiguration while already on
+              // leaves the active epoch intact.
+              if (!write_data_i[0] || !enable_q) begin
                 count_q <= 32'h0000_0000;
+                heartbeat_seen_q <= 8'h00;
               end
             end
           end
           REG_TIMEOUT: begin
             timeout_q <= timeout_merged;
           end
-          REG_FEED: begin
-            if (`OMCU_MERGE_WRITE(32'h0000_0000, write_data_i, write_strobe_i) == FEED_MAGIC) begin
-              count_q <= 32'h0000_0000;
-            end
+          REG_PRETIMEOUT: begin
+            pretimeout_q <= pretimeout_merged;
+          end
+          REG_WINDOW_MIN: begin
+            window_min_q <= window_min_merged;
+          end
+          REG_HEARTBEAT_REQUIRED: begin
+            heartbeat_required_q <= heartbeat_required_merged[7:0];
           end
           REG_STATUS: begin
+            // W1C; events in the exact clock always win over an acknowledgement.
             if (write_strobe_i[0] && write_data_i[0]) begin
-              expired_q <= 1'b0;
+              expired_q <= expiry_event || feed_failure;
+            end
+            if (write_strobe_i[0] && write_data_i[2]) begin
+              pretimeout_pending_q <= pretimeout_event;
+            end
+            if (write_strobe_i[0] && write_data_i[3]) begin
+              window_violation_q <= feed_window_violation;
+            end
+            if (write_strobe_i[0] && write_data_i[4]) begin
+              heartbeat_missing_q <= feed_heartbeat_missing;
+            end
+            if (write_strobe_i[0] && write_data_i[5]) begin
+              feed_rejected_q <= feed_failure || feed_expired;
             end
           end
           default: begin

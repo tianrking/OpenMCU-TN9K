@@ -137,6 +137,42 @@ static inline bool omcu_tn9k_pulse0_release_pins(void) {
 }
 
 /*
+ * FAULT0 maps to GPIO3 / J5.11 and is input-only after this call.  The
+ * external circuit must define the healthy level; this digital interlock is
+ * neither an asynchronous emergency shutoff nor a safety-certified function.
+ */
+static inline bool omcu_tn9k_fault0_configure(
+  uint8_t filter,
+  uint32_t gpio_hiz_mask,
+  bool active_high,
+  bool enable_irq,
+  bool gate_pwm0,
+  bool gate_pwm1,
+  bool gate_gpio
+) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_FAULT0 |
+                           OMCU_FEATURE_PINMUX |
+                           OMCU_FEATURE_GPIO_EXPANSION) ||
+      !omcu_pinmux_fault0_enable(true)) {
+    return false;
+  }
+  return omcu_fault0_configure(
+    filter, gpio_hiz_mask, active_high, enable_irq, gate_pwm0, gate_pwm1,
+    gate_gpio
+  );
+}
+
+/* Release is deliberately refused while a fault remains latched. */
+static inline bool omcu_tn9k_fault0_release_pin(void) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_FAULT0 | OMCU_FEATURE_PINMUX) ||
+      omcu_fault0_is_tripped()) {
+    return false;
+  }
+  OMCU_FAULT0->ctrl = 0u;
+  return omcu_pinmux_fault0_enable(false);
+}
+
+/*
  * Request the product MCU's UART0 Bootloader without rebuilding the FPGA
  * configuration.  This is unavailable on a bring-up-only bitstream: it needs
  * both the retained diagnostics/reset sequencer and the User Flash product

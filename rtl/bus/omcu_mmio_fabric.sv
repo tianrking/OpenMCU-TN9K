@@ -8,12 +8,13 @@ module omcu_mmio_fabric #(
   parameter integer ROM_BYTES = 4096,
   parameter integer SRAM_BYTES = 32768,
   parameter logic [15:0] ABI_MINOR = 16'h0007,
-  parameter logic [31:0] FEATURE_BITS = 32'h0000_80ff,
+  parameter logic [31:0] FEATURE_BITS = 32'h0008_80ff,
   parameter integer UART1_PRESENT = 0,
   parameter integer PWM1_PRESENT = 0,
   parameter integer TIMER1_PRESENT = 0,
   parameter integer ALARM0_PRESENT = 0,
   parameter integer PULSE0_PRESENT = 0,
+  parameter integer FAULT0_PRESENT = 0,
   parameter integer PINMUX_PRESENT = 0,
   parameter integer BOOT_REQUEST_PRESENT = 0
 ) (
@@ -55,6 +56,8 @@ module omcu_mmio_fabric #(
   input  logic [2:0]            pulse0_i,
   output logic                  alarm_irq_o,
   output logic                  pulse0_irq_o,
+  input  logic                  fault0_i,
+  output logic                  fault0_irq_o,
 
   input  logic                  spi_miso_i,
   output logic                  spi_mosi_o,
@@ -74,6 +77,10 @@ module omcu_mmio_fabric #(
   output logic                  pinmux_pwm1_enable_o,
   output logic                  pinmux_timer1_enable_o,
   output logic                  pinmux_pulse0_enable_o,
+  output logic                  pinmux_fault0_enable_o,
+  output logic                  fault_pwm0_kill_o,
+  output logic                  fault_pwm1_kill_o,
+  output logic [GPIO_COUNT-1:0] fault_gpio_hiz_mask_o,
   output logic [31:0]           irq_vector_o
 );
 
@@ -91,13 +98,15 @@ module omcu_mmio_fabric #(
   localparam logic [19:0] PINMUX_PAGE = 20'h4000b;
   localparam logic [19:0] ALARM0_PAGE = 20'h4000c;
   localparam logic [19:0] PULSE0_PAGE = 20'h4000d;
+  localparam logic [19:0] FAULT0_PAGE = 20'h4000e;
   localparam logic [19:0] SYSCTRL_PAGE = 20'h4000f;
   // Timer1 remains CPU IRQ 15 even when a smaller generic configuration omits
   // UART1.  The unused bit-14 source stays inactive in that unusual shape.
-  localparam integer IRQ_SOURCE_COUNT = (PULSE0_PRESENT != 0) ? 10 :
+  localparam integer IRQ_SOURCE_COUNT = (FAULT0_PRESENT != 0) ? 11 :
+                                        ((PULSE0_PRESENT != 0) ? 10 :
                                         ((ALARM0_PRESENT != 0) ? 9 :
                                         ((TIMER1_PRESENT != 0) ? 8 :
-                                        ((UART1_PRESENT != 0) ? 7 : 6)));
+                                        ((UART1_PRESENT != 0) ? 7 : 6))));
 
   logic gpio_select;
   logic uart_select;
@@ -106,6 +115,7 @@ module omcu_mmio_fabric #(
   logic timer1_select;
   logic alarm_select;
   logic pulse_select;
+  logic fault_select;
   logic spi_select;
   logic i2c_select;
   logic wdt_select;
@@ -121,6 +131,7 @@ module omcu_mmio_fabric #(
   logic timer1_ready;
   logic alarm_ready;
   logic pulse_ready;
+  logic fault_ready;
   logic spi_ready;
   logic i2c_ready;
   logic wdt_ready;
@@ -136,6 +147,7 @@ module omcu_mmio_fabric #(
   logic [31:0] timer1_read_data;
   logic [31:0] alarm_read_data;
   logic [31:0] pulse_read_data;
+  logic [31:0] fault_read_data;
   logic [31:0] spi_read_data;
   logic [31:0] i2c_read_data;
   logic [31:0] wdt_read_data;
@@ -144,7 +156,7 @@ module omcu_mmio_fabric #(
   logic [31:0] irqctrl_read_data;
   logic [31:0] pinmux_read_data;
   logic [31:0] sysctrl_read_data;
-  logic [9:0] irq_sources;
+  logic [10:0] irq_sources;
   logic [31:0] run_ticks;
 
   assign gpio_select = req_i && (addr_i[31:12] == GPIO0_PAGE);
@@ -158,6 +170,8 @@ module omcu_mmio_fabric #(
                         (addr_i[31:12] == ALARM0_PAGE);
   assign pulse_select = (PULSE0_PRESENT != 0) && req_i &&
                         (addr_i[31:12] == PULSE0_PAGE);
+  assign fault_select = (FAULT0_PRESENT != 0) && req_i &&
+                        (addr_i[31:12] == FAULT0_PAGE);
   assign spi_select = req_i && (addr_i[31:12] == SPI0_PAGE);
   assign i2c_select = req_i && (addr_i[31:12] == I2C0_PAGE);
   assign wdt_select = req_i && (addr_i[31:12] == WDT0_PAGE);
@@ -182,6 +196,7 @@ module omcu_mmio_fabric #(
   assign irq_sources[7] = (TIMER1_PRESENT != 0) ? timer1_irq_o : 1'b0;
   assign irq_sources[8] = (ALARM0_PRESENT != 0) ? alarm_irq_o : 1'b0;
   assign irq_sources[9] = (PULSE0_PRESENT != 0) ? pulse0_irq_o : 1'b0;
+  assign irq_sources[10] = (FAULT0_PRESENT != 0) ? fault0_irq_o : 1'b0;
 
   omcu_gpio #(
     .GPIO_COUNT(GPIO_COUNT)
@@ -297,6 +312,32 @@ module omcu_mmio_fabric #(
     .irq_o(pulse0_irq_o)
   );
 
+  omcu_fault #(
+    .GPIO_COUNT(GPIO_COUNT)
+  ) fault0 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(fault_select),
+    .write_i(write_i),
+    .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
+    .ready_o(fault_ready),
+    .read_data_o(fault_read_data),
+    .error_o(),
+    .fault_i(fault0_i),
+    .input_claim_i(pinmux_fault0_enable_o),
+    .run_ticks_i(run_ticks),
+    .gpio_in_i(gpio_in_i),
+    .irq_active_i(irq_vector_o),
+    .reset_cause_i(reset_cause_i),
+    .irq_o(fault0_irq_o),
+    .trip_o(),
+    .pwm0_kill_o(fault_pwm0_kill_o),
+    .pwm1_kill_o(fault_pwm1_kill_o),
+    .gpio_hiz_mask_o(fault_gpio_hiz_mask_o)
+  );
+
   omcu_spi spi0 (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
@@ -408,7 +449,8 @@ module omcu_mmio_fabric #(
     .uart1_enable_o(pinmux_uart1_enable_o),
     .pwm1_enable_o(pinmux_pwm1_enable_o),
     .timer1_enable_o(pinmux_timer1_enable_o),
-    .pulse0_enable_o(pinmux_pulse0_enable_o)
+    .pulse0_enable_o(pinmux_pulse0_enable_o),
+    .fault0_enable_o(pinmux_fault0_enable_o)
   );
 
   omcu_sysctrl #(
@@ -462,6 +504,9 @@ module omcu_mmio_fabric #(
     end else if (pulse_select) begin
       ready_o = pulse_ready;
       read_data_o = pulse_read_data;
+    end else if (fault_select) begin
+      ready_o = fault_ready;
+      read_data_o = fault_read_data;
     end else if (spi_select) begin
       ready_o = spi_ready;
       read_data_o = spi_read_data;

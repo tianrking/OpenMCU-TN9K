@@ -380,6 +380,92 @@ static inline bool omcu_pinmux_pulse0_enable(bool enable) {
   return true;
 }
 
+/* Claim or release the reviewed FAULT0 interlock input pad. */
+static inline bool omcu_pinmux_fault0_enable(bool enable) {
+  uint32_t ctrl;
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_FAULT0 | OMCU_FEATURE_PINMUX)) {
+    return false;
+  }
+  ctrl = OMCU_PINMUX->ctrl;
+  if (enable) {
+    ctrl |= OMCU_PINMUX_CTRL_FAULT0_ENABLE;
+  } else {
+    ctrl &= ~OMCU_PINMUX_CTRL_FAULT0_ENABLE;
+  }
+  OMCU_PINMUX->ctrl = ctrl;
+  return true;
+}
+
+/* First-fault context remains available until the next SoC reset. */
+typedef struct {
+  uint32_t tick;
+  uint32_t gpio_input;
+  uint32_t irq_active;
+  uint32_t reset_cause;
+} omcu_fault0_snapshot_t;
+
+/*
+ * Configure the logic-level FAULT0 interlock without clearing a prior trip.
+ * FILTER=N accepts a changed synchronized input after N+1 samples.  A latched
+ * trip may be released only with omcu_fault0_try_clear() while the claimed
+ * input has returned to its inactive state.
+ */
+static inline bool omcu_fault0_configure(
+  uint8_t filter,
+  uint32_t gpio_hiz_mask,
+  bool active_high,
+  bool enable_irq,
+  bool gate_pwm0,
+  bool gate_pwm1,
+  bool gate_gpio
+) {
+  uint32_t ctrl = OMCU_FAULT_CTRL_ENABLE |
+                  (active_high ? OMCU_FAULT_CTRL_ACTIVE_HIGH : 0u) |
+                  (enable_irq ? OMCU_FAULT_CTRL_IRQ_ENABLE : 0u) |
+                  (gate_pwm0 ? OMCU_FAULT_CTRL_GATE_PWM0 : 0u) |
+                  (gate_pwm1 ? OMCU_FAULT_CTRL_GATE_PWM1 : 0u) |
+                  (gate_gpio ? OMCU_FAULT_CTRL_GATE_GPIO : 0u);
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_FAULT0)) {
+    return false;
+  }
+  OMCU_FAULT0->ctrl = 0u;
+  OMCU_FAULT0->filter = (uint32_t)filter & OMCU_FAULT_FILTER_MASK;
+  OMCU_FAULT0->gpio_hiz_mask = gpio_hiz_mask;
+  OMCU_FAULT0->status = OMCU_FAULT_STATUS_CLEAR_REJECTED;
+  OMCU_FAULT0->ctrl = ctrl;
+  return true;
+}
+
+static inline bool omcu_fault0_is_tripped(void) {
+  return omcu_hw_has_feature(OMCU_FEATURE_FAULT0) &&
+         (OMCU_FAULT0->status & OMCU_FAULT_STATUS_TRIPPED) != 0u;
+}
+
+/*
+ * This write never overrides the hardware interlock.  It succeeds only after
+ * FAULT0 is still pinmux-claimed and its filtered input is inactive.
+ */
+static inline bool omcu_fault0_try_clear(void) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_FAULT0)) {
+    return false;
+  }
+  OMCU_FAULT0->clear = OMCU_FAULT_CLEAR_MAGIC;
+  return (OMCU_FAULT0->status & OMCU_FAULT_STATUS_TRIPPED) == 0u;
+}
+
+static inline bool omcu_fault0_snapshot_read(omcu_fault0_snapshot_t *snapshot) {
+  if (snapshot == 0 || !omcu_hw_has_feature(OMCU_FEATURE_FAULT0)) {
+    return false;
+  }
+  snapshot->tick = OMCU_FAULT0->snapshot_tick;
+  snapshot->gpio_input = OMCU_FAULT0->snapshot_gpio;
+  snapshot->irq_active = OMCU_FAULT0->snapshot_irq;
+  snapshot->reset_cause = OMCU_FAULT0->snapshot_reset;
+  return true;
+}
+
 static inline void omcu_timer_start_periodic(
   uint16_t prescale,
   uint32_t compare
@@ -669,6 +755,72 @@ static inline void omcu_wdt0_start(
 
 static inline void omcu_wdt0_feed(void) {
   OMCU_WDT0->feed = OMCU_WDT_FEED_MAGIC;
+}
+
+/*
+ * Start the optional supervised watchdog profile. PRETIMEOUT and WINDOW_MIN
+ * are counts in the 27 MHz system clock domain. A nonzero heartbeat mask
+ * requires every selected task bit to be kicked during each feed epoch.
+ */
+static inline bool omcu_wdt0_start_supervisor(
+  uint32_t timeout,
+  uint32_t pretimeout,
+  uint32_t window_min,
+  uint8_t heartbeat_required,
+  bool request_reset,
+  bool enable_expiry_irq,
+  bool enable_pretimeout_irq
+) {
+  uint32_t ctrl = OMCU_WDT_CTRL_ENABLE |
+                  (request_reset ? OMCU_WDT_CTRL_RESET_ENABLE : 0u) |
+                  (enable_expiry_irq ? OMCU_WDT_CTRL_IRQ_ENABLE : 0u) |
+                  ((pretimeout != 0u && enable_pretimeout_irq) ?
+                    OMCU_WDT_CTRL_PRETIMEOUT_IRQ_ENABLE : 0u) |
+                  ((window_min != 0u) ? OMCU_WDT_CTRL_WINDOW_ENABLE : 0u) |
+                  ((heartbeat_required != 0u) ?
+                    OMCU_WDT_CTRL_HEARTBEAT_ENABLE : 0u);
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_WDT0 |
+                           OMCU_FEATURE_WDT_SUPERVISOR) ||
+      timeout == 0u ||
+      (pretimeout != 0u && pretimeout >= timeout) ||
+      (window_min != 0u && window_min >= timeout)) {
+    return false;
+  }
+  OMCU_WDT0->ctrl = 0u;
+  OMCU_WDT0->timeout = timeout;
+  OMCU_WDT0->pretimeout = pretimeout;
+  OMCU_WDT0->window_min = window_min;
+  OMCU_WDT0->heartbeat_required =
+    (uint32_t)heartbeat_required & OMCU_WDT_HEARTBEAT_MASK;
+  OMCU_WDT0->status = OMCU_WDT_STATUS_EXPIRED |
+                      OMCU_WDT_STATUS_PRETIMEOUT |
+                      OMCU_WDT_STATUS_WINDOW_VIOLATION |
+                      OMCU_WDT_STATUS_HEARTBEAT_MISSING |
+                      OMCU_WDT_STATUS_FEED_REJECTED;
+  OMCU_WDT0->ctrl = ctrl;
+  return true;
+}
+
+/* Record progress from one supervised task during the current WDT epoch. */
+static inline bool omcu_wdt0_heartbeat_kick(uint8_t task_mask) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_WDT0 |
+                           OMCU_FEATURE_WDT_SUPERVISOR) ||
+      task_mask == 0u) {
+    return false;
+  }
+  OMCU_WDT0->heartbeat_kick =
+    (uint32_t)task_mask & OMCU_WDT_HEARTBEAT_MASK;
+  return true;
+}
+
+static inline void omcu_wdt0_clear_supervisor_status(uint32_t status_mask) {
+  OMCU_WDT0->status = status_mask &
+                       (OMCU_WDT_STATUS_EXPIRED |
+                        OMCU_WDT_STATUS_PRETIMEOUT |
+                        OMCU_WDT_STATUS_WINDOW_VIOLATION |
+                        OMCU_WDT_STATUS_HEARTBEAT_MISSING |
+                        OMCU_WDT_STATUS_FEED_REJECTED);
 }
 
 static inline void omcu_wdt0_stop(void) {
