@@ -3,7 +3,8 @@ ENTRY(_start)
 
 MEMORY
 {
-  /* Tang Nano 9K all-BSRAM production configuration: 8 KiB ROM + 44 KiB RAM. */
+  /* Generic FPGA bring-up geometry: 8 KiB ROM + 44 KiB RAM. Product MCU mode
+     uses its separate 4 KiB Boot ROM linker script. */
   ROM (rx)  : ORIGIN = 0x00000000, LENGTH = 8K
   RAM (rwx) : ORIGIN = 0x10000000, LENGTH = 44K
 }

@@ -55,9 +55,21 @@ module omcu_fault_fabric_tb;
     end
   endtask
 
+  task automatic read_reg(input logic [31:0] address, output logic [31:0] value);
+    begin
+      @(negedge clk);
+      req = 1'b1; write = 1'b0; addr = address; write_data = '0; write_strobe = '0;
+      #1 value = read_data;
+      @(negedge clk);
+      req = 1'b0; addr = '0;
+    end
+  endtask
+
   task automatic check(input logic condition, input string message);
     begin if (!condition) begin $error("%s", message); $fatal(1); end end
   endtask
+
+  logic [31:0] snapshot_irq;
 
   initial begin
     req = 0; write = 0; addr = '0; write_data = '0; write_strobe = '0; fault_in = 0;
@@ -65,7 +77,6 @@ module omcu_fault_fabric_tb;
     rst_n = 1'b1;
 
     write_reg(FAULT0_BASE + 32'h04, 32'h0000_0000);
-    write_reg(FAULT0_BASE + 32'h08, 32'h0000_0002);
     write_reg(FAULT0_BASE, 32'h0000_003f);
     write_reg(32'h4000_7004, IRQ_FAULT0);
     fault_in = 1'b1;
@@ -75,9 +86,12 @@ module omcu_fault_fabric_tb;
 
     write_reg(PINMUX_BASE, 32'h0000_0010);
     repeat (3) @(negedge clk);
-    check(pinmux_fault && pwm0_kill && pwm1_kill && gpio_hiz == 2'b10 &&
+    check(pinmux_fault && pwm0_kill && pwm1_kill && gpio_hiz == 2'b11 &&
           (irq_vector & IRQ_FAULT0) != 0,
           "FAULT0 must decode, gate outputs and reach fixed CPU IRQ bit 18");
+    read_reg(32'h4000_0050, snapshot_irq);
+    check((snapshot_irq & IRQ_FAULT0) != 0,
+          "forced GPIO black-box snapshot must retain the same-edge FAULT0 IRQ cause");
 
     $display("PASS: omcu_fault_fabric_tb");
     $finish;

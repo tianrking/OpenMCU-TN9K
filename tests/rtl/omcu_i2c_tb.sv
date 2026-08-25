@@ -79,6 +79,27 @@ module omcu_i2c_tb;
     end
   endtask
 
+  task automatic write_reg_strobe(
+    input logic [7:0] offset,
+    input logic [31:0] data,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk);
+      req = 1'b1;
+      write = 1'b1;
+      addr = {24'h400004, offset};
+      wdata = data;
+      wstrb = strobe;
+      @(negedge clk);
+      req = 1'b0;
+      write = 1'b0;
+      addr = '0;
+      wdata = '0;
+      wstrb = '0;
+    end
+  endtask
+
   task automatic read_reg(input logic [7:0] offset, output logic [31:0] data);
     begin
       @(negedge clk);
@@ -186,6 +207,11 @@ module omcu_i2c_tb;
 
     repeat (3) @(negedge clk);
     rst_n = 1'b1;
+
+    write_reg_strobe(8'h0c, 32'h00000003, 4'b0001);
+    read_reg(8'h0c, status);
+    check(status == 32'h00000000,
+          "I2C control must ignore partial MMIO writes");
 
     write_reg(8'h08, 32'd1);       // Two system clocks per I2C half phase.
     write_reg(8'h0c, 32'h00000003); // Enable and enable DONE interrupt.

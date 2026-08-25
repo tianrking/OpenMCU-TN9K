@@ -28,7 +28,7 @@ module omcu_picorv32_system #(
   parameter integer USER_FLASH_PRESENT = 0,
   parameter integer USER_FLASH_USE_GOWIN_PRIMITIVE = 0,
   parameter integer CLOCK_HZ = 27000000,
-  parameter logic [15:0] ABI_MINOR = 16'h0007,
+  parameter logic [15:0] ABI_MINOR = 16'h0008,
   parameter logic [31:0] FEATURE_BITS = 32'h0008_80ff,
   parameter integer GPIO_EXPANSION_PRESENT = 0,
   parameter integer UART1_PRESENT = 0,
@@ -134,7 +134,6 @@ module omcu_picorv32_system #(
   localparam integer ROM_ADDR_BITS = $clog2(ROM_WORDS);
   localparam integer SRAM_WORDS = SRAM_BYTES / 4;
   localparam integer SRAM_ADDR_BITS = $clog2(SRAM_WORDS);
-
   logic [31:0] boot_rom [0:ROM_WORDS-1];
   logic [31:0] sram [0:SRAM_WORDS-1];
 
@@ -372,20 +371,44 @@ module omcu_picorv32_system #(
     .ENABLE_REGS_16_31(1'b1),
     // One read port trades a small number of extra core cycles for the LUT
     // headroom needed by the complete, physically routable P0/P1 MCU profile.
-    // It does not change the RV32IMC ISA or the firmware ABI.
+    // It does not change the RV32IM ISA or the firmware ABI.
     .ENABLE_REGS_DUALPORT(1'b0),
+    // MMIO and flash responses have different completion latencies, so keep
+    // PicoRV32's internal read-data latch rather than relying on a response
+    // value after a transaction has completed.
     .LATCHED_MEM_RDATA(1'b0),
     // A compact iterative shifter leaves enough fabric for the complete P1
-    // peripheral profile. Shift instructions remain part of RV32IMC; only
+    // peripheral profile. Shift instructions remain part of RV32IM; only
     // their worst-case execution latency increases.
     .TWO_STAGE_SHIFT(1'b0),
     .BARREL_SHIFTER(1'b0),
-    .TWO_CYCLE_COMPARE(1'b0),
-    .TWO_CYCLE_ALU(1'b0),
-    .COMPRESSED_ISA(1'b1),
-    .CATCH_MISALIGN(1'b1),
-    .CATCH_ILLINSN(1'b1),
+    // Branch/SLT comparison follows the same registered execute boundary as
+    // the ALU.  This adds latency only; binary compatibility and the IRQ
+    // calling convention remain unchanged.
+    .TWO_CYCLE_COMPARE(1'b1),
+    // Pipeline the general ALU result through one extra cycle.  This keeps
+    // the RV32IM instruction set and IRQ ABI intact while moving part of
+    // the wide execute mux from LUT fabric into otherwise plentiful DFFs.
+    .TWO_CYCLE_ALU(1'b1),
+    // Keep the product CPU at the full-width RV32I encoding baseline.  The
+    // optional C decoder costs a material portion of the last available LUT
+    // fabric on GW1NR-9C; applications use the matching RV32IM SDK profile.
+    .COMPRESSED_ISA(1'b0),
+    // The MCU ABI requires naturally aligned instruction and data accesses.
+    // Turning PicoRV32's optional misalignment trap off returns 36 LUTs to
+    // the deterministic peripheral profile on GW1NR-9C. Toolchain-produced
+    // RV32IM code is naturally aligned; hand-written unaligned loads/stores
+    // are outside the supported execution contract and must not be used.
+    .CATCH_MISALIGN(1'b0),
+    // The supported RV32IM profile is defined by valid instructions.  This
+    // small MCU deliberately has no public trap/exception ABI, so leave
+    // unsupported encodings outside the contract instead of retaining the
+    // core's optional illegal-instruction trap cone in LUT fabric.
+    .CATCH_ILLINSN(1'b0),
     .ENABLE_PCPI(1'b1),
+    // Preserve the RV32M contract with PicoRV32's fast multiplier.  On this
+    // Gowin target it maps efficiently to a dedicated DSP multiplier and is
+    // materially smaller than the iterative LUT implementation.
     .ENABLE_MUL(1'b0),
     .ENABLE_FAST_MUL(1'b1),
     .ENABLE_DIV(1'b0),

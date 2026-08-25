@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(OpenMCU_SDK LANGUAGES C ASM)
 
-set(OMCU_MARCH "rv32imc" CACHE STRING "RISC-V ISA for the selected OpenMCU target")
+set(OMCU_MARCH "rv32im" CACHE STRING "RISC-V ISA for the selected OpenMCU target")
 set(OMCU_MABI "ilp32" CACHE STRING "RISC-V ABI for the selected OpenMCU target")
 
 if (NOT DEFINED OMCU_RISCV_PREFIX)

@@ -4,7 +4,8 @@ ENTRY(_start)
 MEMORY
 {
   /* Immutable loader in the FPGA image; only customer apps change later. */
-  ROM (rx)        : ORIGIN = 0x00000000, LENGTH = 8K
+  /* Product FPGA configuration reserves 4 KiB for the immutable loader. */
+  ROM (rx)        : ORIGIN = 0x00000000, LENGTH = 4K
   /* Keep loader stack/data above the 40 KiB application SRAM window. */
   LOADER_RAM (rwx): ORIGIN = 0x1000A000, LENGTH = 4K
 }

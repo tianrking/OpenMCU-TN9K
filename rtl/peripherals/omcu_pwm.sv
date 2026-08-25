@@ -35,14 +35,16 @@ module omcu_pwm (
   logic        tick;
   logic        active_level;
   logic [31:0] ctrl_read;
-  logic [31:0] prescale_merged;
+  logic        full_word_write;
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
   assign tick = enable_q && (prescale_count_q == prescale_q);
   assign active_level = enable_q && (count_q < duty_q);
   assign pwm_o = active_level ^ invert_q;
-  assign prescale_merged = `OMCU_MERGE_WRITE({16'h0000, prescale_q}, write_data_i, write_strobe_i);
+  // PWM registers are native 32-bit MMIO words.  Atomic stores avoid a torn
+  // period/duty update and keep byte-lane merge muxes out of this small FPGA.
+  assign full_word_write = write_strobe_i == 4'b1111;
 
   always_comb begin
     ctrl_read = '0;
@@ -88,25 +90,23 @@ module omcu_pwm (
         count_q <= 32'h0000_0000;
       end
 
-      if (req_i && write_i) begin
+      if (req_i && write_i && full_word_write) begin
         unique case (addr_i[7:2])
           REG_CTRL: begin
-            if (write_strobe_i[0]) begin
-              enable_q <= write_data_i[0];
-              invert_q <= write_data_i[1];
-              if (!write_data_i[0]) begin
-                count_q <= 32'h0000_0000;
-              end
+            enable_q <= write_data_i[0];
+            invert_q <= write_data_i[1];
+            if (!write_data_i[0]) begin
+              count_q <= 32'h0000_0000;
             end
           end
           REG_PRESCALE: begin
-            prescale_q <= prescale_merged[15:0];
+            prescale_q <= write_data_i[15:0];
           end
           REG_PERIOD: begin
-            period_q <= `OMCU_MERGE_WRITE(period_q, write_data_i, write_strobe_i);
+            period_q <= write_data_i;
           end
           REG_DUTY: begin
-            duty_q <= `OMCU_MERGE_WRITE(duty_q, write_data_i, write_strobe_i);
+            duty_q <= write_data_i;
           end
           default: begin
           end

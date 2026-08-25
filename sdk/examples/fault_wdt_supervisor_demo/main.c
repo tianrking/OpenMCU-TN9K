@@ -16,12 +16,11 @@ int main(void) {
   const uint32_t timeout = OMCU_TN9K_SYSCLK_HZ;
   const uint32_t pretimeout = OMCU_TN9K_SYSCLK_HZ / 2u;
   const uint32_t min_feed = OMCU_TN9K_SYSCLK_HZ / 100u;
-  const uint32_t safe_hiz = OMCU_TN9K_GPIO0 | OMCU_TN9K_GPIO1;
 
   if (!omcu_hw_abi_is_compatible(OMCU_HW_ABI_MAJOR) ||
       !omcu_hw_has_feature(required) ||
       !omcu_tn9k_fault0_configure(
-        8u, safe_hiz, true, true, true, true, true) ||
+        8u, true, true, true, true, true) ||
       !omcu_wdt0_start_supervisor(
         timeout, pretimeout, min_feed, 0x03u, true, false, false)) {
     for (;;) {

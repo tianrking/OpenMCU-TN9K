@@ -41,6 +41,11 @@ module omcu_gpio_tb;
     .run_ticks_i(run_ticks),
     .irq_active_i(irq_active),
     .reset_cause_i(reset_cause),
+    .snapshot_force_i(1'b0),
+    .snapshot_tick_o(),
+    .snapshot_gpio_o(),
+    .snapshot_irq_o(),
+    .snapshot_reset_o(),
     .gpio_in_i(gpio_in),
     .gpio_out_o(gpio_out),
     .gpio_oe_o(gpio_oe),
@@ -55,6 +60,27 @@ module omcu_gpio_tb;
       address = offset;
       write_data = value;
       write_strobe = 4'hf;
+      @(negedge clk);
+      req = 1'b0;
+      write = 1'b0;
+      address = '0;
+      write_data = '0;
+      write_strobe = '0;
+    end
+  endtask
+
+  task automatic mmio_write_strobe(
+    input logic [31:0] offset,
+    input logic [31:0] value,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk);
+      req = 1'b1;
+      write = 1'b1;
+      address = offset;
+      write_data = value;
+      write_strobe = strobe;
       @(negedge clk);
       req = 1'b0;
       write = 1'b0;
@@ -106,6 +132,10 @@ module omcu_gpio_tb;
     rst_n = 1'b1;
     repeat (4) @(negedge clk);
 
+    mmio_write_strobe(32'h0000_0014, 32'h0000_000f, 4'b0001);
+    check(gpio_oe == 4'b0000,
+          "GPIO partial MMIO writes must not create a torn output-enable mask");
+
     mmio_write(32'h0000_0014, 32'h0000_0003);
     check(gpio_oe == 4'b0011, "GPIO output-enable set must affect selected pins");
 
@@ -128,11 +158,12 @@ module omcu_gpio_tb;
     @(negedge clk);
     check(!irq, "GPIO W1C must clear a latched interrupt");
 
-    // GPIO1 uses a three-sample stability filter (FILTER_CYCLES=2). A short
-    // synchronized pulse must not reach either the IRQ edge detector or the
-    // first-event snapshot.
-    mmio_write(32'h0000_0024, 32'h0000_0006);
-    mmio_write(32'h0000_0030, 32'h0000_0002);
+    // GPIO1 uses a three-sample whole-port stability filter
+    // (FILTER_CYCLES=2). GPIO2 is deliberately changed so the test can verify
+    // that a change on any input restarts the shared window.
+    // A short synchronized GPIO1 pulse must not reach either the IRQ edge
+    // detector or the first-event snapshot.
+    mmio_write(32'h0000_0024, 32'h0000_0002);
     mmio_write(32'h0000_0034, 32'h0000_0002);
     mmio_write(32'h0000_003c, 32'h0000_0002);
     mmio_write(32'h0000_0040, 32'h0000_0000);
@@ -144,7 +175,18 @@ module omcu_gpio_tb;
     check(!irq && !dut.snapshot_valid_q,
           "a pulse shorter than the selected digital filter must be rejected");
 
-    // A stable high level is accepted after synchronizer plus filter latency.
+    // GPIO1 stays high, but a change on another GPIO must restart the one
+    // shared settling window instead of accepting GPIO1 independently.
+    gpio_in = 4'b0110;
+    repeat (2) @(negedge clk);
+    gpio_in = 4'b0010;
+    repeat (4) @(negedge clk);
+    check(!irq && !dut.snapshot_valid_q && !dut.gpio_filtered_q[1],
+          "any selected GPIO change must restart the shared filter window");
+
+    // A stable selected group is accepted after synchronizer plus filter
+    // latency. GPIO2 does not have its edge enabled, so only GPIO1 produces
+    // the IRQ and diagnostic snapshot.
     gpio_in = 4'b0110;
     repeat (9) @(negedge clk);
     check(irq, "snapshot IRQ must share GPIO0 once the filtered edge is accepted");

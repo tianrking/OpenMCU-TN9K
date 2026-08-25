@@ -97,7 +97,7 @@ module omcu_sysctrl_tb;
     repeat (5) @(posedge clk);
 
     check_read(32'h0000_0000, 32'h4f4d_4355, "chip identifier must be OMCU");
-    check_read(32'h0000_0004, 32'h0000_0006, "ABI version must encode v0.6");
+    check_read(32'h0000_0004, 32'h0000_0008, "ABI version must encode v0.8");
     check_read(32'h0000_0008, 32'h0000_08ff,
                "feature bits must advertise diagnostics with the base peripherals");
     check_read(32'h0000_000c, 32'h2026_0825, "build identifier must be parameterized");

@@ -55,6 +55,30 @@ module omcu_user_flash #(
   localparam integer PROGRAM_YE_CYCLES = ((CLOCK_HZ * 16) + 999999) / 1000000;
   localparam integer PROGRAM_RELEASE_CYCLES = ((CLOCK_HZ * 6) + 999999) / 1000000;
   localparam integer PROGRAM_FINISH_CYCLES = ((CLOCK_HZ * 11) + 999999) / 1000000;
+  // ERASE_NVSTR is the longest documented phase (120 ms).  A 32-bit delay
+  // counter wastes carry-chain LUTs on a 27 MHz implementation, where the
+  // largest value is only 3,240,000.  Keep exactly enough state bits for the
+  // parameterized timing profile; all comparisons below are sized to it.
+  localparam integer DELAY_COUNTER_BITS =
+    (ERASE_NVSTR_CYCLES <= 1) ? 1 : $clog2(ERASE_NVSTR_CYCLES);
+  localparam logic [DELAY_COUNTER_BITS-1:0] ERASE_SETUP_LAST =
+    ERASE_SETUP_CYCLES - 1;
+  localparam logic [DELAY_COUNTER_BITS-1:0] ERASE_NVSTR_LAST =
+    ERASE_NVSTR_CYCLES - 1;
+  localparam logic [DELAY_COUNTER_BITS-1:0] ERASE_RELEASE_LAST =
+    ERASE_RELEASE_CYCLES - 1;
+  localparam logic [DELAY_COUNTER_BITS-1:0] ERASE_FINISH_LAST =
+    ERASE_FINISH_CYCLES - 1;
+  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_SETUP_LAST =
+    PROGRAM_SETUP_CYCLES - 1;
+  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_NVSTR_LAST =
+    PROGRAM_NVSTR_CYCLES - 1;
+  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_YE_LAST =
+    PROGRAM_YE_CYCLES - 1;
+  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_RELEASE_LAST =
+    PROGRAM_RELEASE_CYCLES - 1;
+  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_FINISH_LAST =
+    PROGRAM_FINISH_CYCLES - 1;
 
   localparam logic [4:0] STATE_IDLE = 5'd0;
   localparam logic [4:0] STATE_READ_ASSERT = 5'd1;
@@ -74,7 +98,7 @@ module omcu_user_flash #(
   logic [31:0] addr_q;
   logic [31:0] write_data_q;
   logic [31:0] read_data_q;
-  logic [31:0] delay_count_q;
+  logic [DELAY_COUNTER_BITS-1:0] delay_count_q;
   logic error_q;
 
   logic flash_xe;
@@ -133,7 +157,7 @@ module omcu_user_flash #(
 
       always_ff @(posedge clk_i) begin
         if (rst_ni && state_q == STATE_ERASE_FINISH &&
-            delay_count_q + 1 >= ERASE_FINISH_CYCLES) begin
+            delay_count_q == ERASE_FINISH_LAST) begin
           for (model_erase_index = 0;
                model_erase_index < PAGE_WORDS;
                model_erase_index = model_erase_index + 1) begin
@@ -143,7 +167,7 @@ module omcu_user_flash #(
           end
         end
         if (rst_ni && state_q == STATE_PROGRAM_YE &&
-            delay_count_q + 1 >= PROGRAM_YE_CYCLES) begin
+            delay_count_q == PROGRAM_YE_LAST) begin
           flash_model[word_index] <= flash_model[word_index] & write_data_q;
         end
       end
@@ -224,13 +248,13 @@ module omcu_user_flash #(
       addr_q <= 32'h0000_0000;
       write_data_q <= 32'h0000_0000;
       read_data_q <= 32'h0000_0000;
-      delay_count_q <= 32'h0000_0000;
+      delay_count_q <= '0;
       error_q <= 1'b0;
     end else begin
       unique case (state_q)
         STATE_IDLE: begin
           error_q <= 1'b0;
-          delay_count_q <= 32'h0000_0000;
+          delay_count_q <= '0;
           if (req_i) begin
             addr_q <= addr_i;
             write_data_q <= write_data_i;
@@ -260,76 +284,76 @@ module omcu_user_flash #(
         end
 
         STATE_ERASE_SETUP: begin
-          if (delay_count_q + 1 >= ERASE_SETUP_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == ERASE_SETUP_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_ERASE_NVSTR;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_ERASE_NVSTR: begin
-          if (delay_count_q + 1 >= ERASE_NVSTR_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == ERASE_NVSTR_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_ERASE_RELEASE;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_ERASE_RELEASE: begin
-          if (delay_count_q + 1 >= ERASE_RELEASE_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == ERASE_RELEASE_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_ERASE_FINISH;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_ERASE_FINISH: begin
-          if (delay_count_q + 1 >= ERASE_FINISH_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == ERASE_FINISH_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_DONE;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
 
         STATE_PROGRAM_SETUP: begin
-          if (delay_count_q + 1 >= PROGRAM_SETUP_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == PROGRAM_SETUP_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_PROGRAM_NVSTR;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_PROGRAM_NVSTR: begin
-          if (delay_count_q + 1 >= PROGRAM_NVSTR_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == PROGRAM_NVSTR_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_PROGRAM_YE;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_PROGRAM_YE: begin
-          if (delay_count_q + 1 >= PROGRAM_YE_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == PROGRAM_YE_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_PROGRAM_RELEASE;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_PROGRAM_RELEASE: begin
-          if (delay_count_q + 1 >= PROGRAM_RELEASE_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == PROGRAM_RELEASE_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_PROGRAM_FINISH;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_PROGRAM_FINISH: begin
-          if (delay_count_q + 1 >= PROGRAM_FINISH_CYCLES) begin
-            delay_count_q <= 32'h0000_0000;
+          if (delay_count_q == PROGRAM_FINISH_LAST) begin
+            delay_count_q <= '0;
             state_q <= STATE_DONE;
           end else begin
-            delay_count_q <= delay_count_q + 32'd1;
+            delay_count_q <= delay_count_q + 1'b1;
           end
         end
 

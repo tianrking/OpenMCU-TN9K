@@ -78,8 +78,12 @@ module omcu_tn9k_peripheral_io_tb;
           "compiled SDK SPI0 transfer must reach the Tang Nano SPI0 chip-select pad");
     check(pwm_high_seen && pwm_low_seen,
           "compiled SDK PWM0 configuration must toggle the Tang Nano PWM0 pad");
-    check(gpio === 12'hfff,
-          "unused 12-pad expansion GPIO profile must be high-impedance at the board adapter");
+    // The SDK smoke deliberately claims GPIO0/1 as PASS/FAIL outputs (01);
+    // every other reviewed J5 pad must still be released at the board adapter.
+    // tri1 pulls a released pad high, so bit1 being low proves this assertion
+    // distinguishes the driven FAIL pin from twelve passive pull-ups.
+    check(gpio[11:2] === 10'h3ff && gpio[1:0] === 2'b01,
+          "SDK PASS/FAIL pins must drive 01 while unused J5 GPIO2..11 stay high-impedance");
     check(i2c_scl === 1'b1 && i2c_sda === 1'b1,
           "idle I2C0 board pads must be released rather than actively driven high");
     check(!dut.cpu_trap, "peripheral SDK firmware must not trap before PASS");

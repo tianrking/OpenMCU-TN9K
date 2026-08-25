@@ -50,6 +50,24 @@ module omcu_uart_tb;
     end
   endtask
 
+  task automatic mmio_write_strobe(
+    input logic [31:0] offset,
+    input logic [31:0] value,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk);
+      req = 1'b1;
+      write = 1'b1;
+      address = offset;
+      write_data = value;
+      write_strobe = strobe;
+      @(negedge clk);
+      req = 1'b0;
+      write = 1'b0;
+    end
+  endtask
+
   task automatic mmio_read(input logic [31:0] offset, output logic [31:0] value);
     begin
       @(negedge clk);
@@ -112,6 +130,13 @@ module omcu_uart_tb;
 
     repeat (3) @(negedge clk);
     rst_n = 1'b1;
+
+    // A byte store must not partially enable the UART or make an accidental
+    // data/baud configuration visible on the external serial pins.
+    mmio_write_strobe(32'h0000_000c, 32'h0000_0007, 4'b0001);
+    mmio_read(32'h0000_000c, observed);
+    check(observed == 32'h0000_0000,
+          "UART control must ignore partial MMIO writes");
 
     mmio_write(32'h0000_000c, 32'h0000_0007);
     mmio_write(32'h0000_0008, 32'h0000_0003);

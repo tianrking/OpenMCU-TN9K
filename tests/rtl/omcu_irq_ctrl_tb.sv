@@ -54,6 +54,27 @@ module omcu_irq_ctrl_tb;
     end
   endtask
 
+  task automatic write_reg_strobe(
+    input logic [7:0] offset,
+    input logic [31:0] value,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk);
+      req = 1'b1;
+      write = 1'b1;
+      addr = 32'h4000_7000 + offset;
+      write_data = value;
+      write_strobe = strobe;
+      @(negedge clk);
+      req = 1'b0;
+      write = 1'b0;
+      addr = '0;
+      write_data = '0;
+      write_strobe = '0;
+    end
+  endtask
+
   task automatic read_reg(input logic [7:0] offset, output logic [31:0] value);
     begin
       @(negedge clk);
@@ -92,6 +113,11 @@ module omcu_irq_ctrl_tb;
     read_reg(8'h00, value);
     check(value == 32'h0000_0000, "IRQCTRL must reset with no pending events");
     check(irq_vector == 32'h0000_0000, "IRQCTRL must reset with all sources masked");
+
+    write_reg_strobe(8'h04, IRQ_TIMER0, 4'b0001);
+    read_reg(8'h04, value);
+    check(value == 32'h0000_0000,
+          "IRQCTRL partial MMIO writes must not enable a torn interrupt mask");
 
     // A one-cycle timer source is retained even while disabled.
     @(negedge clk);

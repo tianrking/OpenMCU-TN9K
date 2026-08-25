@@ -2,8 +2,10 @@
 `timescale 1ns / 1ps
 
 // This is deliberately a compiled-SDK gate rather than a hand-coded ROM
-// fixture.  `omcu_isa_smoke.hex` is built with -march=rv32imc and validates
-// C extension decoding plus MUL/DIV/REM execution through the actual SoC.
+// fixture. `omcu_isa_smoke.hex` is built with -march=rv32im and validates
+// base integer control plus MUL/DIV/REM execution through the actual SoC.
+// The legacy file/module name is retained only to keep the smoke target name
+// stable while the product ISA moved to ABI 0.8.
 module omcu_rv32imc_sdk_tb;
   logic clk = 1'b0;
   logic rst_n = 1'b0;
@@ -60,13 +62,13 @@ module omcu_rv32imc_sdk_tb;
     // PicoRV32's divide unit is iterative.  This budget covers reset, the
     // .data copy and all signed/unsigned M-extension operations with margin.
     repeat (1200) @(negedge clk);
-    check(!cpu_trap, "compiled RV32IMC SDK firmware must not trap");
-    check(!bus_error_seen, "compiled RV32IMC SDK firmware must not access an invalid address");
+    check(!cpu_trap, "compiled RV32IM SDK firmware must not trap");
+    check(!bus_error_seen, "compiled RV32IM SDK firmware must not access an invalid address");
     check(gpio_oe[0] && gpio_oe[1], "SDK firmware must configure pass/fail GPIO outputs");
-    check(gpio_out[0], "compiled RV32IMC multiply/divide/remainder checks must pass");
-    check(!gpio_out[1], "compiled RV32IMC firmware must not raise the failure GPIO");
+    check(gpio_out[0], "compiled RV32IM multiply/divide/remainder checks must pass");
+    check(!gpio_out[1], "compiled RV32IM firmware must not raise the failure GPIO");
 
-    $display("PASS: omcu_rv32imc_sdk_tb");
+    $display("PASS: omcu_rv32im_sdk_tb");
     $finish;
   end
 endmodule

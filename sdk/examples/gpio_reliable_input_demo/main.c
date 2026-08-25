@@ -15,7 +15,7 @@ int main(void) {
 
   if (!omcu_hw_abi_is_compatible(OMCU_HW_ABI_MAJOR) ||
       !omcu_hw_has_feature(required) ||
-      !omcu_gpio_configure_filter(input, 8u) ||
+      !omcu_gpio_configure_filter(8u) ||
       !omcu_gpio_snapshot_arm(input, input, false, false)) {
     for (;;) {
     }

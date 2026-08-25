@@ -54,16 +54,18 @@ module omcu_uart #(
   logic        rx_overrun_q;
   logic        rx_framing_error_q;
 
-  logic [31:0] bauddiv_merged;
   logic [31:0] ctrl_read;
   logic [31:0] status_read;
   logic [15:0] rx_start_counter_load;
+  logic        full_word_write;
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
   assign tx_o = tx_busy_q ? tx_shift_q[0] : 1'b1;
   assign irq_o = rx_valid_q && rx_irq_enable_q;
-  assign bauddiv_merged = `OMCU_MERGE_WRITE({16'h0000, bauddiv_q}, write_data_i, write_strobe_i);
+  // All UART control/data commands use aligned 32-bit SDK stores.  Reject
+  // partial writes to keep BAUDDIV/CTRL updates atomic and compact in LUTs.
+  assign full_word_write = write_strobe_i == 4'b1111;
 
   always_comb begin
     ctrl_read = '0;
@@ -203,10 +205,10 @@ module omcu_uart #(
         endcase
       end
 
-      if (req_i && write_i) begin
+      if (req_i && write_i && full_word_write) begin
         unique case (addr_i[7:2])
           REG_DATA: begin
-            if (write_strobe_i[0] && tx_enable_q && !tx_busy_q) begin
+            if (tx_enable_q && !tx_busy_q) begin
               tx_busy_q <= 1'b1;
               tx_shift_q <= {1'b1, write_data_i[7:0], 1'b0};
               tx_bits_remaining_q <= 4'd10;
@@ -214,22 +216,20 @@ module omcu_uart #(
             end
           end
           REG_STATUS: begin
-            if (write_strobe_i[0] && write_data_i[2]) begin
+            if (write_data_i[2]) begin
               rx_overrun_q <= 1'b0;
             end
-            if (write_strobe_i[0] && write_data_i[3]) begin
+            if (write_data_i[3]) begin
               rx_framing_error_q <= 1'b0;
             end
           end
           REG_BAUDDIV: begin
-            bauddiv_q <= bauddiv_merged[15:0];
+            bauddiv_q <= write_data_i[15:0];
           end
           REG_CTRL: begin
-            if (write_strobe_i[0]) begin
-              tx_enable_q <= write_data_i[0];
-              rx_enable_q <= write_data_i[1];
-              rx_irq_enable_q <= write_data_i[2];
-            end
+            tx_enable_q <= write_data_i[0];
+            rx_enable_q <= write_data_i[1];
+            rx_irq_enable_q <= write_data_i[2];
           end
           default: begin
           end

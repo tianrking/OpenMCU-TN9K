@@ -45,6 +45,20 @@ module omcu_timer1_tb;
     end
   endtask
 
+  task automatic write_reg_strobe(
+    input logic [7:0] offset,
+    input logic [31:0] value,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk);
+      req = 1'b1; write = 1'b1; addr = {24'h400009, offset};
+      wdata = value; wstrb = strobe;
+      @(negedge clk);
+      req = 1'b0; write = 1'b0; addr = '0; wdata = '0; wstrb = '0;
+    end
+  endtask
+
   task automatic read_reg(input logic [7:0] offset, output logic [31:0] value);
     begin
       @(negedge clk);
@@ -83,6 +97,10 @@ module omcu_timer1_tb;
     capture_a = 1'b0; capture_b = 1'b0;
     repeat (3) @(negedge clk);
     rst_n = 1'b1;
+
+    write_reg_strobe(8'h00, CTRL_ENABLE | CTRL_IRQ_ENABLE, 4'b0001);
+    check(!dut.timer_enable_q,
+          "TIMER1 partial MMIO writes must not create a torn configuration");
 
     // TIMER1 retains TIMER0's one-shot/periodic compare contract and exposes
     // its event through the optional IRQ output.

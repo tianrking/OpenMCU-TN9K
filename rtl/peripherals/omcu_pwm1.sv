@@ -42,18 +42,7 @@ module omcu_pwm1 (
   logic        tick;
   logic [3:0]  active_level;
   logic [31:0] ctrl_read;
-
-  function automatic logic [15:0] merge_low16(
-    input logic [15:0] old_value,
-    input logic [31:0] new_value,
-    input logic [3:0] strobe
-  );
-    logic [15:0] byte_mask;
-    begin
-      byte_mask = {{8{strobe[1]}}, {8{strobe[0]}}};
-      merge_low16 = (old_value & ~byte_mask) | (new_value[15:0] & byte_mask);
-    end
-  endfunction
+  logic        full_word_write;
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
@@ -64,6 +53,9 @@ module omcu_pwm1 (
   assign active_level[3] = count_q < duty3_q;
   // Disabled means a definite low output even when an invert bit was left set.
   assign pwm_o = enable_q ? (active_level ^ invert_q) : 4'b0000;
+  // Even though the values are 16-bit, they live in aligned 32-bit MMIO words.
+  // One full store is the indivisible PWM update unit in the product ABI.
+  assign full_word_write = write_strobe_i == 4'b1111;
 
   always_comb begin
     ctrl_read = '0;
@@ -115,9 +107,9 @@ module omcu_pwm1 (
         count_q <= 16'h0000;
       end
 
-      if (req_i && write_i) begin
+      if (req_i && write_i && full_word_write) begin
         unique case (addr_i[7:2])
-          REG_CTRL: if (write_strobe_i[0]) begin
+          REG_CTRL: begin
             enable_q <= write_data_i[0];
             invert_q <= write_data_i[7:4];
             if (!write_data_i[0]) begin
@@ -125,14 +117,12 @@ module omcu_pwm1 (
               count_q <= 16'h0000;
             end
           end
-          REG_PRESCALE: prescale_q <= merge_low16(
-            prescale_q, write_data_i, write_strobe_i
-          );
-          REG_PERIOD: period_q <= merge_low16(period_q, write_data_i, write_strobe_i);
-          REG_DUTY0: duty0_q <= merge_low16(duty0_q, write_data_i, write_strobe_i);
-          REG_DUTY1: duty1_q <= merge_low16(duty1_q, write_data_i, write_strobe_i);
-          REG_DUTY2: duty2_q <= merge_low16(duty2_q, write_data_i, write_strobe_i);
-          REG_DUTY3: duty3_q <= merge_low16(duty3_q, write_data_i, write_strobe_i);
+          REG_PRESCALE: prescale_q <= write_data_i[15:0];
+          REG_PERIOD: period_q <= write_data_i[15:0];
+          REG_DUTY0: duty0_q <= write_data_i[15:0];
+          REG_DUTY1: duty1_q <= write_data_i[15:0];
+          REG_DUTY2: duty2_q <= write_data_i[15:0];
+          REG_DUTY3: duty3_q <= write_data_i[15:0];
           default: begin
           end
         endcase

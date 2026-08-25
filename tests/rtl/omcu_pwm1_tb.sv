@@ -30,6 +30,20 @@ module omcu_pwm1_tb;
     end
   endtask
 
+  task automatic write_reg_strobe(
+    input logic [7:0] offset,
+    input logic [31:0] data,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk);
+      req = 1'b1; write = 1'b1; addr = {24'h40000a, offset};
+      wdata = data; wstrb = strobe;
+      @(negedge clk);
+      req = 1'b0; write = 1'b0; addr = '0; wdata = '0; wstrb = '0;
+    end
+  endtask
+
   task automatic check(input logic condition, input string message);
     begin
       if (!condition) begin
@@ -45,6 +59,9 @@ module omcu_pwm1_tb;
     rst_n = 1'b1;
 
     check(pwm == 4'b0000, "PWM1 reset output must be low on every channel");
+    write_reg_strobe(8'h00, 32'h0000_0001, 4'b0001);
+    check(!dut.enable_q && pwm == 4'b0000,
+          "PWM1 partial MMIO writes must not enable an incompletely configured bank");
     // Disabled output stays low even if future software has left invert bits.
     write_reg(8'h00, 32'h0000_00f0);
     check(pwm == 4'b0000,

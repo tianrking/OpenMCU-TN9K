@@ -13,24 +13,26 @@
 #include "omcu.h"
 
 #define OMCU_TN9K_SYSCLK_HZ       UINT32_C(27000000)
-#define OMCU_TN9K_LED0            (UINT32_C(1) << 0)
-#define OMCU_TN9K_LED1            (UINT32_C(1) << 1)
-#define OMCU_TN9K_LED2            (UINT32_C(1) << 2)
-#define OMCU_TN9K_LED3            (UINT32_C(1) << 3)
-#define OMCU_TN9K_LED4            (UINT32_C(1) << 4)
-#define OMCU_TN9K_LED5            (UINT32_C(1) << 5)
-#define OMCU_TN9K_GPIO0           (UINT32_C(1) << 6)
-#define OMCU_TN9K_GPIO1           (UINT32_C(1) << 7)
-#define OMCU_TN9K_GPIO2           (UINT32_C(1) << 8)
-#define OMCU_TN9K_GPIO3           (UINT32_C(1) << 9)
-#define OMCU_TN9K_GPIO4           (UINT32_C(1) << 10)
-#define OMCU_TN9K_GPIO5           (UINT32_C(1) << 11)
-#define OMCU_TN9K_GPIO6           (UINT32_C(1) << 12)
-#define OMCU_TN9K_GPIO7           (UINT32_C(1) << 13)
-#define OMCU_TN9K_GPIO8           (UINT32_C(1) << 14)
-#define OMCU_TN9K_GPIO9           (UINT32_C(1) << 15)
-#define OMCU_TN9K_GPIO10          (UINT32_C(1) << 16)
-#define OMCU_TN9K_GPIO11          (UINT32_C(1) << 17)
+#define OMCU_TN9K_GPIO0           (UINT32_C(1) << 0)
+#define OMCU_TN9K_GPIO1           (UINT32_C(1) << 1)
+#define OMCU_TN9K_GPIO2           (UINT32_C(1) << 2)
+#define OMCU_TN9K_GPIO3           (UINT32_C(1) << 3)
+#define OMCU_TN9K_GPIO4           (UINT32_C(1) << 4)
+#define OMCU_TN9K_GPIO5           (UINT32_C(1) << 5)
+#define OMCU_TN9K_GPIO6           (UINT32_C(1) << 6)
+#define OMCU_TN9K_GPIO7           (UINT32_C(1) << 7)
+#define OMCU_TN9K_GPIO8           (UINT32_C(1) << 8)
+#define OMCU_TN9K_GPIO9           (UINT32_C(1) << 9)
+#define OMCU_TN9K_GPIO10          (UINT32_C(1) << 10)
+#define OMCU_TN9K_GPIO11          (UINT32_C(1) << 11)
+
+/* The six board LEDs mirror GPIO0..5; they are not private GPIO bits. */
+#define OMCU_TN9K_LED0            OMCU_TN9K_GPIO0
+#define OMCU_TN9K_LED1            OMCU_TN9K_GPIO1
+#define OMCU_TN9K_LED2            OMCU_TN9K_GPIO2
+#define OMCU_TN9K_LED3            OMCU_TN9K_GPIO3
+#define OMCU_TN9K_LED4            OMCU_TN9K_GPIO4
+#define OMCU_TN9K_LED5            OMCU_TN9K_GPIO5
 
 /* Rounded divider for the UART0/UART1 convention: clocks-per-bit minus one. */
 static inline uint16_t omcu_tn9k_uart_bauddiv(uint32_t baud) {
@@ -114,19 +116,19 @@ static inline bool omcu_tn9k_timer1_release_pins(void) {
 }
 
 /*
- * PULSE0 channel 0..2 maps to GPIO0..2 / J5.8..10. The route is input-only:
- * its pinmux claim releases all three FPGA output drivers before an external
- * Hall, flow or low-rate pulse sensor is connected. It is not a high-speed
+ * PULSE0 selects one of GPIO0..2 / J5.8..10 at a time. Its pinmux claim
+ * releases all three reviewed FPGA output drivers before an external Hall,
+ * flow or low-rate pulse sensor is connected. It is not a high-speed
  * asynchronous counter or an electrical input-protection circuit.
  */
 static inline bool omcu_tn9k_pulse0_configure(
-  uint8_t channel_enable,
-  uint8_t falling_mask,
+  uint8_t input_select,
+  bool falling,
   uint8_t filter,
   bool enable_irq
 ) {
   if (!omcu_hw_has_feature(OMCU_FEATURE_PULSE0 | OMCU_FEATURE_PINMUX) ||
-      !omcu_pulse0_configure(channel_enable, falling_mask, filter, enable_irq)) {
+      !omcu_pulse0_configure(input_select, falling, filter, enable_irq)) {
     return false;
   }
   return omcu_pinmux_pulse0_enable(true);
@@ -143,7 +145,6 @@ static inline bool omcu_tn9k_pulse0_release_pins(void) {
  */
 static inline bool omcu_tn9k_fault0_configure(
   uint8_t filter,
-  uint32_t gpio_hiz_mask,
   bool active_high,
   bool enable_irq,
   bool gate_pwm0,
@@ -157,8 +158,7 @@ static inline bool omcu_tn9k_fault0_configure(
     return false;
   }
   return omcu_fault0_configure(
-    filter, gpio_hiz_mask, active_high, enable_irq, gate_pwm0, gate_pwm1,
-    gate_gpio
+    filter, active_high, enable_irq, gate_pwm0, gate_pwm1, gate_gpio
   );
 }
 

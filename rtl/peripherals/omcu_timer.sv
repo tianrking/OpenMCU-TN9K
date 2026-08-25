@@ -15,7 +15,15 @@ module omcu_timer (
   output logic [31:0] read_data_o,
   output logic        error_o,
 
-  output logic        irq_o
+  output logic        irq_o,
+  // Export the established TIMER0 tick so companion hardware can add
+  // independent compare channels without instantiating another prescaler or
+  // counter.  These are observation ports only; TIMER0 remains the sole
+  // owner of its configuration and state.
+  output logic [31:0] count_o,
+  output logic [15:0] prescale_o,
+  output logic        counter_tick_o,
+  output logic        enable_o
 );
 
   localparam logic [5:0] REG_CTRL      = 6'h00;
@@ -36,14 +44,21 @@ module omcu_timer (
   logic        compare_event;
   logic [31:0] ctrl_read;
   logic [31:0] status_read;
-  logic [31:0] prescale_merged;
+  logic        full_word_write;
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
   assign irq_o = irq_pending_q & irq_enable_q;
+  assign count_o = count_q;
+  assign prescale_o = prescale_q;
+  assign counter_tick_o = counter_tick;
+  assign enable_o = enable_q;
   assign counter_tick = enable_q && (prescale_count_q == prescale_q);
   assign compare_event = counter_tick && (count_q == compare_q);
-  assign prescale_merged = `OMCU_MERGE_WRITE({16'h0000, prescale_q}, write_data_i, write_strobe_i);
+  // The product ABI exposes 32-bit register words.  TIMER0 configuration is
+  // therefore atomic: byte and half-word stores are ignored rather than
+  // building wide per-byte merge muxes into its timing-critical counter path.
+  assign full_word_write = write_strobe_i == 4'b1111;
 
   always_comb begin
     ctrl_read = '0;
@@ -101,26 +116,24 @@ module omcu_timer (
         irq_pending_q <= 1'b1;
       end
 
-      if (req_i && write_i) begin
+      if (req_i && write_i && full_word_write) begin
         unique case (addr_i[7:2])
           REG_CTRL: begin
-            if (write_strobe_i[0]) begin
-              enable_q <= write_data_i[0];
-              irq_enable_q <= write_data_i[1];
-              auto_reload_q <= write_data_i[2];
-            end
+            enable_q <= write_data_i[0];
+            irq_enable_q <= write_data_i[1];
+            auto_reload_q <= write_data_i[2];
           end
           REG_PRESCALE: begin
-            prescale_q <= prescale_merged[15:0];
+            prescale_q <= write_data_i[15:0];
           end
           REG_COUNT: begin
-            count_q <= `OMCU_MERGE_WRITE(count_q, write_data_i, write_strobe_i);
+            count_q <= write_data_i;
           end
           REG_COMPARE: begin
-            compare_q <= `OMCU_MERGE_WRITE(compare_q, write_data_i, write_strobe_i);
+            compare_q <= write_data_i;
           end
           REG_STATUS: begin
-            if (write_strobe_i[0] && write_data_i[0]) begin
+            if (write_data_i[0]) begin
               // W1C; a comparison in this exact clock cycle wins.
               irq_pending_q <= compare_event;
             end

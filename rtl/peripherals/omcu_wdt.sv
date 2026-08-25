@@ -52,18 +52,16 @@ module omcu_wdt #(
   logic        heartbeat_missing_q;
   logic        feed_rejected_q;
   logic        reset_req_q;
+  logic        window_open_q;
   logic [31:0] ctrl_read;
   logic [31:0] status_read;
-  logic [31:0] timeout_merged;
-  logic [31:0] pretimeout_merged;
-  logic [31:0] window_min_merged;
-  logic [31:0] heartbeat_required_merged;
-  logic [31:0] write_masked_data;
+  logic        full_word_write;
   logic        feed_command;
   logic [7:0]  heartbeat_kick_bits;
   logic        heartbeat_complete;
   logic        pretimeout_event;
   logic        expiry_event;
+  logic        window_open_event;
   logic        feed_window_violation;
   logic        feed_heartbeat_missing;
   logic        feed_failure;
@@ -75,31 +73,34 @@ module omcu_wdt #(
   assign irq_o = (expired_q && irq_enable_q) ||
                  (pretimeout_pending_q && pretimeout_irq_enable_q);
   assign reset_req_o = reset_req_q;
-  assign write_masked_data = write_data_i & `OMCU_WRITE_STROBE_MASK(write_strobe_i);
-  assign timeout_merged = `OMCU_MERGE_WRITE(timeout_q, write_data_i, write_strobe_i);
-  assign pretimeout_merged = `OMCU_MERGE_WRITE(
-    pretimeout_q, write_data_i, write_strobe_i
-  );
-  assign window_min_merged = `OMCU_MERGE_WRITE(
-    window_min_q, write_data_i, write_strobe_i
-  );
-  assign heartbeat_required_merged = `OMCU_MERGE_WRITE(
-    {24'h000000, heartbeat_required_q}, write_data_i, write_strobe_i
-  );
+  // Safety-relevant watchdog operations are one atomic 32-bit store.  Besides
+  // preventing torn timeout/window configuration, this deliberately replaces
+  // wide byte-lane merge networks with registered epoch state.  Software must
+  // stop the WDT before changing its configuration; it may always feed and
+  // kick heartbeats while enabled.
+  assign full_word_write = write_strobe_i == 4'b1111;
   assign feed_command = req_i && write_i && (addr_i[7:2] == REG_FEED) &&
-                        (write_strobe_i == 4'b1111) && (write_data_i == FEED_MAGIC);
+                        full_word_write && (write_data_i == FEED_MAGIC);
   assign heartbeat_kick_bits = (req_i && write_i &&
-                                (addr_i[7:2] == REG_HEARTBEAT_KICK)) ?
-                               write_masked_data[7:0] : 8'h00;
+                                (addr_i[7:2] == REG_HEARTBEAT_KICK) &&
+                                full_word_write) ? write_data_i[7:0] : 8'h00;
   assign heartbeat_complete =
     (heartbeat_seen_q & heartbeat_required_q) == heartbeat_required_q;
   // PRETIMEOUT=0 deliberately disables the warning stage, preserving the
   // simple legacy watchdog contract without a second control bit.
   assign pretimeout_event = enable_q && (pretimeout_q != 32'h0000_0000) &&
                             (count_q == pretimeout_q);
-  assign expiry_event = enable_q && (count_q >= timeout_q);
+  // Configuration is accepted only while disabled, and every started epoch
+  // begins at zero.  Equality is consequently sufficient for expiry and is
+  // notably cheaper than a 32-bit greater-or-equal comparator in the 9K part.
+  assign expiry_event = enable_q && (count_q == timeout_q);
+  // WINDOW_MIN needs no wide less-than comparator.  This flag is asserted on
+  // the threshold tick; the equality term admits a feed on that exact tick,
+  // matching the documented count >= WINDOW_MIN contract.
+  assign window_open_event = enable_q && window_enable_q &&
+                             (count_q == window_min_q);
   assign feed_window_violation = feed_command && window_enable_q &&
-                                 (count_q < window_min_q);
+                                 !window_open_q && !window_open_event;
   assign feed_heartbeat_missing = feed_command && heartbeat_enable_q &&
                                   !heartbeat_complete;
   assign feed_failure = feed_window_violation || feed_heartbeat_missing;
@@ -156,6 +157,7 @@ module omcu_wdt #(
       heartbeat_missing_q <= 1'b0;
       feed_rejected_q <= 1'b0;
       reset_req_q <= 1'b0;
+      window_open_q <= 1'b0;
     end else begin
       // Reset requests are pulses. A platform sequencer records the cause and
       // holds the complete SoC in reset for its own defined interval.
@@ -166,9 +168,13 @@ module omcu_wdt #(
           count_q <= 32'h0000_0000;
           expired_q <= 1'b1;
           reset_req_q <= reset_enable_q;
+          window_open_q <= 1'b0;
         end else begin
           count_q <= count_q + 32'd1;
         end
+      end
+      if (window_open_event) begin
+        window_open_q <= 1'b1;
       end
       if (pretimeout_event) begin
         pretimeout_pending_q <= 1'b1;
@@ -179,6 +185,7 @@ module omcu_wdt #(
       if (feed_accepted) begin
         count_q <= 32'h0000_0000;
         heartbeat_seen_q <= 8'h00;
+        window_open_q <= 1'b0;
       end
       if (feed_failure) begin
         count_q <= 32'h0000_0000;
@@ -188,6 +195,7 @@ module omcu_wdt #(
         feed_rejected_q <= 1'b1;
         heartbeat_seen_q <= 8'h00;
         reset_req_q <= reset_enable_q;
+        window_open_q <= 1'b0;
       end else if (feed_expired) begin
         // A feed exactly on the expiry clock never rescues the watchdog.
         feed_rejected_q <= 1'b1;
@@ -196,7 +204,7 @@ module omcu_wdt #(
       if (req_i && write_i) begin
         unique case (addr_i[7:2])
           REG_CTRL: begin
-            if (write_strobe_i[0]) begin
+            if (full_word_write && (!enable_q || !write_data_i[0])) begin
               enable_q <= write_data_i[0];
               reset_enable_q <= write_data_i[1];
               irq_enable_q <= write_data_i[2];
@@ -209,36 +217,33 @@ module omcu_wdt #(
               if (!write_data_i[0] || !enable_q) begin
                 count_q <= 32'h0000_0000;
                 heartbeat_seen_q <= 8'h00;
+                window_open_q <= 1'b0;
               end
             end
           end
-          REG_TIMEOUT: begin
-            timeout_q <= timeout_merged;
-          end
-          REG_PRETIMEOUT: begin
-            pretimeout_q <= pretimeout_merged;
-          end
-          REG_WINDOW_MIN: begin
-            window_min_q <= window_min_merged;
-          end
-          REG_HEARTBEAT_REQUIRED: begin
-            heartbeat_required_q <= heartbeat_required_merged[7:0];
-          end
+          REG_TIMEOUT: if (full_word_write && !enable_q)
+            timeout_q <= write_data_i;
+          REG_PRETIMEOUT: if (full_word_write && !enable_q)
+            pretimeout_q <= write_data_i;
+          REG_WINDOW_MIN: if (full_word_write && !enable_q)
+            window_min_q <= write_data_i;
+          REG_HEARTBEAT_REQUIRED: if (full_word_write && !enable_q)
+            heartbeat_required_q <= write_data_i[7:0];
           REG_STATUS: begin
             // W1C; events in the exact clock always win over an acknowledgement.
-            if (write_strobe_i[0] && write_data_i[0]) begin
+            if (full_word_write && write_data_i[0]) begin
               expired_q <= expiry_event || feed_failure;
             end
-            if (write_strobe_i[0] && write_data_i[2]) begin
+            if (full_word_write && write_data_i[2]) begin
               pretimeout_pending_q <= pretimeout_event;
             end
-            if (write_strobe_i[0] && write_data_i[3]) begin
+            if (full_word_write && write_data_i[3]) begin
               window_violation_q <= feed_window_violation;
             end
-            if (write_strobe_i[0] && write_data_i[4]) begin
+            if (full_word_write && write_data_i[4]) begin
               heartbeat_missing_q <= feed_heartbeat_missing;
             end
-            if (write_strobe_i[0] && write_data_i[5]) begin
+            if (full_word_write && write_data_i[5]) begin
               feed_rejected_q <= feed_failure || feed_expired;
             end
           end

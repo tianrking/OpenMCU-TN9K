@@ -89,24 +89,17 @@ module omcu_timer1 (
   logic encoder_illegal_event;
   logic encoder_forward_event;
   logic encoder_increment_event;
+  logic full_word_write;
 
   logic [31:0] ctrl_read;
   logic [31:0] status_read;
 
-  function automatic logic [15:0] merge_low16(
-    input logic [15:0] old_value,
-    input logic [31:0] new_value,
-    input logic [3:0] strobe
-  );
-    logic [15:0] byte_mask;
-    begin
-      byte_mask = {{8{strobe[1]}}, {8{strobe[0]}}};
-      merge_low16 = (old_value & ~byte_mask) | (new_value[15:0] & byte_mask);
-    end
-  endfunction
-
   assign ready_o = req_i;
   assign error_o = 1'b0;
+  // 16-bit values still occupy aligned 32-bit MMIO words.  Requiring a full
+  // word store makes a capture/encoder configuration change indivisible and
+  // removes six byte-lane merge networks from this constrained FPGA profile.
+  assign full_word_write = write_strobe_i == 4'b1111;
   assign irq_o = irq_enable_q && (compare_pending_q || capture_a_pending_q ||
                                   capture_b_pending_q || encoder_step_pending_q ||
                                   encoder_illegal_pending_q);
@@ -292,9 +285,9 @@ module omcu_timer1 (
       end
       if (encoder_illegal_event) encoder_illegal_pending_q <= 1'b1;
 
-      if (req_i && write_i) begin
+      if (req_i && write_i && full_word_write) begin
         unique case (addr_i[7:2])
-          REG_CTRL: if (write_strobe_i[0]) begin
+          REG_CTRL: begin
             timer_enable_q <= write_data_i[0];
             irq_enable_q <= write_data_i[1];
             auto_reload_q <= write_data_i[2];
@@ -305,20 +298,16 @@ module omcu_timer1 (
             encoder_enable_q <= write_data_i[7];
             encoder_reverse_q <= write_data_i[8];
           end
-          REG_PRESCALE: prescale_q <= merge_low16(
-            prescale_q, write_data_i, write_strobe_i
-          );
-          REG_COUNT: count_q <= merge_low16(count_q, write_data_i, write_strobe_i);
-          REG_COMPARE: compare_q <= merge_low16(compare_q, write_data_i, write_strobe_i);
-          REG_FILTER: if (write_strobe_i[0]) begin
+          REG_PRESCALE: prescale_q <= write_data_i[15:0];
+          REG_COUNT: count_q <= write_data_i[15:0];
+          REG_COMPARE: compare_q <= write_data_i[15:0];
+          REG_FILTER: begin
             filter_q <= write_data_i[7:0];
             capture_a_filter_count_q <= 8'h00;
             capture_b_filter_count_q <= 8'h00;
           end
-          REG_ENCODER: encoder_position_q <= merge_low16(
-            encoder_position_q, write_data_i, write_strobe_i
-          );
-          REG_STATUS: if (write_strobe_i[0]) begin
+          REG_ENCODER: encoder_position_q <= write_data_i[15:0];
+          REG_STATUS: begin
             if (write_data_i[0]) compare_pending_q <= compare_event;
             if (write_data_i[1]) capture_a_pending_q <= capture_a_event;
             if (write_data_i[2]) capture_b_pending_q <= capture_b_event;

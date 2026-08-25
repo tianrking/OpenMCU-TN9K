@@ -7,7 +7,7 @@ module omcu_mmio_fabric #(
   parameter integer GPIO_COUNT = 24,
   parameter integer ROM_BYTES = 4096,
   parameter integer SRAM_BYTES = 32768,
-  parameter logic [15:0] ABI_MINOR = 16'h0007,
+  parameter logic [15:0] ABI_MINOR = 16'h0008,
   parameter logic [31:0] FEATURE_BITS = 32'h0008_80ff,
   parameter integer UART1_PRESENT = 0,
   parameter integer PWM1_PRESENT = 0,
@@ -158,30 +158,46 @@ module omcu_mmio_fabric #(
   logic [31:0] sysctrl_read_data;
   logic [10:0] irq_sources;
   logic [31:0] run_ticks;
+  logic [31:0] timer0_count;
+  logic [15:0] timer0_prescale;
+  logic        timer0_tick;
+  logic        timer0_enable;
+  logic        fault_snapshot_trigger;
+  logic [31:0] gpio_snapshot_tick;
+  logic [31:0] gpio_snapshot_gpio;
+  logic [31:0] gpio_snapshot_irq;
+  logic [31:0] gpio_snapshot_reset;
+  // All OpenMCU peripherals occupy one 64 KiB MMIO window. Factor its common
+  // address comparison out once; repeating a 20-bit equality for every page
+  // burns a surprising amount of LUT fabric after flattening on GW1N.
+  logic        mmio_window_select;
+  logic [3:0]  mmio_page_select;
 
-  assign gpio_select = req_i && (addr_i[31:12] == GPIO0_PAGE);
-  assign uart_select = req_i && (addr_i[31:12] == UART0_PAGE);
-  assign uart1_select = (UART1_PRESENT != 0) && req_i &&
-                        (addr_i[31:12] == UART1_PAGE);
-  assign timer_select = req_i && (addr_i[31:12] == TIMER0_PAGE);
-  assign timer1_select = (TIMER1_PRESENT != 0) && req_i &&
-                         (addr_i[31:12] == TIMER1_PAGE);
-  assign alarm_select = (ALARM0_PRESENT != 0) && req_i &&
-                        (addr_i[31:12] == ALARM0_PAGE);
-  assign pulse_select = (PULSE0_PRESENT != 0) && req_i &&
-                        (addr_i[31:12] == PULSE0_PAGE);
-  assign fault_select = (FAULT0_PRESENT != 0) && req_i &&
-                        (addr_i[31:12] == FAULT0_PAGE);
-  assign spi_select = req_i && (addr_i[31:12] == SPI0_PAGE);
-  assign i2c_select = req_i && (addr_i[31:12] == I2C0_PAGE);
-  assign wdt_select = req_i && (addr_i[31:12] == WDT0_PAGE);
-  assign pwm_select = req_i && (addr_i[31:12] == PWM0_PAGE);
-  assign pwm1_select = (PWM1_PRESENT != 0) && req_i &&
-                       (addr_i[31:12] == PWM1_PAGE);
-  assign irqctrl_select = req_i && (addr_i[31:12] == IRQCTRL_PAGE);
-  assign pinmux_select = (PINMUX_PRESENT != 0) && req_i &&
-                         (addr_i[31:12] == PINMUX_PAGE);
-  assign sysctrl_select = req_i && (addr_i[31:12] == SYSCTRL_PAGE);
+  assign mmio_window_select = req_i && (addr_i[31:16] == 16'h4000);
+  assign mmio_page_select = addr_i[15:12];
+  assign gpio_select = mmio_window_select && (mmio_page_select == GPIO0_PAGE[3:0]);
+  assign uart_select = mmio_window_select && (mmio_page_select == UART0_PAGE[3:0]);
+  assign uart1_select = (UART1_PRESENT != 0) && mmio_window_select &&
+                        (mmio_page_select == UART1_PAGE[3:0]);
+  assign timer_select = mmio_window_select && (mmio_page_select == TIMER0_PAGE[3:0]);
+  assign timer1_select = (TIMER1_PRESENT != 0) && mmio_window_select &&
+                         (mmio_page_select == TIMER1_PAGE[3:0]);
+  assign alarm_select = (ALARM0_PRESENT != 0) && mmio_window_select &&
+                        (mmio_page_select == ALARM0_PAGE[3:0]);
+  assign pulse_select = (PULSE0_PRESENT != 0) && mmio_window_select &&
+                        (mmio_page_select == PULSE0_PAGE[3:0]);
+  assign fault_select = (FAULT0_PRESENT != 0) && mmio_window_select &&
+                        (mmio_page_select == FAULT0_PAGE[3:0]);
+  assign spi_select = mmio_window_select && (mmio_page_select == SPI0_PAGE[3:0]);
+  assign i2c_select = mmio_window_select && (mmio_page_select == I2C0_PAGE[3:0]);
+  assign wdt_select = mmio_window_select && (mmio_page_select == WDT0_PAGE[3:0]);
+  assign pwm_select = mmio_window_select && (mmio_page_select == PWM0_PAGE[3:0]);
+  assign pwm1_select = (PWM1_PRESENT != 0) && mmio_window_select &&
+                       (mmio_page_select == PWM1_PAGE[3:0]);
+  assign irqctrl_select = mmio_window_select && (mmio_page_select == IRQCTRL_PAGE[3:0]);
+  assign pinmux_select = (PINMUX_PRESENT != 0) && mmio_window_select &&
+                         (mmio_page_select == PINMUX_PAGE[3:0]);
+  assign sysctrl_select = mmio_window_select && (mmio_page_select == SYSCTRL_PAGE[3:0]);
 
   // Keep this source ordering stable: the IRQ controller maps element zero to
   // CPU IRQ 8 and advertises the exact resulting masks in the SDK register
@@ -214,6 +230,11 @@ module omcu_mmio_fabric #(
     .run_ticks_i(run_ticks),
     .irq_active_i(irq_vector_o),
     .reset_cause_i(reset_cause_i),
+    .snapshot_force_i(fault_snapshot_trigger),
+    .snapshot_tick_o(gpio_snapshot_tick),
+    .snapshot_gpio_o(gpio_snapshot_gpio),
+    .snapshot_irq_o(gpio_snapshot_irq),
+    .snapshot_reset_o(gpio_snapshot_reset),
     .gpio_in_i(gpio_in_i),
     .gpio_out_o(gpio_out_o),
     .gpio_oe_o(gpio_oe_o),
@@ -263,7 +284,11 @@ module omcu_mmio_fabric #(
     .ready_o(timer_ready),
     .read_data_o(timer_read_data),
     .error_o(),
-    .irq_o(timer_irq_o)
+    .irq_o(timer_irq_o),
+    .count_o(timer0_count),
+    .prescale_o(timer0_prescale),
+    .counter_tick_o(timer0_tick),
+    .enable_o(timer0_enable)
   );
 
   omcu_timer1 timer1 (
@@ -293,6 +318,10 @@ module omcu_mmio_fabric #(
     .ready_o(alarm_ready),
     .read_data_o(alarm_read_data),
     .error_o(),
+    .timebase_count_i(timer0_count[15:0]),
+    .timebase_prescale_i(timer0_prescale),
+    .timebase_enable_i(timer0_enable),
+    .timebase_tick_i(timer0_tick),
     .irq_o(alarm_irq_o)
   );
 
@@ -327,11 +356,12 @@ module omcu_mmio_fabric #(
     .error_o(),
     .fault_i(fault0_i),
     .input_claim_i(pinmux_fault0_enable_o),
-    .run_ticks_i(run_ticks),
-    .gpio_in_i(gpio_in_i),
-    .irq_active_i(irq_vector_o),
-    .reset_cause_i(reset_cause_i),
+    .snapshot_tick_i(gpio_snapshot_tick),
+    .snapshot_gpio_i(gpio_snapshot_gpio),
+    .snapshot_irq_i(gpio_snapshot_irq),
+    .snapshot_reset_i(gpio_snapshot_reset),
     .irq_o(fault0_irq_o),
+    .snapshot_trigger_o(fault_snapshot_trigger),
     .trip_o(),
     .pwm0_kill_o(fault_pwm0_kill_o),
     .pwm1_kill_o(fault_pwm1_kill_o),

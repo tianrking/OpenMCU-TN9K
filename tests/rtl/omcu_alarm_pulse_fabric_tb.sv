@@ -5,6 +5,7 @@
 // PULSE0 pad claim. The unit tests cover each counter/filter in more detail.
 module omcu_alarm_pulse_fabric_tb;
   localparam logic [31:0] ALARM0_BASE = 32'h4000_c000;
+  localparam logic [31:0] TIMER0_BASE = 32'h4000_2000;
   localparam logic [31:0] PULSE0_BASE = 32'h4000_d000;
   localparam logic [31:0] PINMUX_BASE = 32'h4000_b000;
   localparam logic [31:0] IRQ_ALARM0 = 32'h0001_0000;
@@ -83,12 +84,18 @@ module omcu_alarm_pulse_fabric_tb;
     write_reg(ALARM0_BASE + 32'h10, 32'h0000_0001);
     write_reg(ALARM0_BASE, 32'h0000_0001);
     write_reg(32'h4000_7004, IRQ_ALARM0 | IRQ_PULSE0);
+    // ALARM0 reuses TIMER0's timebase; arm the alarm first, then start a
+    // free-running TIMER0 at one system-clock tick per count.
+    write_reg(TIMER0_BASE + 32'h04, 32'h0000_0000);
+    write_reg(TIMER0_BASE + 32'h08, 32'h0000_0000);
+    write_reg(TIMER0_BASE + 32'h0c, 32'hffff_ffff);
+    write_reg(TIMER0_BASE, 32'h0000_0005);
     repeat (5) @(negedge clk);
     check((irq_vector & IRQ_ALARM0) != 0,
           "ALARM0 compare must use the dedicated IRQCTRL CPU bit 16");
 
     write_reg(PULSE0_BASE + 32'h0c, 32'h0000_0000);
-    write_reg(PULSE0_BASE + 32'h04, 32'h0000_0001);
+    write_reg(PULSE0_BASE + 32'h04, 32'h0000_0000);
     write_reg(PULSE0_BASE, 32'h0000_0003);
     write_reg(PINMUX_BASE, 32'h0000_0008);
     read_reg(PINMUX_BASE, value);
@@ -98,7 +105,7 @@ module omcu_alarm_pulse_fabric_tb;
     pulse[0] = 1'b1;
     repeat (5) @(negedge clk);
     read_reg(PULSE0_BASE + 32'h10, value);
-    check(value[0] && value[16] && (irq_vector & IRQ_PULSE0) != 0,
+    check(value[0] && value[2] && (irq_vector & IRQ_PULSE0) != 0,
           "PULSE0 event must decode and reach dedicated IRQCTRL CPU bit 17");
 
     $display("PASS: omcu_alarm_pulse_fabric_tb");

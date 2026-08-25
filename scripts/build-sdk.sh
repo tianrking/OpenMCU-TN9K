@@ -117,6 +117,6 @@ fi
 "$cmake_path" "$@"
 "$cmake_path" --build "$build_dir" --parallel
 
-echo "PASS: built OpenMCU RV32IMC SDK images in $build_dir"
+echo "PASS: built OpenMCU RV32IM SDK images in $build_dir"
 echo "Compiler: $(command -v "${riscv_prefix}gcc")"
 echo "Objcopy: $(command -v "${riscv_prefix}objcopy")"

@@ -4,6 +4,8 @@
 /*
  * Generated from spec/omcu-v0.json by scripts/generate-sdk.ps1.
  * Do not hand-edit this file; change the reviewed specification instead.
+ * MMIO configuration, command and W1C writes require an aligned 32-bit store.
+ * Byte/halfword MMIO writes are ignored unless a register explicitly documents an exception.
  */
 
 #include <stdint.h>
@@ -30,7 +32,7 @@
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
-#define OMCU_HW_ABI_MINOR      7u
+#define OMCU_HW_ABI_MINOR      8u
 
 #define OMCU_CHIP_ID             UINT32_C(0x4F4D4355)
 #define OMCU_SYSCTRL_ABI_MAJOR_SHIFT 16u
@@ -50,12 +52,12 @@ typedef struct {
   volatile uint32_t rise_en; /* +0x24: rising-edge interrupt enable */
   volatile uint32_t fall_en; /* +0x28: falling-edge interrupt enable */
   volatile uint32_t irq_status; /* +0x2c: write-one-to-clear */
-  volatile uint32_t filter_mask; /* +0x30: bits selecting two-flop-synchronized digital filtering */
-  volatile uint32_t filter_cycles; /* +0x34: low 8 bits: required consecutive mismatched synchronized samples minus one */
+  volatile const uint32_t filter_mask; /* +0x30: static scope: all implemented GPIO inputs use the common synchronizer/filter path; writes ignored */
+  volatile uint32_t filter_cycles; /* +0x34: low 8 bits: whole-GPIO-port filter; N accepts after N+1 unchanged synchronized port samples */
   volatile uint32_t snapshot_ctrl; /* +0x38: enable, GPIO0 IRQ enable and first-event/overwrite policy */
-  volatile uint32_t snapshot_rise_en; /* +0x3c: rising-edge snapshot trigger mask */
-  volatile uint32_t snapshot_fall_en; /* +0x40: falling-edge snapshot trigger mask */
-  volatile uint32_t snapshot_status; /* +0x44: VALID and OVERFLOW write-one-to-clear */
+  volatile uint32_t snapshot_rise_en; /* +0x3c: alias of RISE_EN: coherent rising GPIO IRQ and snapshot trigger mask */
+  volatile uint32_t snapshot_fall_en; /* +0x40: alias of FALL_EN: coherent falling GPIO IRQ and snapshot trigger mask */
+  volatile uint32_t snapshot_status; /* +0x44: VALID and OVERFLOW write-one-to-clear; FORCED marks a priority FAULT0 context capture */
   volatile const uint32_t snapshot_event; /* +0x48: selected edge bit mask captured with the snapshot */
   volatile const uint32_t snapshot_input; /* +0x4c: filtered GPIO input level captured with the snapshot */
   volatile const uint32_t snapshot_irq; /* +0x50: IRQCTRL active CPU IRQ mask captured with the snapshot */
@@ -64,14 +66,14 @@ typedef struct {
 } omcu_gpio_regs_t;
 
 typedef struct {
-  volatile uint32_t data; /* +0x00: TX write / RX read byte */
+  volatile uint32_t data; /* +0x00: low 8 bits: TX byte on full 32-bit write / RX byte on read */
   volatile uint32_t status; /* +0x04: TX ready, RX valid and sticky errors */
   volatile uint32_t bauddiv; /* +0x08: system clocks per UART bit minus one */
   volatile uint32_t ctrl; /* +0x0c: TX enable, RX enable, RX IRQ enable */
 } omcu_uart_regs_t;
 
 typedef struct {
-  volatile uint32_t data; /* +0x00: TX write / RX read byte */
+  volatile uint32_t data; /* +0x00: low 8 bits: TX byte on full 32-bit write / RX byte on read */
   volatile uint32_t status; /* +0x04: TX ready, RX valid and sticky errors */
   volatile uint32_t bauddiv; /* +0x08: system clocks per UART bit minus one */
   volatile uint32_t ctrl; /* +0x0c: TX enable, RX enable, RX IRQ enable */
@@ -86,7 +88,7 @@ typedef struct {
 } omcu_timer_regs_t;
 
 typedef struct {
-  volatile uint32_t data; /* +0x00: TX byte write / RX byte read */
+  volatile uint32_t data; /* +0x00: low 8 bits: TX byte on full 32-bit write / RX byte on read */
   volatile uint32_t status; /* +0x04: BUSY, DONE W1C and CS_ACTIVE */
   volatile uint32_t clkdiv; /* +0x08: SCK half-period in system clocks minus one */
   volatile uint32_t ctrl; /* +0x0c: ENABLE, DONE interrupt enable and explicit multi-byte CS hold */
@@ -94,7 +96,7 @@ typedef struct {
 } omcu_spi_regs_t;
 
 typedef struct {
-  volatile uint32_t data; /* +0x00: TX byte write / RX byte read */
+  volatile uint32_t data; /* +0x00: low 8 bits: TX byte on full 32-bit write / RX byte on read */
   volatile uint32_t status; /* +0x04: BUSY, DONE W1C, ACK_ERROR W1C, COMMAND_ERROR W1C and BUS_ACTIVE */
   volatile uint32_t clkdiv; /* +0x08: SCL low/high phase in system clocks minus one */
   volatile uint32_t ctrl; /* +0x0c: ENABLE and DONE interrupt enable */
@@ -106,9 +108,9 @@ typedef struct {
   volatile uint32_t timeout; /* +0x04: watchdog count limit before expiry */
   volatile uint32_t feed; /* +0x08: write OMCU_WDT_FEED_MAGIC to restart the watchdog count */
   volatile uint32_t status; /* +0x0c: expiry/pretimeout/window/heartbeat/rejected-feed diagnostics, sticky W1C except reset pulse */
-  volatile uint32_t pretimeout; /* +0x10: warning count; zero disables pretimeout stage */
-  volatile uint32_t window_min; /* +0x14: minimum count before a valid feed when window supervisor is enabled */
-  volatile uint32_t heartbeat_required; /* +0x18: low 8 bits: software task heartbeat mask required before feed */
+  volatile uint32_t pretimeout; /* +0x10: warning count; zero disables pretimeout stage; full 32-bit writes only */
+  volatile uint32_t window_min; /* +0x14: minimum count before a valid feed when window supervisor is enabled; full 32-bit writes only */
+  volatile uint32_t heartbeat_required; /* +0x18: low 8 bits: software task heartbeat mask required before feed; full 32-bit writes only */
   volatile const uint32_t heartbeat_seen; /* +0x1c: low 8 bits: accumulated heartbeat bits in current watchdog epoch */
   volatile uint32_t heartbeat_kick; /* +0x20: low 8 bits write-one-to-set task heartbeat bits */
   volatile const uint32_t count; /* +0x24: current watchdog count for diagnostics */
@@ -159,46 +161,40 @@ typedef struct {
 } omcu_pinmux_regs_t;
 
 typedef struct {
-  volatile uint32_t ctrl; /* +0x00: shared counter enable */
-  volatile uint32_t prescale; /* +0x04: low 16 bits: shared clocks per count minus one */
-  volatile uint32_t count; /* +0x08: shared wrapping 32-bit timebase */
-  volatile uint32_t channel_enable; /* +0x0c: bits 0..3 arm independent compare channels */
-  volatile uint32_t irq_enable; /* +0x10: bits 0..3 select pending channels that assert ALARM0 IRQ */
-  volatile uint32_t periodic; /* +0x14: bits 0..3 advance compare by PERIODn after an event */
-  volatile uint32_t pending; /* +0x18: bits 0..3 compare pending, write-one-to-clear */
-  volatile uint32_t compare0; /* +0x1c: absolute shared-count deadline for channel 0 */
-  volatile uint32_t compare1; /* +0x20: absolute shared-count deadline for channel 1 */
-  volatile uint32_t compare2; /* +0x24: absolute shared-count deadline for channel 2 */
-  volatile uint32_t compare3; /* +0x28: absolute shared-count deadline for channel 3 */
-  volatile uint32_t period0; /* +0x2c: periodic compare increment for channel 0; zero is one-shot-safe */
-  volatile uint32_t period1; /* +0x30: periodic compare increment for channel 1; zero is one-shot-safe */
-  volatile uint32_t period2; /* +0x34: periodic compare increment for channel 2; zero is one-shot-safe */
-  volatile uint32_t period3; /* +0x38: periodic compare increment for channel 3; zero is one-shot-safe */
+  volatile uint32_t ctrl; /* +0x00: bit0 gates the two parallel compare channels; bit1 reports the shared TIMER0 timebase running */
+  volatile const uint32_t prescale; /* +0x04: low 16 bits: read-only mirror of TIMER0 prescale */
+  volatile const uint32_t count; /* +0x08: low 16 bits: read-only mirror of TIMER0 wrapping count */
+  volatile uint32_t channel_enable; /* +0x0c: bits 0..1 arm the two independent compare channels; full 32-bit writes only */
+  volatile uint32_t irq_enable; /* +0x10: bits 0..1 select pending channels that assert ALARM0 IRQ; full 32-bit writes only */
+  volatile uint32_t periodic; /* +0x14: bits 0..1 advance compare by PERIODn after an event; full 32-bit writes only */
+  volatile uint32_t pending; /* +0x18: bits 0..1 compare pending, write-one-to-clear; full 32-bit writes only */
+  volatile uint32_t compare0; /* +0x1c: low 16 bits: absolute shared-count deadline for channel 0; full 32-bit writes only */
+  volatile uint32_t compare1; /* +0x20: low 16 bits: absolute shared-count deadline for channel 1; full 32-bit writes only */
+  volatile const uint32_t compare2; /* +0x24: reserved read-zero slot; this Tang Nano 9K profile implements two alarms */
+  volatile const uint32_t compare3; /* +0x28: reserved read-zero slot; this Tang Nano 9K profile implements two alarms */
+  volatile uint32_t period0; /* +0x2c: low 16 bits: periodic increment for channel 0; zero is one-shot-safe; full 32-bit writes only */
+  volatile uint32_t period1; /* +0x30: low 16 bits: periodic increment for channel 1; zero is one-shot-safe; full 32-bit writes only */
+  volatile const uint32_t period2; /* +0x34: reserved read-zero slot; this Tang Nano 9K profile implements two alarms */
+  volatile const uint32_t period3; /* +0x38: reserved read-zero slot; this Tang Nano 9K profile implements two alarms */
 } omcu_alarm_regs_t;
 
 typedef struct {
-  volatile uint32_t ctrl; /* +0x00: capture engine enable and aggregate IRQ enable */
-  volatile uint32_t channel_enable; /* +0x04: bits 0..2 enable reviewed pulse inputs */
-  volatile uint32_t falling; /* +0x08: bits 0..2 select falling instead of rising edge */
-  volatile uint32_t filter; /* +0x0c: low 8 bits: consecutive mismatched synchronized samples required minus zero */
-  volatile uint32_t status; /* +0x10: pending W1C bits 0..2, filtered inputs bits 8..10, period-valid bits 16..18 */
-  volatile uint32_t clear; /* +0x14: write-one-to-clear a channel count, period, last tick, valid and pending epoch */
-  volatile const uint32_t count0; /* +0x18: wrapping selected-edge count for channel 0 */
-  volatile const uint32_t count1; /* +0x1c: wrapping selected-edge count for channel 1 */
-  volatile const uint32_t count2; /* +0x20: wrapping selected-edge count for channel 2 */
-  volatile const uint32_t period0; /* +0x24: run-tick distance between most recent two channel 0 edges */
-  volatile const uint32_t period1; /* +0x28: run-tick distance between most recent two channel 1 edges */
-  volatile const uint32_t period2; /* +0x2c: run-tick distance between most recent two channel 2 edges */
-  volatile const uint32_t last_tick0; /* +0x30: run-tick timestamp of most recent channel 0 edge */
-  volatile const uint32_t last_tick1; /* +0x34: run-tick timestamp of most recent channel 1 edge */
-  volatile const uint32_t last_tick2; /* +0x38: run-tick timestamp of most recent channel 2 edge */
+  volatile uint32_t ctrl; /* +0x00: capture engine enable and aggregate IRQ enable; full 32-bit writes only */
+  volatile uint32_t input_select; /* +0x04: one selected physical input: 0=GPIO0/J5.8, 1=GPIO1/J5.9, 2=GPIO2/J5.10; change clears epoch; full 32-bit writes only */
+  volatile uint32_t edge; /* +0x08: bit 0 selects falling instead of rising edge; full 32-bit writes only */
+  volatile uint32_t filter; /* +0x0c: low 8 bits: N+1 mismatched synchronized samples required; full 32-bit writes only */
+  volatile uint32_t status; /* +0x10: bit0 pending W1C, bit1 filtered selected input, bit2 period valid, bits5..4 selected input; full 32-bit writes only */
+  volatile uint32_t clear; /* +0x14: bit0 clears selected-input count, period, tick, valid and pending epoch; full 32-bit writes only */
+  volatile const uint32_t count; /* +0x18: low 16 bits: wrapping selected-edge count */
+  volatile const uint32_t period; /* +0x1c: low 16 bits: run-tick distance between most recent two selected edges */
+  volatile const uint32_t last_tick; /* +0x20: low 16 bits: run-tick timestamp of most recent selected edge */
 } omcu_pulse_regs_t;
 
 typedef struct {
-  volatile uint32_t ctrl; /* +0x00: enable, polarity, IRQ and PWM/GPIO safety-gate selection */
-  volatile uint32_t filter; /* +0x04: low 8 bits: consecutive mismatched synchronized samples required minus zero */
-  volatile uint32_t gpio_hiz_mask; /* +0x08: logical GPIO output-enable bits forced high impedance after a trip */
-  volatile uint32_t status; /* +0x0c: TRIPPED, filtered input, pinmux claim and clear-rejected diagnostic */
+  volatile uint32_t ctrl; /* +0x00: enable, polarity, IRQ and PWM/GPIO safety-gate selection; full 32-bit writes only */
+  volatile uint32_t filter; /* +0x04: low 8 bits: consecutive mismatched synchronized samples required minus zero; full 32-bit writes only */
+  volatile const uint32_t gpio_hiz_mask; /* +0x08: fixed conservative profile: all reviewed GPIO output-enable bits go high impedance after a trip; writes ignored */
+  volatile uint32_t status; /* +0x0c: TRIPPED, filtered input, pinmux claim and clear-rejected diagnostic; full 32-bit W1C write */
   volatile uint32_t clear; /* +0x10: exact full-word OMCU_FAULT_CLEAR_MAGIC clears only an inactive claimed input */
   volatile const uint32_t snapshot_tick; /* +0x14: low 32-bit SYSCTRL run-tick timestamp of first trip */
   volatile const uint32_t snapshot_gpio; /* +0x18: GPIO input snapshot at first trip */
@@ -287,20 +283,25 @@ enum {
   OMCU_GPIO_SNAPSHOT_CTRL_OVERWRITE = 1u << 2,
   OMCU_GPIO_SNAPSHOT_STATUS_VALID  = 1u << 0,
   OMCU_GPIO_SNAPSHOT_STATUS_OVERFLOW = 1u << 1,
+  OMCU_GPIO_SNAPSHOT_STATUS_FORCED = 1u << 2,
   OMCU_TIMER_CTRL_ENABLE           = 1u << 0,
   OMCU_TIMER_CTRL_IRQ_ENABLE       = 1u << 1,
   OMCU_TIMER_CTRL_AUTO_RELOAD      = 1u << 2,
   OMCU_TIMER_STATUS_PENDING        = 1u << 0,
-  OMCU_ALARM_CHANNEL_COUNT         = 4u,
-  OMCU_ALARM_CHANNEL_MASK          = UINT32_C(0x0000000F),
+  OMCU_ALARM_CHANNEL_COUNT         = 2u,
+  OMCU_ALARM_CHANNEL_MASK          = UINT32_C(0x00000003),
   OMCU_ALARM_CTRL_ENABLE           = 1u << 0,
-  OMCU_PULSE_CHANNEL_COUNT         = 3u,
-  OMCU_PULSE_CHANNEL_MASK          = UINT32_C(0x00000007),
+  OMCU_PULSE_INPUT_COUNT           = 3u,
+  OMCU_PULSE_INPUT_MASK            = UINT32_C(0x00000003),
   OMCU_PULSE_CTRL_ENABLE           = 1u << 0,
   OMCU_PULSE_CTRL_IRQ_ENABLE       = 1u << 1,
-  OMCU_PULSE_STATUS_PENDING_MASK   = UINT32_C(0x00000007),
-  OMCU_PULSE_STATUS_INPUT_SHIFT    = 8u,
-  OMCU_PULSE_STATUS_VALID_SHIFT    = 16u,
+  OMCU_PULSE_EDGE_FALLING          = 1u << 0,
+  OMCU_PULSE_STATUS_PENDING        = 1u << 0,
+  OMCU_PULSE_STATUS_FILTERED_INPUT = 1u << 1,
+  OMCU_PULSE_STATUS_PERIOD_VALID   = 1u << 2,
+  OMCU_PULSE_STATUS_INPUT_SELECT_SHIFT = 4u,
+  OMCU_PULSE_STATUS_INPUT_SELECT_MASK = UINT32_C(0x00000030),
+  OMCU_PULSE_CLEAR_EPOCH           = 1u << 0,
   OMCU_SPI_CTRL_ENABLE             = 1u << 0,
   OMCU_SPI_CTRL_IRQ_ENABLE         = 1u << 1,
   OMCU_SPI_CTRL_CS_HOLD            = 1u << 2,

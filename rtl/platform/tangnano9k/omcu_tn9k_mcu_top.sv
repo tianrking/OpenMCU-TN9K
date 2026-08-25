@@ -15,7 +15,10 @@ module omcu_tn9k_mcu_top #(
 `else
   parameter ROM_INIT_FILE = "rtl/platform/tangnano9k/firmware/bootloader.hex",
 `endif
-  parameter integer ROM_WORDS = 2048,
+  // The checked-in RV32IM loader occupies 3,276 bytes.  Four KiB leaves deliberate
+  // growth room while freeing two BSRAMs and their read-select logic for a
+  // physically routable full peripheral profile.
+  parameter integer ROM_WORDS = 1024,
   parameter integer SRAM_BYTES = 45056
 ) (
   input  logic       clk_27m_i,

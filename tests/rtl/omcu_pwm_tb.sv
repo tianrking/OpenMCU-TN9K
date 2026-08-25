@@ -27,6 +27,17 @@ module omcu_pwm_tb;
     end
   endtask
 
+  task automatic write_reg_strobe(
+    input logic [7:0] offset,
+    input logic [31:0] data,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk); req = 1'b1; write = 1'b1; addr = {24'h400006, offset}; wdata = data; wstrb = strobe;
+      @(negedge clk); req = 1'b0; write = 1'b0; addr = '0; wdata = '0; wstrb = '0;
+    end
+  endtask
+
   task automatic check(input logic condition, input string message);
     begin if (!condition) begin $error("%s", message); $fatal(1); end end
   endtask
@@ -34,6 +45,9 @@ module omcu_pwm_tb;
   initial begin
     req = 0; write = 0; addr = '0; wdata = '0; wstrb = '0;
     repeat (3) @(negedge clk); rst_n = 1'b1;
+    write_reg_strobe(8'h00, 32'd1, 4'b0001);
+    check(!dut.enable_q && !pwm,
+          "PWM0 partial MMIO writes must not enable an incompletely configured output");
     write_reg(8'h04, 32'd0);
     write_reg(8'h08, 32'd3);
     write_reg(8'h0c, 32'd2);

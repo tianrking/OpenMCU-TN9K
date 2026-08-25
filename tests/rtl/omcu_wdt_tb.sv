@@ -30,6 +30,17 @@ module omcu_wdt_tb;
     end
   endtask
 
+  task automatic write_reg_strobe(
+    input logic [7:0] offset,
+    input logic [31:0] data,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk); req = 1'b1; write = 1'b1; addr = {24'h400005, offset}; wdata = data; wstrb = strobe;
+      @(negedge clk); req = 1'b0; write = 1'b0; addr = '0; wdata = '0; wstrb = '0;
+    end
+  endtask
+
   task automatic read_reg(input logic [7:0] offset, output logic [31:0] data);
     begin
       @(negedge clk); req = 1'b1; write = 1'b0; addr = {24'h400005, offset}; #1 data = rdata;
@@ -45,6 +56,10 @@ module omcu_wdt_tb;
   initial begin
     req = 0; write = 0; addr = '0; wdata = '0; wstrb = '0;
     repeat (3) @(negedge clk); rst_n = 1'b1;
+
+    write_reg_strobe(8'h00, 32'h00000007, 4'b0001);
+    check(!dut.enable_q,
+          "WDT partial MMIO writes must not arm a partially configured supervisor");
 
     write_reg(8'h04, 32'd3);
     write_reg(8'h00, 32'h00000007); // enable, reset request, IRQ

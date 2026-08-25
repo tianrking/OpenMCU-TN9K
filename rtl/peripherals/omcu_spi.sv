@@ -2,7 +2,7 @@
 
 // A compact, polling-friendly SPI mode-0 master.  One START command transfers
 // exactly one byte MSB first.  By default it automatically asserts/releases
-// one active-low chip select; ABI 0.6 adds an opt-in CS_HOLD control bit for
+// one active-low chip select; the current ABI provides an opt-in CS_HOLD control bit for
 // devices whose frame spans multiple bytes.  A FIFO/QSPI/XIP controller still
 // belongs above this predictable byte engine.
 module omcu_spi (
@@ -48,8 +48,7 @@ module omcu_spi (
   logic        cs_n_q;
   logic [31:0] ctrl_read;
   logic [31:0] status_read;
-  logic [31:0] clkdiv_merged;
-  logic [31:0] tx_data_merged;
+  logic        full_word_write;
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
@@ -57,8 +56,9 @@ module omcu_spi (
   assign mosi_o = mosi_q;
   assign sck_o = busy_q ? sck_q : 1'b0;
   assign cs_n_o = cs_n_q;
-  assign clkdiv_merged = `OMCU_MERGE_WRITE({16'h0000, clkdiv_q}, write_data_i, write_strobe_i);
-  assign tx_data_merged = `OMCU_MERGE_WRITE({24'h000000, tx_data_q}, write_data_i, write_strobe_i);
+  // DATA, CLKDIV and command registers are atomic 32-bit ABI words.  The
+  // byte payload remains in DATA[7:0], without retaining byte-lane muxes.
+  assign full_word_write = write_strobe_i == 4'b1111;
 
   always_comb begin
     ctrl_read = '0;
@@ -132,38 +132,36 @@ module omcu_spi (
         end
       end
 
-      if (req_i && write_i) begin
+      if (req_i && write_i && full_word_write) begin
         unique case (addr_i[7:2])
           REG_DATA: begin
-            tx_data_q <= tx_data_merged[7:0];
+            tx_data_q <= write_data_i[7:0];
           end
           REG_STATUS: begin
-            if (write_strobe_i[0] && write_data_i[1]) begin
+            if (write_data_i[1]) begin
               done_q <= 1'b0;
             end
           end
           REG_CLKDIV: begin
-            clkdiv_q <= clkdiv_merged[15:0];
+            clkdiv_q <= write_data_i[15:0];
           end
           REG_CTRL: begin
-            if (write_strobe_i[0]) begin
-              enable_q <= write_data_i[0];
-              irq_enable_q <= write_data_i[1];
-              cs_hold_q <= write_data_i[2];
-              if (!write_data_i[0]) begin
-                busy_q <= 1'b0;
-                sck_q <= 1'b0;
-                cs_n_q <= 1'b1;
-              end else if (!busy_q && !write_data_i[2]) begin
-                // Software ends a held multi-byte frame by clearing CS_HOLD
-                // after polling BUSY low.  Writes during BUSY are harmless:
-                // the current byte always retains its complete clock train.
-                cs_n_q <= 1'b1;
-              end
+            enable_q <= write_data_i[0];
+            irq_enable_q <= write_data_i[1];
+            cs_hold_q <= write_data_i[2];
+            if (!write_data_i[0]) begin
+              busy_q <= 1'b0;
+              sck_q <= 1'b0;
+              cs_n_q <= 1'b1;
+            end else if (!busy_q && !write_data_i[2]) begin
+              // Software ends a held multi-byte frame by clearing CS_HOLD
+              // after polling BUSY low.  Writes during BUSY are harmless:
+              // the current byte always retains its complete clock train.
+              cs_n_q <= 1'b1;
             end
           end
           REG_START: begin
-            if (write_strobe_i[0] && write_data_i[0] && enable_q && !busy_q) begin
+            if (write_data_i[0] && enable_q && !busy_q) begin
               busy_q <= 1'b1;
               done_q <= 1'b0;
               div_count_q <= 16'h0000;

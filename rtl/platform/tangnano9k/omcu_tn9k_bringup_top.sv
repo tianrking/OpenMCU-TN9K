@@ -9,14 +9,15 @@
 `include "omcu_rom_image_config.vh"
 `endif
 
-// Tang Nano 9K production MCU target.  It runs the portable SoC directly from
-// the board's 27 MHz oscillator, avoiding an unvalidated PLL configuration.
+// Tang Nano 9K generic bring-up target. It runs the portable SoC directly
+// from the board's 27 MHz oscillator, avoiding an unvalidated PLL configuration.
 //
 // The default memory geometry is deliberately the largest all-BSRAM layout
-// which this project supports on GW1NR-9C: 8 KiB ROM plus 44 KiB SRAM.  The
-// open P&R release flow checks the resulting 26/26 BSRAM use.  Keep this top
-// parameterized so an application can trade memory for LUT/DSP experiments,
-// but do not change the linker script unless the firmware image is rebuilt.
+// which this generic wrapper supports on GW1NR-9C: 8 KiB ROM plus 44 KiB
+// SRAM. The product MCU wrapper deliberately overrides ROM_WORDS to 4 KiB
+// and owns its bootloader/User-Flash path. Keep this top parameterized so an
+// application can trade memory for LUT/DSP experiments, but do not change the
+// matching linker script unless the firmware image is rebuilt.
 module omcu_tn9k_bringup_top #(
 `ifdef OMCU_ROM_IMAGE_BUILD
   parameter ROM_INIT_FILE = `OMCU_ROM_IMAGE_FILE,
@@ -65,9 +66,13 @@ module omcu_tn9k_bringup_top #(
   logic        boot_request_pending_q;
   logic        software_boot_request;
   logic        boot_request_ack;
-  logic [17:0] gpio_in;
-  logic [17:0] gpio_out;
-  logic [17:0] gpio_oe;
+  // The product GPIO0 register bank is the documented twelve-pad J5 profile.
+  // LED0..5 intentionally mirror GPIO0..5 output/OE instead of consuming six
+  // private GPIO bits.  This keeps every public GPIO bit connected to a real
+  // expansion pad and returns the duplicated LED-only state to the 9K fabric.
+  logic [11:0] gpio_in;
+  logic [11:0] gpio_out;
+  logic [11:0] gpio_oe;
   logic       i2c_scl_i;
   logic       i2c_sda_i;
   logic       i2c_scl_drive_low;
@@ -86,7 +91,7 @@ module omcu_tn9k_bringup_top #(
   logic       pinmux_fault0_enable;
   logic       fault_pwm0_kill;
   logic       fault_pwm1_kill;
-  logic [17:0] fault_gpio_hiz_mask;
+  logic [11:0] fault_gpio_hiz_mask;
   logic [11:0] gpio_pad_out;
   logic [11:0] gpio_pad_oe;
 
@@ -125,7 +130,7 @@ module omcu_tn9k_bringup_top #(
   assign sys_rst_ni = reset_release_q[2];
 
   omcu_picorv32_system #(
-    .GPIO_COUNT(18),
+    .GPIO_COUNT(12),
     .GPIO_EXPANSION_PRESENT(1),
     .UART1_PRESENT(1),
     .PWM1_PRESENT(1),
@@ -195,18 +200,17 @@ module omcu_tn9k_bringup_top #(
     .bus_error_o(bus_error)
   );
 
-  // GPIO[0:5] are the six on-board active-low LEDs. GPIO[6:17] are brought
-  // to the 12-pad J5 expansion profile. GPIO output-enable is honoured: an
-  // application can safely use every expansion pin as an input without a
-  // permanently driven FPGA output.
-  assign gpio_in[5:0] = 6'b000000;
-  assign gpio_in[17:6] = gpio_io;
+  // GPIO[0:11] are the twelve reviewed J5 expansion pads. GPIO[0:5] also
+  // mirror to LED0..5 for board-visible diagnostics. Output-enable is
+  // honoured at the J5 boundary, so an application can use each pad as an
+  // input without a permanently driven FPGA output.
+  assign gpio_in = gpio_io;
   assign pwm0_o = fault_pwm0_kill ? 1'b0 : pwm0_raw;
   assign pwm1 = fault_pwm1_kill ? 4'b0000 : pwm1_raw;
 
   always_comb begin
-    gpio_pad_out = gpio_out[17:6];
-    gpio_pad_oe = gpio_oe[17:6];
+    gpio_pad_out = gpio_out;
+    gpio_pad_oe = gpio_oe;
     if (pinmux_uart1_enable) begin
       // UART1 claims GPIO10 (J5.18 / pad 53) for TX and GPIO11
       // (J5.19 / pad 54) for RX.  RX is always released at the pad boundary.
@@ -249,7 +253,7 @@ module omcu_tn9k_bringup_top #(
     end
     // Apply the fault high-impedance mask *after* every alternate function;
     // otherwise a selected UART/PWM could accidentally defeat the interlock.
-    gpio_pad_oe = gpio_pad_oe & ~fault_gpio_hiz_mask[17:6];
+    gpio_pad_oe = gpio_pad_oe & ~fault_gpio_hiz_mask;
   end
 
   genvar gpio_index;

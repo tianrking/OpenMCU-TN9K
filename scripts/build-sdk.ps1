@@ -85,6 +85,6 @@ if ($LASTEXITCODE -ne 0) {
     throw "CMake SDK build failed with exit code $LASTEXITCODE."
 }
 
-Write-Output "PASS: built OpenMCU RV32IMC SDK images in $BuildDirectory"
+Write-Output "PASS: built OpenMCU RV32IM SDK images in $BuildDirectory"
 Write-Output "Compiler: $($compiler.Source)"
 Write-Output "Objcopy: $($objcopy.Source)"

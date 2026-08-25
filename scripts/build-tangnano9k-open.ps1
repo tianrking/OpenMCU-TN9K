@@ -3,12 +3,22 @@ param(
     [string]$ToolBin,
     [string]$BuildDirectory,
     [string]$RomInitFile,
-    [ValidateRange(1, 8)]
-    [int]$RomKiB = 8,
+    # Zero selects the reviewed default for the selected build mode below.
+    # The product image uses the verified 4 KiB bootloader geometry; generic
+    # FPGA bring-up keeps its historic 8 KiB default.
+    [ValidateRange(0, 8)]
+    [int]$RomKiB = 0,
     [ValidateRange(1, 44)]
     [int]$SramKiB = 44,
     [switch]$McuMode,
-    [switch]$SkipPack
+    [switch]$SkipPack,
+    # The product profile deliberately uses the full GW1N-9C LUT fabric.
+    # nextpnr's generic 0.90 local-density target rejects an otherwise legal
+    # high-density placement before it has tried enough legal sites. Keep the
+    # chosen value explicit, reproducible and recorded in the manifest.
+    [ValidateRange(0.50, 1.00)]
+    [double]$PlacerHeapBeta = 0.99,
+    [int]$Seed = 1
 )
 
 Set-StrictMode -Version Latest
@@ -26,8 +36,11 @@ if ([string]::IsNullOrWhiteSpace($RomInitFile)) {
         Join-Path $projectRoot 'rtl\platform\tangnano9k\firmware\gpio_bringup.hex'
     }
 }
-if ($McuMode -and ($RomKiB -ne 8 -or $SramKiB -ne 44)) {
-    throw 'McuMode fixes the validated geometry at 8 KiB boot ROM plus 44 KiB SRAM (40 KiB application + 4 KiB loader scratch).'
+if ($RomKiB -eq 0) {
+    $RomKiB = if ($McuMode) { 4 } else { 8 }
+}
+if ($McuMode -and ($RomKiB -ne 4 -or $SramKiB -ne 44)) {
+    throw 'McuMode fixes the validated geometry at 4 KiB boot ROM plus 44 KiB SRAM (40 KiB application + 4 KiB loader scratch).'
 }
 
 function Resolve-OpenTool {
@@ -96,7 +109,27 @@ $sdcPath = Join-Path $projectRoot 'rtl\platform\tangnano9k\project\omcu_tn9k_bri
 
 function Get-ProjectRelativePath {
     param([string]$Path)
-    return [System.IO.Path]::GetRelativePath($projectRoot, $Path).Replace('\', '/')
+
+    # Path.GetRelativePath exists on modern .NET, but the Windows PowerShell
+    # shipped with many FPGA workstations still runs on .NET Framework where it
+    # is absent. Keep the build flow usable there without changing its
+    # project-relative YoWASP path contract.
+    $getRelativePath = [System.IO.Path].GetMethod(
+        'GetRelativePath', [type[]]@([string], [string])
+    )
+    if ($null -ne $getRelativePath) {
+        return [System.IO.Path]::GetRelativePath($projectRoot, $Path).Replace('\', '/')
+    }
+
+    $basePath = $projectRoot.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    ) + [System.IO.Path]::DirectorySeparatorChar
+    $baseUri = [System.Uri]::new($basePath)
+    $targetUri = [System.Uri]::new($Path)
+    return [System.Uri]::UnescapeDataString(
+        $baseUri.MakeRelativeUri($targetUri).ToString()
+    ).Replace('\', '/')
 }
 
 function New-PaddedRomImage {
@@ -152,6 +185,9 @@ $relativeCstPath = Get-ProjectRelativePath $cstPath
 $relativeSdcPath = Get-ProjectRelativePath $sdcPath
 $relativeRomInitFile = Get-ProjectRelativePath $romInitFile
 $relativeRomImageFile = Get-ProjectRelativePath $romImagePath
+$placerHeapBetaText = $PlacerHeapBeta.ToString(
+    [System.Globalization.CultureInfo]::InvariantCulture
+)
 New-PaddedRomImage -InputPath $romInitFile -OutputPath $romImagePath -WordCount $romWords
 $romConfigText = @(
     ([char]96) + 'ifndef OMCU_ROM_IMAGE_CONFIG_INCLUDED'
@@ -196,14 +232,62 @@ function Quote-YosysPath {
 function Get-ExternalToolVersion {
     param([string]$ToolPath)
 
-    $versionOutput = @(& $ToolPath --version 2>&1)
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to query tool version for $ToolPath (exit code $LASTEXITCODE)."
+    # nextpnr prints its normal version banner on stderr.  With the script's
+    # global ErrorActionPreference=Stop PowerShell turns that harmless native
+    # stderr output into a terminating NativeCommandError after P&R/packing
+    # have already succeeded.  Capture it deliberately, restore the caller's
+    # policy immediately, then judge success solely by the native exit code.
+    $savedErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $versionOutput = @(& $ToolPath --version 2>&1)
+        $versionExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $savedErrorActionPreference
+    }
+    if ($versionExitCode -ne 0) {
+        throw "Unable to query tool version for $ToolPath (exit code $versionExitCode)."
     }
     if ($versionOutput.Count -eq 0) {
         throw "Tool version query returned no output: $ToolPath"
     }
     return $versionOutput[$versionOutput.Count - 1].ToString().Trim()
+}
+
+function ConvertTo-CompatibleHashtable {
+    param([object]$Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+        $result = @{}
+        foreach ($property in $Value.PSObject.Properties) {
+            $result[$property.Name] = ConvertTo-CompatibleHashtable -Value $property.Value
+        }
+        return $result
+    }
+    if (($Value -is [System.Collections.IEnumerable]) -and
+        -not ($Value -is [string])) {
+        $result = @()
+        foreach ($item in $Value) {
+            $result += ,(ConvertTo-CompatibleHashtable -Value $item)
+        }
+        return ,$result
+    }
+    return $Value
+}
+
+function Read-JsonHashtable {
+    param([string]$Path)
+
+    $jsonCommand = Get-Command -Name ConvertFrom-Json
+    if ($jsonCommand.Parameters.ContainsKey('AsHashtable')) {
+        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
+    }
+    return ConvertTo-CompatibleHashtable -Value (
+        Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    )
 }
 
 function Get-BootRomInitEvidence {
@@ -216,7 +300,7 @@ function Get-BootRomInitEvidence {
     # parameters.  Hashing the exact ordered set gives the release manifest a
     # machine-checkable proof that the placed netlist retained the synthesized
     # boot-ROM contents; a file hash alone only proves which input was requested.
-    $netlist = Get-Content -LiteralPath $NetlistPath -Raw | ConvertFrom-Json -AsHashtable
+    $netlist = Read-JsonHashtable -Path $NetlistPath
     if (-not $netlist['modules'].ContainsKey($ModuleName)) {
         throw "Missing module '$ModuleName' while checking boot-ROM initialization in $NetlistPath"
     }
@@ -297,6 +381,8 @@ try {
         --vopt "cst=$relativeCstPath" `
         --sdc $relativeSdcPath `
         --freq 27 `
+        --placer-heap-beta $placerHeapBetaText `
+        --seed $Seed `
         --report $relativeReportPath `
         --detailed-timing-report `
         --log $relativePnrLogPath
@@ -370,6 +456,11 @@ $manifest = [ordered]@{
     mcu_mode = [bool]$McuMode
     yosys = Get-ExternalToolVersion $yosys
     nextpnr = Get-ExternalToolVersion $nextpnr
+    placer = [ordered]@{
+        algorithm = 'heap'
+        heap_beta = $PlacerHeapBeta
+        seed = $Seed
+    }
     json_netlist = $relativeJsonPath
     pnr_netlist = $relativePnrPath
     report = $relativeReportPath

@@ -65,23 +65,23 @@ module omcu_tn9k_bringup_top_tb;
     // the way to the public Tang wrapper, including the newly constrained J5
     // RGB-LCD-shared pads.
     force gpio[11] = 1'b0;
-    #1 check(dut.gpio_in[17] == 1'b0,
-             "GPIO11 pad input must reach logical GPIO0[17]");
+    #1 check(dut.gpio_in[11] == 1'b0,
+             "GPIO11 pad input must reach logical GPIO0[11]");
     release gpio[11];
-    force dut.system.mmio.gpio0.gpio_oe_q[17] = 1'b1;
-    force dut.system.mmio.gpio0.gpio_out_q[17] = 1'b0;
+    force dut.system.mmio.gpio0.gpio_oe_q[11] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_out_q[11] = 1'b0;
     #1 check(gpio[11] == 1'b0,
              "GPIO11 output-enable must drive the final expansion pad");
-    release dut.system.mmio.gpio0.gpio_out_q[17];
-    release dut.system.mmio.gpio0.gpio_oe_q[17];
+    release dut.system.mmio.gpio0.gpio_out_q[11];
+    release dut.system.mmio.gpio0.gpio_oe_q[11];
 
     // The software-visible PINMUX claim must take GPIO10/11 away from the
     // generic output driver at the final board pad.  Force the UART state
     // here because this test's ROM does not issue a UART1 MMIO transaction;
     // omcu_uart1_fabric_tb covers that decoded-register path separately.
-    force dut.system.mmio.gpio0.gpio_oe_q[16] = 1'b0;
-    force dut.system.mmio.gpio0.gpio_oe_q[17] = 1'b1;
-    force dut.system.mmio.gpio0.gpio_out_q[17] = 1'b0;
+    force dut.system.mmio.gpio0.gpio_oe_q[10] = 1'b0;
+    force dut.system.mmio.gpio0.gpio_oe_q[11] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_out_q[11] = 1'b0;
     force dut.system.mmio.pinmux.uart1_enable_q = 1'b1;
     force dut.system.mmio.uart1.tx_busy_q = 1'b1;
     force dut.system.mmio.uart1.tx_shift_q = 10'b1111111110;
@@ -96,16 +96,16 @@ module omcu_tn9k_bringup_top_tb;
     release dut.system.mmio.uart1.tx_shift_q;
     release dut.system.mmio.uart1.tx_busy_q;
     release dut.system.mmio.pinmux.uart1_enable_q;
-    release dut.system.mmio.gpio0.gpio_out_q[17];
-    release dut.system.mmio.gpio0.gpio_oe_q[17];
-    release dut.system.mmio.gpio0.gpio_oe_q[16];
+    release dut.system.mmio.gpio0.gpio_out_q[11];
+    release dut.system.mmio.gpio0.gpio_oe_q[11];
+    release dut.system.mmio.gpio0.gpio_oe_q[10];
 
     // PWM1 owns a disjoint four-pad group only while its pinmux bit is set.
     // Generic GPIO is deliberately forced low here so the high PWM channels
     // prove that the final board adapter, not merely the peripheral, selects
     // the alternate function.
-    force dut.system.mmio.gpio0.gpio_oe_q[13:10] = 4'b1111;
-    force dut.system.mmio.gpio0.gpio_out_q[13:10] = 4'b0000;
+    force dut.system.mmio.gpio0.gpio_oe_q[7:4] = 4'b1111;
+    force dut.system.mmio.gpio0.gpio_out_q[7:4] = 4'b0000;
     force dut.system.mmio.pinmux.pwm1_enable_q = 1'b1;
     force dut.pwm1 = 4'b1010;
     #1 check(gpio[4] == 1'b0 && gpio[5] == 1'b1 &&
@@ -113,14 +113,14 @@ module omcu_tn9k_bringup_top_tb;
              "PWM1 pinmux must route all four shared-counter channels to J5.12..15");
     release dut.pwm1;
     release dut.system.mmio.pinmux.pwm1_enable_q;
-    release dut.system.mmio.gpio0.gpio_out_q[13:10];
-    release dut.system.mmio.gpio0.gpio_oe_q[13:10];
+    release dut.system.mmio.gpio0.gpio_out_q[7:4];
+    release dut.system.mmio.gpio0.gpio_oe_q[7:4];
 
     // TIMER1's alternate function is input-only.  It must release both J5
     // pads even when generic GPIO OE is stale, and raw pad levels must reach
     // the system input synchronizers rather than being consumed as GPIO-only.
-    force dut.system.mmio.gpio0.gpio_oe_q[15:14] = 2'b11;
-    force dut.system.mmio.gpio0.gpio_out_q[15:14] = 2'b00;
+    force dut.system.mmio.gpio0.gpio_oe_q[9:8] = 2'b11;
+    force dut.system.mmio.gpio0.gpio_out_q[9:8] = 2'b00;
     force dut.system.mmio.pinmux.timer1_enable_q = 1'b1;
     #1 check(gpio[8] == 1'b1 && gpio[9] == 1'b1,
              "TIMER1 pinmux must release J5.16/J5.17 despite generic GPIO OE");
@@ -132,13 +132,13 @@ module omcu_tn9k_bringup_top_tb;
     release gpio[9];
     release gpio[8];
     release dut.system.mmio.pinmux.timer1_enable_q;
-    release dut.system.mmio.gpio0.gpio_out_q[15:14];
-    release dut.system.mmio.gpio0.gpio_oe_q[15:14];
+    release dut.system.mmio.gpio0.gpio_out_q[9:8];
+    release dut.system.mmio.gpio0.gpio_oe_q[9:8];
 
     // PULSE0 is a reviewed three-input function on GPIO0..2 / J5.8..10. Its
     // pinmux claim is input-only and must win even if generic GPIO OE is stale.
-    force dut.system.mmio.gpio0.gpio_oe_q[8:6] = 3'b111;
-    force dut.system.mmio.gpio0.gpio_out_q[8:6] = 3'b000;
+    force dut.system.mmio.gpio0.gpio_oe_q[2:0] = 3'b111;
+    force dut.system.mmio.gpio0.gpio_out_q[2:0] = 3'b000;
     force dut.system.mmio.pinmux.pulse0_enable_q = 1'b1;
     #1 check(gpio[2:0] == 3'b111,
              "PULSE0 pinmux must release J5.8..10 despite generic GPIO output-enable");
@@ -147,14 +147,14 @@ module omcu_tn9k_bringup_top_tb;
              "released PULSE0 channel 0 pad must reach the system input synchronizer");
     release gpio[0];
     release dut.system.mmio.pinmux.pulse0_enable_q;
-    release dut.system.mmio.gpio0.gpio_out_q[8:6];
-    release dut.system.mmio.gpio0.gpio_oe_q[8:6];
+    release dut.system.mmio.gpio0.gpio_out_q[2:0];
+    release dut.system.mmio.gpio0.gpio_oe_q[2:0];
 
     // FAULT0 is the separately reviewed J5.11 input-only interlock.  A
     // pinmux claim must release the final pad and pass the raw pad level into
     // the monitor synchronizer, even before its programmable filter acts.
-    force dut.system.mmio.gpio0.gpio_oe_q[9] = 1'b1;
-    force dut.system.mmio.gpio0.gpio_out_q[9] = 1'b0;
+    force dut.system.mmio.gpio0.gpio_oe_q[3] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_out_q[3] = 1'b0;
     force dut.system.mmio.pinmux.fault0_enable_q = 1'b1;
     #1 check(gpio[3] == 1'b1,
              "FAULT0 pinmux must release J5.11 despite generic GPIO output-enable");
@@ -163,31 +163,29 @@ module omcu_tn9k_bringup_top_tb;
              "released FAULT0 pad must reach the system fault monitor input");
     release gpio[3];
     release dut.system.mmio.pinmux.fault0_enable_q;
-    release dut.system.mmio.gpio0.gpio_out_q[9];
-    release dut.system.mmio.gpio0.gpio_oe_q[9];
+    release dut.system.mmio.gpio0.gpio_out_q[3];
+    release dut.system.mmio.gpio0.gpio_oe_q[3];
 
     // A latched trip applies its selected gates after every normal pinmux
     // decision: PWM outputs go low and a selected generic GPIO pad is high-Z.
-    force dut.system.mmio.gpio0.gpio_oe_q[6] = 1'b1;
-    force dut.system.mmio.gpio0.gpio_out_q[6] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_oe_q[0] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_out_q[0] = 1'b1;
     force dut.pwm0_raw = 1'b1;
     force dut.pwm1_raw = 4'b1111;
     force dut.system.mmio.fault0.trip_q = 1'b1;
     force dut.system.mmio.fault0.gate_pwm0_q = 1'b1;
     force dut.system.mmio.fault0.gate_pwm1_q = 1'b1;
     force dut.system.mmio.fault0.gate_gpio_q = 1'b1;
-    force dut.system.mmio.fault0.gpio_hiz_mask_q[6] = 1'b1;
     #1 check(pwm0 == 1'b0 && dut.pwm1 == 4'b0000 && gpio[0] == 1'b1,
              "FAULT0 trip must force PWM low and selected GPIO output-enable high-Z");
-    release dut.system.mmio.fault0.gpio_hiz_mask_q[6];
     release dut.system.mmio.fault0.gate_gpio_q;
     release dut.system.mmio.fault0.gate_pwm1_q;
     release dut.system.mmio.fault0.gate_pwm0_q;
     release dut.system.mmio.fault0.trip_q;
     release dut.pwm1_raw;
     release dut.pwm0_raw;
-    release dut.system.mmio.gpio0.gpio_out_q[6];
-    release dut.system.mmio.gpio0.gpio_oe_q[6];
+    release dut.system.mmio.gpio0.gpio_out_q[0];
+    release dut.system.mmio.gpio0.gpio_oe_q[0];
 
     $display("PASS: omcu_tn9k_bringup_top_tb");
     $finish;

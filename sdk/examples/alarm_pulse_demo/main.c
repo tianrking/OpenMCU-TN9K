@@ -3,8 +3,8 @@
 /*
  * One independently programmable application showing both resource-efficient
  * timing and a low-rate sensor input. ALARM0 channel 0 toggles LED0 twice per
- * second from a 1 kHz shared timebase; PULSE0 channel 0 measures rising edges
- * on GPIO0/J5.8 with a small digital filter.
+ * second from a 1 kHz TIMER0-shared timebase; PULSE0 measures rising edges on its
+ * selected GPIO0/J5.8 input with a small digital filter.
  */
 int main(void) {
   const uint32_t required = OMCU_FEATURE_ALARM0 |
@@ -15,8 +15,8 @@ int main(void) {
   if (!omcu_hw_abi_is_compatible(OMCU_HW_ABI_MAJOR) ||
       !omcu_hw_has_feature(required) ||
       !omcu_alarm0_start(26999u) ||
-      !omcu_alarm0_schedule(0u, 500u, 500u, true, false) ||
-      !omcu_tn9k_pulse0_configure(1u, 0u, 4u, false)) {
+      !omcu_alarm0_schedule_after(0u, 500u, 500u, true, false) ||
+      !omcu_tn9k_pulse0_configure(0u, false, 4u, false)) {
     for (;;) {
     }
   }

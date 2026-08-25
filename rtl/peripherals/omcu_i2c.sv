@@ -76,8 +76,7 @@ module omcu_i2c (
   logic [4:0]  state_q;
   logic [31:0] ctrl_read;
   logic [31:0] status_read;
-  logic [31:0] clkdiv_merged;
-  logic [31:0] tx_data_merged;
+  logic        full_word_write;
 
   function automatic logic command_is_one_hot(input logic [4:0] value);
     command_is_one_hot = (value != 5'b00000) &&
@@ -98,8 +97,10 @@ module omcu_i2c (
   assign ready_o = req_i;
   assign error_o = 1'b0;
   assign irq_o = done_q & irq_enable_q;
-  assign clkdiv_merged = `OMCU_MERGE_WRITE({16'h0000, clkdiv_q}, write_data_i, write_strobe_i);
-  assign tx_data_merged = `OMCU_MERGE_WRITE({24'h000000, tx_data_q}, write_data_i, write_strobe_i);
+  // I2C byte payloads are carried in an aligned 32-bit DATA command word.
+  // Full-word writes make bus configuration and command acknowledgement
+  // atomic, avoiding wide byte-lane merge muxes in the FPGA fabric.
+  assign full_word_write = write_strobe_i == 4'b1111;
 
   always_comb begin
     ctrl_read = '0;
@@ -309,34 +310,30 @@ module omcu_i2c (
         div_count_q <= 16'h0000;
       end
 
-      if (req_i && write_i) begin
+      if (req_i && write_i && full_word_write) begin
         unique case (addr_i[7:2])
           REG_DATA: begin
-            tx_data_q <= tx_data_merged[7:0];
+            tx_data_q <= write_data_i[7:0];
           end
           REG_STATUS: begin
-            if (write_strobe_i[0]) begin
-              if (write_data_i[1]) done_q <= 1'b0;
-              if (write_data_i[2]) ack_error_q <= 1'b0;
-              if (write_data_i[3]) command_error_q <= 1'b0;
-            end
+            if (write_data_i[1]) done_q <= 1'b0;
+            if (write_data_i[2]) ack_error_q <= 1'b0;
+            if (write_data_i[3]) command_error_q <= 1'b0;
           end
           REG_CLKDIV: begin
-            clkdiv_q <= clkdiv_merged[15:0];
+            clkdiv_q <= write_data_i[15:0];
           end
           REG_CTRL: begin
-            if (write_strobe_i[0]) begin
-              enable_q <= write_data_i[0];
-              irq_enable_q <= write_data_i[1];
-              if (!write_data_i[0]) begin
-                busy_q <= 1'b0;
-                bus_owned_q <= 1'b0;
-                state_q <= ST_IDLE;
-              end
+            enable_q <= write_data_i[0];
+            irq_enable_q <= write_data_i[1];
+            if (!write_data_i[0]) begin
+              busy_q <= 1'b0;
+              bus_owned_q <= 1'b0;
+              state_q <= ST_IDLE;
             end
           end
           REG_CMD: begin
-            if (write_strobe_i[0] && !busy_q) begin
+            if (!busy_q) begin
               if (!enable_q || !command_is_one_hot(write_data_i[4:0])) begin
                 done_q <= 1'b1;
                 command_error_q <= 1'b1;

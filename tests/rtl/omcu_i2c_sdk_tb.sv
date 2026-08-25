@@ -43,7 +43,9 @@ module omcu_i2c_sdk_tb;
   omcu_picorv32_system #(
     .GPIO_COUNT(4),
     // I2C helper calls spill registers to the stack, so this must use the
-    // exact 8 KiB ROM / 44 KiB SRAM geometry selected by the public SDK.
+    // The generic bring-up SDK regression remains an 8 KiB ROM / 44 KiB SRAM
+    // target. The customer-facing product wrapper has its separate 4 KiB
+    // boot ROM and User-Flash path.
     .ROM_WORDS(2048),
     .SRAM_BYTES(45056),
     .ROM_INIT_FILE("build/sdk/omcu_i2c_smoke.hex")

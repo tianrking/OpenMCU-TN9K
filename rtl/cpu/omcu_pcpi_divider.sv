@@ -6,7 +6,7 @@
 // division step per clock (32 steps for a normal operation) and deliberately
 // keeps only a 33-bit remainder instead of PicoRV32's larger shifted-divisor
 // datapath.  That resource trade is what makes the complete Tang Nano 9K P1
-// peripheral profile physically routable while preserving the RV32IMC ISA.
+// peripheral profile physically routable while preserving the RV32IM ISA.
 module omcu_pcpi_divider (
   input  logic        clk_i,
   input  logic        rst_ni,

@@ -43,9 +43,8 @@ module omcu_irq_ctrl #(
   logic [31:0] pending_vector;
   logic [31:0] enable_vector;
   logic [31:0] active_vector;
-  logic [31:0] merged_enable_vector;
-  logic [31:0] write_strobe_mask;
   logic [31:0] highest_read;
+  logic        full_word_write;
   integer priority_index;
 
   function automatic logic [31:0] expand_sources(
@@ -74,20 +73,17 @@ module omcu_irq_ctrl #(
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
-  assign write_strobe_mask = `OMCU_WRITE_STROBE_MASK(write_strobe_i);
+  // Interrupt masks/commands are CPU-width bit vectors.  Atomic word writes
+  // prevent partially updated masking policy and eliminate one 32-bit merge.
+  assign full_word_write = write_strobe_i == 4'b1111;
   assign pending_sources = pending_q | source_i | force_q;
   assign active_sources = pending_sources & enable_q;
   assign pending_vector = expand_sources(pending_sources);
   assign enable_vector = expand_sources(enable_q);
   assign active_vector = expand_sources(active_sources);
   assign irq_o = active_vector;
-  assign merged_enable_vector = `OMCU_MERGE_WRITE(
-    enable_vector,
-    write_data_i,
-    write_strobe_i
-  );
-  assign enable_write_sources = compact_sources(merged_enable_vector);
-  assign command_write_sources = compact_sources(write_data_i & write_strobe_mask);
+  assign enable_write_sources = compact_sources(write_data_i);
+  assign command_write_sources = compact_sources(write_data_i);
 
   always_comb begin
     // Lowest numbered active external IRQ wins.  The returned number is the
@@ -121,7 +117,7 @@ module omcu_irq_ctrl #(
       // cannot be lost while software is masked or another IRQ is executing.
       pending_q <= pending_q | source_i;
 
-      if (req_i && write_i) begin
+      if (req_i && write_i && full_word_write) begin
         unique case (addr_i[7:2])
           REG_ENABLE: begin
             enable_q <= enable_write_sources;

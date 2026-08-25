@@ -12,6 +12,14 @@
 
 #include <stdbool.h>
 
+/*
+ * Public MMIO rule: use naturally aligned volatile uint32_t accesses for
+ * peripheral configuration, commands and W1C acknowledgements.  Hardware
+ * ignores byte/halfword MMIO writes so a control register cannot be changed
+ * partially.  SRAM remains byte-addressable; User Flash erase is the one
+ * separately documented low-byte command exception.
+ */
+
 enum {
   OMCU_UART_CTRL_TX_ENABLE = 1u << 0,
   OMCU_UART_CTRL_RX_ENABLE = 1u << 1,
@@ -172,17 +180,18 @@ static inline void omcu_gpio_toggle(uint32_t mask) {
 }
 
 /*
- * GPIO reliable-input profile. FILTER_CYCLES=N accepts a changed level only
- * after N+1 consecutive mismatched samples from the two-flop synchronizer.
- * It is intended for buttons, slow sensors and industrial dry-contact style
- * inputs, not signals whose timing must be measured above the system clock.
+ * GPIO reliable-input profile. Every input is two-flop synchronized.
+ * FILTER_CYCLES=N then accepts the whole GPIO port only after N+1 unchanged
+ * synchronized samples. A change on any GPIO pin restarts that one shared
+ * window. It is intended for buttons, slow sensors and industrial dry-contact
+ * style inputs, not signals whose timing must be measured above the system
+ * clock.
  */
-static inline bool omcu_gpio_configure_filter(uint32_t mask, uint8_t filter_cycles) {
+static inline bool omcu_gpio_configure_filter(uint8_t filter_cycles) {
   if (!omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY)) {
     return false;
   }
   OMCU_GPIO0->filter_cycles = (uint32_t)filter_cycles;
-  OMCU_GPIO0->filter_mask = mask;
   return true;
 }
 
@@ -192,11 +201,14 @@ typedef struct {
   uint32_t irq_active;
   uint32_t reset_cause;
   uint32_t run_ticks_lo;
+  bool forced;
 } omcu_gpio_snapshot_t;
 
 /*
- * Arm one first-event GPIO snapshot.  With overwrite=false the first selected
- * edge is retained and a later edge only sets OVERFLOW; this is the recommended
+ * Arm one first-event GPIO snapshot. The masks are the ordinary GPIO edge
+ * enables as well as the snapshot triggers: capture and GPIO edge state are
+ * intentionally coherent. With overwrite=false the first selected edge is
+ * retained and a later edge only sets OVERFLOW; this is the recommended
  * small-black-box policy for fault diagnosis. The optional IRQ shares
  * OMCU_IRQ_GPIO0, so its ISR must clear SNAPSHOT_STATUS as well as GPIO IRQ
  * status where applicable.
@@ -221,15 +233,20 @@ static inline bool omcu_gpio_snapshot_arm(
   OMCU_GPIO0->snapshot_ctrl = 0u;
   OMCU_GPIO0->snapshot_status = OMCU_GPIO_SNAPSHOT_STATUS_VALID |
                                 OMCU_GPIO_SNAPSHOT_STATUS_OVERFLOW;
-  OMCU_GPIO0->snapshot_rise_en = rise_mask;
-  OMCU_GPIO0->snapshot_fall_en = fall_mask;
+  OMCU_GPIO0->rise_en = rise_mask;
+  OMCU_GPIO0->fall_en = fall_mask;
   OMCU_GPIO0->snapshot_ctrl = ctrl;
   return true;
 }
 
 static inline bool omcu_gpio_snapshot_read(omcu_gpio_snapshot_t *snapshot) {
-  if (snapshot == 0 ||
-      (OMCU_GPIO0->snapshot_status & OMCU_GPIO_SNAPSHOT_STATUS_VALID) == 0u) {
+  uint32_t status;
+
+  if (snapshot == 0) {
+    return false;
+  }
+  status = OMCU_GPIO0->snapshot_status;
+  if ((status & OMCU_GPIO_SNAPSHOT_STATUS_VALID) == 0u) {
     return false;
   }
   snapshot->event_mask = OMCU_GPIO0->snapshot_event;
@@ -237,6 +254,7 @@ static inline bool omcu_gpio_snapshot_read(omcu_gpio_snapshot_t *snapshot) {
   snapshot->irq_active = OMCU_GPIO0->snapshot_irq;
   snapshot->reset_cause = OMCU_GPIO0->snapshot_reset;
   snapshot->run_ticks_lo = OMCU_GPIO0->snapshot_ticks;
+  snapshot->forced = (status & OMCU_GPIO_SNAPSHOT_STATUS_FORCED) != 0u;
   return true;
 }
 
@@ -407,13 +425,14 @@ typedef struct {
 
 /*
  * Configure the logic-level FAULT0 interlock without clearing a prior trip.
- * FILTER=N accepts a changed synchronized input after N+1 samples.  A latched
- * trip may be released only with omcu_fault0_try_clear() while the claimed
- * input has returned to its inactive state.
+ * FILTER=N accepts a changed synchronized input after N+1 samples. With
+ * gate_gpio=true, every reviewed external GPIO is forced high impedance after
+ * a trip; the profile is fixed deliberately, not software-selectable. A
+ * latched trip may be released only with omcu_fault0_try_clear() while the
+ * claimed input has returned to its inactive state.
  */
 static inline bool omcu_fault0_configure(
   uint8_t filter,
-  uint32_t gpio_hiz_mask,
   bool active_high,
   bool enable_irq,
   bool gate_pwm0,
@@ -432,7 +451,6 @@ static inline bool omcu_fault0_configure(
   }
   OMCU_FAULT0->ctrl = 0u;
   OMCU_FAULT0->filter = (uint32_t)filter & OMCU_FAULT_FILTER_MASK;
-  OMCU_FAULT0->gpio_hiz_mask = gpio_hiz_mask;
   OMCU_FAULT0->status = OMCU_FAULT_STATUS_CLEAR_REJECTED;
   OMCU_FAULT0->ctrl = ctrl;
   return true;
@@ -481,18 +499,40 @@ static inline void omcu_timer_start_periodic(
 }
 
 /*
- * ALARM0 is a shared 32-bit timebase with four independent absolute compare
- * channels. Start it once, then arm each channel against its own deadline.
- * A periodic channel advances its compare value by period rather than resetting
- * the shared counter, so the other channels retain their phase.
+ * ALARM0 adds two independent 16-bit absolute compare channels to TIMER0's
+ * one shared timebase. TIMER0 owns the prescaler, count and wrap; both ALARM0
+ * comparators are evaluated on every TIMER0 tick, so they can become pending
+ * together with no scan latency. A periodic channel advances its own compare
+ * value rather than resetting TIMER0, so the other channel retains its phase.
+ * This is not a waveform engine.
  */
 static inline bool omcu_alarm0_start(uint16_t prescale) {
   if (!omcu_hw_has_feature(OMCU_FEATURE_ALARM0)) {
     return false;
   }
   OMCU_ALARM0->ctrl = 0u;
-  OMCU_ALARM0->prescale = prescale;
-  OMCU_ALARM0->count = 0u;
+  OMCU_TIMER0->ctrl = 0u;
+  OMCU_TIMER0->prescale = prescale;
+  OMCU_TIMER0->count = 0u;
+  OMCU_TIMER0->compare = UINT32_MAX;
+  OMCU_TIMER0->status = OMCU_TIMER_STATUS_PENDING;
+  // ALARM0 owns this helper-configured TIMER0 epoch. It deliberately leaves
+  // TIMER0 IRQ disabled; clients that need custom TIMER0 ownership can call
+  // omcu_alarm0_attach_timer0() after configuring it themselves.
+  OMCU_TIMER0->ctrl = OMCU_TIMER_CTRL_ENABLE | OMCU_TIMER_CTRL_AUTO_RELOAD;
+  OMCU_ALARM0->pending = OMCU_ALARM_CHANNEL_MASK;
+  OMCU_ALARM0->ctrl = OMCU_ALARM_CTRL_ENABLE;
+  return true;
+}
+
+/* Attach ALARM0 to an already configured, running TIMER0 without modifying
+ * that timer's IRQ, period, count or prescale. */
+static inline bool omcu_alarm0_attach_timer0(void) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_ALARM0) ||
+      (OMCU_TIMER0->ctrl & OMCU_TIMER_CTRL_ENABLE) == 0u) {
+    return false;
+  }
+  OMCU_ALARM0->ctrl = 0u;
   OMCU_ALARM0->pending = OMCU_ALARM_CHANNEL_MASK;
   OMCU_ALARM0->ctrl = OMCU_ALARM_CTRL_ENABLE;
   return true;
@@ -506,32 +546,70 @@ static inline bool omcu_alarm0_schedule(
   bool enable_irq
 ) {
   uint32_t bit;
-  volatile uint32_t *compare;
-  volatile uint32_t *period_register;
+  uint32_t channel_enable;
+  uint32_t periodic_mask;
+  uint32_t irq_mask;
 
   if (!omcu_hw_has_feature(OMCU_FEATURE_ALARM0) ||
-      channel >= OMCU_ALARM_CHANNEL_COUNT || (periodic && period == 0u)) {
+      channel >= OMCU_ALARM_CHANNEL_COUNT ||
+      absolute_compare > UINT16_MAX || period > UINT16_MAX ||
+      (periodic && period == 0u)) {
     return false;
   }
   bit = UINT32_C(1) << channel;
-  compare = &OMCU_ALARM0->compare0;
-  period_register = &OMCU_ALARM0->period0;
-  OMCU_ALARM0->channel_enable &= ~bit;
+  channel_enable = OMCU_ALARM0->channel_enable & OMCU_ALARM_CHANNEL_MASK;
+  OMCU_ALARM0->channel_enable = channel_enable & ~bit;
   OMCU_ALARM0->pending = bit;
-  compare[channel] = absolute_compare;
-  period_register[channel] = period;
+  if (channel == 0u) {
+    OMCU_ALARM0->compare0 = absolute_compare;
+    OMCU_ALARM0->period0 = period;
+  } else {
+    OMCU_ALARM0->compare1 = absolute_compare;
+    OMCU_ALARM0->period1 = period;
+  }
+  periodic_mask = OMCU_ALARM0->periodic & OMCU_ALARM_CHANNEL_MASK;
   if (periodic) {
-    OMCU_ALARM0->periodic |= bit;
+    periodic_mask |= bit;
   } else {
-    OMCU_ALARM0->periodic &= ~bit;
+    periodic_mask &= ~bit;
   }
+  OMCU_ALARM0->periodic = periodic_mask;
+  irq_mask = OMCU_ALARM0->irq_enable & OMCU_ALARM_CHANNEL_MASK;
   if (enable_irq) {
-    OMCU_ALARM0->irq_enable |= bit;
+    irq_mask |= bit;
   } else {
-    OMCU_ALARM0->irq_enable &= ~bit;
+    irq_mask &= ~bit;
   }
-  OMCU_ALARM0->channel_enable |= bit;
+  OMCU_ALARM0->irq_enable = irq_mask;
+  OMCU_ALARM0->channel_enable = channel_enable | bit;
   return true;
+}
+
+/*
+ * Preferred relative-deadline helper. TIMER0.COUNT advances while the MMIO
+ * setup writes execute, so choose delay_ticks large enough for that setup
+ * latency at the selected TIMER0 prescale. A zero delay is rejected because
+ * equality-based hardware comparison would otherwise wait for a full wrap.
+ */
+static inline bool omcu_alarm0_schedule_after(
+  uint8_t channel,
+  uint32_t delay_ticks,
+  uint32_t period,
+  bool periodic,
+  bool enable_irq
+) {
+  uint16_t now;
+  if (delay_ticks == 0u || delay_ticks > UINT16_MAX) {
+    return false;
+  }
+  now = (uint16_t)OMCU_ALARM0->count;
+  return omcu_alarm0_schedule(
+    channel,
+    (uint16_t)(now + (uint16_t)delay_ticks),
+    period,
+    periodic,
+    enable_irq
+  );
 }
 
 static inline void omcu_alarm0_clear_pending(uint32_t channel_mask) {
@@ -539,52 +617,47 @@ static inline void omcu_alarm0_clear_pending(uint32_t channel_mask) {
 }
 
 /*
- * PULSE0 reports a wrapping edge count and, after its second selected edge,
- * a period in SYSCTRL run-tick units. Each input is synchronized and filtered;
- * FILTER=N requires N+1 mismatched synchronized samples before a transition.
+ * PULSE0 selects exactly one of GPIO0..2 / J5.8..10 at a time. The selected
+ * input is synchronized and filtered; FILTER=N requires N+1 mismatched
+ * synchronized samples before a transition. It reports a wrapping 16-bit edge
+ * count and, after its second selected edge, a 16-bit run-tick period. Changing
+ * the selected input starts a new empty measurement epoch.
  */
 static inline bool omcu_pulse0_configure(
-  uint8_t channel_enable,
-  uint8_t falling_mask,
+  uint8_t input_select,
+  bool falling,
   uint8_t filter,
   bool enable_irq
 ) {
-  uint32_t channels = (uint32_t)channel_enable & OMCU_PULSE_CHANNEL_MASK;
-
-  if (!omcu_hw_has_feature(OMCU_FEATURE_PULSE0)) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_PULSE0) ||
+      input_select >= OMCU_PULSE_INPUT_COUNT) {
     return false;
   }
   OMCU_PULSE0->ctrl = 0u;
+  OMCU_PULSE0->input_select = input_select;
+  OMCU_PULSE0->edge = falling ? OMCU_PULSE_EDGE_FALLING : 0u;
   OMCU_PULSE0->filter = (uint32_t)filter;
-  OMCU_PULSE0->falling = (uint32_t)falling_mask & OMCU_PULSE_CHANNEL_MASK;
-  OMCU_PULSE0->clear = channels;
-  OMCU_PULSE0->channel_enable = channels;
-  OMCU_PULSE0->status = OMCU_PULSE_STATUS_PENDING_MASK;
+  OMCU_PULSE0->clear = OMCU_PULSE_CLEAR_EPOCH;
+  OMCU_PULSE0->status = OMCU_PULSE_STATUS_PENDING;
   OMCU_PULSE0->ctrl = OMCU_PULSE_CTRL_ENABLE |
                       (enable_irq ? OMCU_PULSE_CTRL_IRQ_ENABLE : 0u);
   return true;
 }
 
-static inline void omcu_pulse0_clear(uint8_t channel_mask) {
-  OMCU_PULSE0->clear = (uint32_t)channel_mask & OMCU_PULSE_CHANNEL_MASK;
+static inline void omcu_pulse0_clear(void) {
+  OMCU_PULSE0->clear = OMCU_PULSE_CLEAR_EPOCH;
 }
 
-static inline uint32_t omcu_pulse0_count(uint8_t channel) {
-  volatile const uint32_t *count = &OMCU_PULSE0->count0;
-
-  return (channel < OMCU_PULSE_CHANNEL_COUNT) ? count[channel] : 0u;
+static inline uint16_t omcu_pulse0_count(void) {
+  return (uint16_t)OMCU_PULSE0->count;
 }
 
-static inline uint32_t omcu_pulse0_period_ticks(uint8_t channel) {
-  volatile const uint32_t *period = &OMCU_PULSE0->period0;
-
-  return (channel < OMCU_PULSE_CHANNEL_COUNT) ? period[channel] : 0u;
+static inline uint16_t omcu_pulse0_period_ticks(void) {
+  return (uint16_t)OMCU_PULSE0->period;
 }
 
-static inline bool omcu_pulse0_period_valid(uint8_t channel) {
-  return channel < OMCU_PULSE_CHANNEL_COUNT &&
-         (OMCU_PULSE0->status &
-          (UINT32_C(1) << (OMCU_PULSE_STATUS_VALID_SHIFT + channel))) != 0u;
+static inline bool omcu_pulse0_period_valid(void) {
+  return (OMCU_PULSE0->status & OMCU_PULSE_STATUS_PERIOD_VALID) != 0u;
 }
 
 /*

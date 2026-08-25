@@ -45,6 +45,25 @@ module omcu_timer_tb;
     end
   endtask
 
+  task automatic mmio_write_strobe(
+    input logic [31:0] offset,
+    input logic [31:0] value,
+    input logic [3:0] strobe
+  );
+    begin
+      @(negedge clk);
+      req = 1'b1;
+      write = 1'b1;
+      address = offset;
+      write_data = value;
+      write_strobe = strobe;
+      @(negedge clk);
+      req = 1'b0;
+      write = 1'b0;
+      write_strobe = '0;
+    end
+  endtask
+
   task automatic check(input logic condition, input string message);
     begin
       if (!condition) begin
@@ -64,6 +83,10 @@ module omcu_timer_tb;
     repeat (3) @(negedge clk);
     rst_n = 1'b1;
     @(negedge clk);
+
+    mmio_write_strobe(32'h0000_0000, 32'h0000_0007, 4'b0001);
+    check(!dut.enable_q,
+          "TIMER0 partial MMIO writes must not create a torn configuration");
 
     // Compare at count 2 with a no-divider periodic timer.
     mmio_write(32'h0000_0004, 32'h0000_0000);
