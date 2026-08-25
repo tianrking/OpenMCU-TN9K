@@ -30,7 +30,7 @@ module omcu_tn9k_mcu_top #(
   inout  wire        i2c0_scl_io,
   inout  wire        i2c0_sda_io,
   output logic       pwm0_o,
-  inout  wire [2:0]  gpio_io
+  inout  wire [11:0] gpio_io
 );
 
   omcu_tn9k_bringup_top #(

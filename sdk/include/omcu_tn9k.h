@@ -22,6 +22,15 @@
 #define OMCU_TN9K_GPIO0           (UINT32_C(1) << 6)
 #define OMCU_TN9K_GPIO1           (UINT32_C(1) << 7)
 #define OMCU_TN9K_GPIO2           (UINT32_C(1) << 8)
+#define OMCU_TN9K_GPIO3           (UINT32_C(1) << 9)
+#define OMCU_TN9K_GPIO4           (UINT32_C(1) << 10)
+#define OMCU_TN9K_GPIO5           (UINT32_C(1) << 11)
+#define OMCU_TN9K_GPIO6           (UINT32_C(1) << 12)
+#define OMCU_TN9K_GPIO7           (UINT32_C(1) << 13)
+#define OMCU_TN9K_GPIO8           (UINT32_C(1) << 14)
+#define OMCU_TN9K_GPIO9           (UINT32_C(1) << 15)
+#define OMCU_TN9K_GPIO10          (UINT32_C(1) << 16)
+#define OMCU_TN9K_GPIO11          (UINT32_C(1) << 17)
 
 /* Rounded divider for the UART0 convention: clocks-per-bit minus one. */
 static inline uint16_t omcu_tn9k_uart_bauddiv(uint32_t baud) {

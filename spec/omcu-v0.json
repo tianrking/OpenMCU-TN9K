@@ -150,6 +150,7 @@
     { "name": "OMCU_FEATURE_WDT0", "value": "1u << 5" },
     { "name": "OMCU_FEATURE_PWM0", "value": "1u << 6" },
     { "name": "OMCU_FEATURE_IRQCTRL", "value": "1u << 7" },
+    { "name": "OMCU_FEATURE_GPIO_EXPANSION", "value": "1u << 13" },
     { "name": "OMCU_FEATURE_USER_FLASH", "value": "1u << 14" },
     { "name": "OMCU_IRQ_GPIO0", "value": "1u << 8" },
     { "name": "OMCU_IRQ_UART0", "value": "1u << 9" },

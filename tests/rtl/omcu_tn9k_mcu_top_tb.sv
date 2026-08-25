@@ -16,7 +16,7 @@ module omcu_tn9k_mcu_top_tb;
   logic pwm0;
   tri1 i2c_scl;
   tri1 i2c_sda;
-  tri1 [2:0] gpio;
+  tri1 [11:0] gpio;
   logic saw_physical_flash_access = 1'b0;
   logic saw_bus_error = 1'b0;
 

@@ -16,7 +16,7 @@ module omcu_tn9k_bringup_top_tb;
   logic pwm0;
   tri1 i2c_scl;
   tri1 i2c_sda;
-  tri1 [2:0] gpio;
+  tri1 [11:0] gpio;
 
   always #18.518 clk_27m = ~clk_27m;
 
@@ -52,6 +52,20 @@ module omcu_tn9k_bringup_top_tb;
     repeat (90) @(negedge clk_27m);
     check(led_n == 6'b111110,
           "the board adapter must turn on only active-low LED0 after firmware bring-up");
+
+    // The 12-pad profile must preserve GPIO input and tri-state behavior all
+    // the way to the public Tang wrapper, including the newly constrained J5
+    // RGB-LCD-shared pads.
+    force gpio[11] = 1'b0;
+    #1 check(dut.gpio_in[17] == 1'b0,
+             "GPIO11 pad input must reach logical GPIO0[17]");
+    release gpio[11];
+    force dut.system.mmio.gpio0.gpio_oe_q[17] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_out_q[17] = 1'b0;
+    #1 check(gpio[11] == 1'b0,
+             "GPIO11 output-enable must drive the final expansion pad");
+    release dut.system.mmio.gpio0.gpio_out_q[17];
+    release dut.system.mmio.gpio0.gpio_oe_q[17];
 
     $display("PASS: omcu_tn9k_bringup_top_tb");
     $finish;

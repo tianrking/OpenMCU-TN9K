@@ -25,6 +25,7 @@ module omcu_picorv32_system #(
   parameter integer CLOCK_HZ = 27000000,
   parameter logic [15:0] ABI_MINOR = 16'h0006,
   parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
+  parameter integer GPIO_EXPANSION_PRESENT = 0,
   // In product-loader mode applications execute from SRAM, so PicoRV32 must
   // enter external interrupts at the application's fixed SRAM vector.
   parameter integer APPLICATION_BOOT_MODE = 0,
@@ -71,6 +72,7 @@ module omcu_picorv32_system #(
   localparam logic [31:0] MMIO_END = 32'h4001_0000;
   localparam logic [31:0] BOOT_ROM_BYTES = ROM_WORDS * 4;
   localparam logic [31:0] SYSTEM_FEATURE_BITS = FEATURE_BITS |
+    ((GPIO_EXPANSION_PRESENT != 0) ? 32'h0000_2000 : 32'h0000_0000) |
     ((USER_FLASH_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
   localparam logic [31:0] STACK_ADDRESS = SRAM_BASE + SRAM_BYTES - 4;
   localparam integer ROM_ADDR_BITS = $clog2(ROM_WORDS);

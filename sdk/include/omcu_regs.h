@@ -127,6 +127,7 @@ enum {
   OMCU_FEATURE_WDT0                = 1u << 5,
   OMCU_FEATURE_PWM0                = 1u << 6,
   OMCU_FEATURE_IRQCTRL             = 1u << 7,
+  OMCU_FEATURE_GPIO_EXPANSION      = 1u << 13,
   OMCU_FEATURE_USER_FLASH          = 1u << 14,
   OMCU_IRQ_GPIO0                   = 1u << 8,
   OMCU_IRQ_UART0                   = 1u << 9,

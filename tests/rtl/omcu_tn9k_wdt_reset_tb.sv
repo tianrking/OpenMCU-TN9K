@@ -14,7 +14,7 @@ module omcu_tn9k_wdt_reset_tb;
   logic pwm0;
   tri1 i2c_scl;
   tri1 i2c_sda;
-  tri1 [2:0] gpio;
+  tri1 [11:0] gpio;
   logic watchdog_request_seen = 1'b0;
 
   always #5 clk = ~clk;

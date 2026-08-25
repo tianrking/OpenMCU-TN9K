@@ -20,7 +20,7 @@ module omcu_tn9k_peripheral_io_tb;
   logic pwm_low_seen = 1'b0;
   tri1 i2c_scl;
   tri1 i2c_sda;
-  tri1 [2:0] gpio;
+  tri1 [11:0] gpio;
 
   always #5 clk = ~clk;
 
@@ -78,8 +78,8 @@ module omcu_tn9k_peripheral_io_tb;
           "compiled SDK SPI0 transfer must reach the Tang Nano SPI0 chip-select pad");
     check(pwm_high_seen && pwm_low_seen,
           "compiled SDK PWM0 configuration must toggle the Tang Nano PWM0 pad");
-    check(gpio === 3'b111,
-          "unused expansion GPIO must be high-impedance at the board adapter");
+    check(gpio === 12'hfff,
+          "unused 12-pad expansion GPIO profile must be high-impedance at the board adapter");
     check(i2c_scl === 1'b1 && i2c_sda === 1'b1,
           "idle I2C0 board pads must be released rather than actively driven high");
     check(!dut.cpu_trap, "peripheral SDK firmware must not trap before PASS");

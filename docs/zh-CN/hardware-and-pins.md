@@ -21,11 +21,20 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 | SPI0 CS/MOSI/SCK/MISO | `spi0_*` | 38/37/36/39 | 来自 J5/TF-card 信号组；SPI0 使用时不得同时插入或访问 microSD。 |
 | I2C0 SCL/SDA | `i2c0_scl_io` / `i2c0_sda_io` | 26 / 27 | 真正开漏；外部必须提供合适的 3.3 V 上拉。 |
 | PWM0 | `pwm0_o` | 25 | 单路边沿对齐 PWM。 |
-| 扩展 GPIO | GPIO0[6..8] / `gpio_io[0..2]` | 28 / 29 / 30 | 可输入、输出或高阻；默认高阻。 |
+| 扩展 GPIO 档案 | GPIO0[6..17] / `gpio_io[0..11]` | 28,29,30,33,34,40,35,41,42,51,53,54 | 12 路可输入、输出或高阻；`gpio_io[3..11]` 与 RGB LCD 共线。 |
 
-`GPIO0[0..5]` 与 LED 专用映射不可同时作为外部数字引脚使用。`GPIO0[6..8]` 才是当前
-公开的三路通用 I/O。它们在顶层中真正遵守 `OE`：软件清掉 `OE` 后，FPGA pad 会释放为
+`GPIO0[0..5]` 与 LED 专用映射不可同时作为外部数字引脚使用。ABI 0.6 的
+`GPIO0[6..17]` 是 12 路扩展档案，SDK 中对应 `OMCU_TN9K_GPIO0` 至
+`OMCU_TN9K_GPIO11`。它们在顶层中真正遵守 `OE`：软件清掉 `OE` 后，FPGA pad 会释放为
 高阻，而不是把“1”推到外部总线。
+
+| SDK GPIO | `gpio_io` | J5 针脚 | package pad | 复用边界 |
+| --- | ---: | ---: | ---: | --- |
+| GPIO0..2 | 0..2 | 8..10 | 28 / 29 / 30 | 现有公开的 3.3 V 数字组。 |
+| GPIO3..11 | 3..11 | 11..19 | 33 / 34 / 40 / 35 / 41 / 42 / 51 / 53 / 54 | 3.3 V，但与 RGB LCD FPC 的 DE/VS/HS/CLK/B 线共用；不能和 RGB LCD 同时使用。 |
+
+该档案已经具有 RTL 顶层、CST 和数字仿真覆盖，但尚未完成实体板电压、线缆、显示复用和
+目标外设 HIL。它不包含 J6 的 1.8 V 信号、HDMI 对、JTAG/MODE/DONE 或“所有未用 IOB”。
 
 ## 电气安全规则
 
@@ -45,7 +54,7 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 
 - UART：USB 串口终端，115200、8-N-1；观察 `tn9k_board_demo` 的启动文本。
 - PWM：示波器或 LED+限流电阻接 PWM0；默认约 1 kHz、50% 占空比。
-- GPIO：LED/逻辑分析仪接 GPIO0..2；示例每约 250 ms 翻转。
+- GPIO：LED/逻辑分析仪接 GPIO0..11；先从 GPIO0..2 开始，再确认未连接 RGB LCD 后使用 GPIO3..11。
 - SPI：MOSI 和 MISO 用短跳线回环，CS/SCK 接逻辑分析仪；用 SDK `SPI0` 传输 API。
 - I2C：接一个有已知地址的 3.3 V I2C 目标和外部上拉；先用逻辑分析仪检查 START、
   地址、ACK、STOP，再写目标专用事务。

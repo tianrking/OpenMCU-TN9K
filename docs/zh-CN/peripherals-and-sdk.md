@@ -5,7 +5,7 @@
 | 基址 | 外设 | Tang 顶层连接 |
 | ---: | --- | --- |
 | `0x2000_0000` | User Flash 窗口 | GW1NR 独立 User Flash；由启动器管理 A/B 应用槽 |
-| `0x4000_0000` | GPIO0 | LED0..5、扩展 GPIO0..2 |
+| `0x4000_0000` | GPIO0 | LED0..5、12 路扩展 GPIO0..11（GPIO3..11 与 RGB LCD 共线） |
 | `0x4000_1000` | UART0 | package pad 17/18 |
 | `0x4000_2000` | TIMER0 | 片内计数器 |
 | `0x4000_3000` | SPI0 | CS/MOSI/SCK/MISO |
@@ -50,6 +50,10 @@ omcu_gpio_set(OMCU_TN9K_LED0);       /* LED0 点亮：顶层处理低有效极�
 omcu_gpio_toggle(OMCU_TN9K_GPIO0);  /* 扩展 GPIO0 切换 */
 omcu_gpio_disable_output(OMCU_TN9K_GPIO0); /* 释放为高阻输入 */
 ```
+
+`OMCU_FEATURE_GPIO_EXPANSION` 表示产品顶层已提供 12 路档案；它不是这些 pad 已通过外设
+电气 HIL 的声明。GPIO3..11 位于 J5 的 RGB-LCD 共线区域，不能与显示器并用，完整映射和
+电压边界见[硬件与引脚](hardware-and-pins.md)。
 
 ### 中断与 IRQCTRL
 

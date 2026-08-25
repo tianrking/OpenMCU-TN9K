@@ -43,19 +43,22 @@ module omcu_tn9k_bringup_top #(
   output logic       spi0_sck_o,
   output logic       spi0_cs_n_o,
 
-  // Open-drain I2C0, plus three GPIOs on the 3.3 V expansion group.
-  // External I2C pull-ups are mandatory for a real bus.
+  // Open-drain I2C0, plus twelve GPIO-capable pads on the 3.3 V J5 group.
+  // gpio_io[0:2] are the original plain GPIOs; gpio_io[3:11] are connected
+  // to RGB-LCD-shared header lines and require the documented pinmux/HIL
+  // checks before a board-level product may use them. External I2C pull-ups
+  // are mandatory for a real bus.
   inout  wire        i2c0_scl_io,
   inout  wire        i2c0_sda_io,
   output logic       pwm0_o,
-  inout  wire [2:0]  gpio_io
+  inout  wire [11:0] gpio_io
 );
 
   logic [2:0] reset_release_q;
   logic       sys_rst_ni;
-  logic [8:0] gpio_in;
-  logic [8:0] gpio_out;
-  logic [8:0] gpio_oe;
+  logic [17:0] gpio_in;
+  logic [17:0] gpio_out;
+  logic [17:0] gpio_oe;
   logic       i2c_scl_i;
   logic       i2c_sda_i;
   logic       i2c_scl_drive_low;
@@ -81,7 +84,8 @@ module omcu_tn9k_bringup_top #(
   assign sys_rst_ni = reset_release_q[2];
 
   omcu_picorv32_system #(
-    .GPIO_COUNT(9),
+    .GPIO_COUNT(18),
+    .GPIO_EXPANSION_PRESENT(1),
     .ROM_WORDS(ROM_WORDS),
     .SRAM_BYTES(SRAM_BYTES),
     .USER_FLASH_BYTES(USER_FLASH_BYTES),
@@ -117,15 +121,20 @@ module omcu_tn9k_bringup_top #(
     .bus_error_o(bus_error)
   );
 
-  // GPIO[0:5] are the six on-board active-low LEDs. GPIO[6:8] are brought to
-  // the expansion pins. GPIO output-enable is honoured: applications can
-  // safely use the three expansion pins as inputs without a permanently
-  // driven FPGA output.
+  // GPIO[0:5] are the six on-board active-low LEDs. GPIO[6:17] are brought
+  // to the 12-pad J5 expansion profile. GPIO output-enable is honoured: an
+  // application can safely use every expansion pin as an input without a
+  // permanently driven FPGA output.
   assign gpio_in[5:0] = 6'b000000;
-  assign gpio_in[8:6] = gpio_io;
-  assign gpio_io[0] = gpio_oe[6] ? gpio_out[6] : 1'bz;
-  assign gpio_io[1] = gpio_oe[7] ? gpio_out[7] : 1'bz;
-  assign gpio_io[2] = gpio_oe[8] ? gpio_out[8] : 1'bz;
+  assign gpio_in[17:6] = gpio_io;
+
+  genvar gpio_index;
+  generate
+    for (gpio_index = 0; gpio_index < 12; gpio_index = gpio_index + 1) begin : gpio_pad_map
+      assign gpio_io[gpio_index] = gpio_oe[gpio_index + 6] ?
+                                   gpio_out[gpio_index + 6] : 1'bz;
+    end
+  endgenerate
 
   // I2C is wired as true open-drain at the pad boundary.  Never drive a one:
   // releasing the line lets the external pull-up and other bus targets decide
