@@ -14,6 +14,7 @@
         <File path="../../../peripherals/omcu_i2c.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_wdt.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_pwm.sv" type="file.verilog" enable="1"/>
+        <File path="../../../peripherals/omcu_pwm1.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_irq_ctrl.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_sysctrl.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_pinmux.sv" type="file.verilog" enable="1"/>

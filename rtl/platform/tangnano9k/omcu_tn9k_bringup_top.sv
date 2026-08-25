@@ -67,6 +67,7 @@ module omcu_tn9k_bringup_top #(
   logic       bus_error;
   logic       watchdog_reset_request;
   logic       uart1_tx;
+  logic [3:0] pwm1;
   logic       pinmux_uart1_enable;
   logic       pinmux_pwm1_enable;
   logic       pinmux_timer1_enable;
@@ -93,6 +94,7 @@ module omcu_tn9k_bringup_top #(
     .GPIO_COUNT(18),
     .GPIO_EXPANSION_PRESENT(1),
     .UART1_PRESENT(1),
+    .PWM1_PRESENT(1),
     .PINMUX_PRESENT(1),
     .ROM_WORDS(ROM_WORDS),
     .SRAM_BYTES(SRAM_BYTES),
@@ -128,6 +130,7 @@ module omcu_tn9k_bringup_top #(
     .wdt_irq_o(),
     .wdt_reset_req_o(watchdog_reset_request),
     .pwm_o(pwm0_o),
+    .pwm1_o(pwm1),
     .pinmux_uart1_enable_o(pinmux_uart1_enable),
     .pinmux_pwm1_enable_o(pinmux_pwm1_enable),
     .pinmux_timer1_enable_o(pinmux_timer1_enable),
@@ -151,6 +154,19 @@ module omcu_tn9k_bringup_top #(
       gpio_pad_out[10] = uart1_tx;
       gpio_pad_oe[10] = 1'b1;
       gpio_pad_oe[11] = 1'b0;
+    end
+    if (pinmux_pwm1_enable) begin
+      // PWM1 channels 0..3 use GPIO4..7 / J5.12..15.  They intentionally
+      // share one timer phase and are all driven low by the peripheral while
+      // disabled, which is safer than silently retaining a former GPIO state.
+      gpio_pad_out[4] = pwm1[0];
+      gpio_pad_out[5] = pwm1[1];
+      gpio_pad_out[6] = pwm1[2];
+      gpio_pad_out[7] = pwm1[3];
+      gpio_pad_oe[4] = 1'b1;
+      gpio_pad_oe[5] = 1'b1;
+      gpio_pad_oe[6] = 1'b1;
+      gpio_pad_oe[7] = 1'b1;
     end
   end
 

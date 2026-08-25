@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('timer', 'gpio', 'uart', 'uart1', 'spi', 'i2c', 'wdt', 'pwm', 'irqctrl', 'sysctrl', 'pinmux', 'user-flash', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', 'tn9k', 'mcu-top')]
+    [ValidateSet('timer', 'gpio', 'uart', 'uart1', 'spi', 'i2c', 'wdt', 'pwm', 'pwm1', 'pwm1-fabric', 'irqctrl', 'sysctrl', 'pinmux', 'user-flash', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', 'tn9k-pwm1', 'tn9k', 'mcu-top')]
     [string]$Test = 'timer'
 )
 
@@ -109,6 +109,7 @@ switch ($Test) {
         $sources = @(
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'tests\rtl\omcu_pwm_tb.sv')
         )
         & $iverilogPath -g2012 -s omcu_pwm_tb -o $output @sources
@@ -139,6 +140,41 @@ switch ($Test) {
         & $vvpPath $output
         if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
     }
+    'pwm1' {
+        $output = Join-Path $buildDir 'omcu_pwm1_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_pwm1_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_pwm1_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
+    'pwm1-fabric' {
+        $output = Join-Path $buildDir 'omcu_pwm1_fabric_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_pwm1_fabric_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_pwm1_fabric_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
     'uart1' {
         $output = Join-Path $buildDir 'omcu_uart1_fabric_tb.vvp'
         $sources = @(
@@ -150,6 +186,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
@@ -196,6 +233,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -226,6 +264,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -260,6 +299,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -294,6 +334,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -328,6 +369,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -362,6 +404,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -396,6 +439,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -431,6 +475,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -450,6 +495,42 @@ switch ($Test) {
             Pop-Location
         }
     }
+    'tn9k-pwm1' {
+        $firmware = Join-Path $projectRoot 'build\sdk\omcu_pwm1_smoke.hex'
+        if (-not (Test-Path -LiteralPath $firmware -PathType Leaf)) {
+            throw "Compiled SDK image is required for tn9k-pwm1: $firmware. Build it with cmake -S sdk -B build/sdk first."
+        }
+        $output = Join-Path $buildDir 'omcu_tn9k_pwm1_io_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'third_party\picorv32\picorv32.v'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
+            (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
+            (Join-Path $projectRoot 'rtl\platform\tangnano9k\omcu_tn9k_bringup_top.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_tn9k_pwm1_io_tb.sv')
+        )
+        Push-Location $projectRoot
+        try {
+            & $iverilogPath -g2012 -s omcu_tn9k_pwm1_io_tb -o $output @sources
+            if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+            & $vvpPath $output
+            if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+        } finally {
+            Pop-Location
+        }
+    }
     'mcu-top' {
         $output = Join-Path $buildDir 'omcu_tn9k_mcu_top_tb.vvp'
         $sources = @(
@@ -462,6 +543,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
@@ -495,6 +577,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),

@@ -25,6 +25,8 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test i2c
 .\scripts\run-rtl-smoke.ps1 -Test wdt
 .\scripts\run-rtl-smoke.ps1 -Test pwm
+.\scripts\run-rtl-smoke.ps1 -Test pwm1
+.\scripts\run-rtl-smoke.ps1 -Test pwm1-fabric
 .\scripts\run-rtl-smoke.ps1 -Test irqctrl
 .\scripts\run-rtl-smoke.ps1 -Test sysctrl
 .\scripts\run-rtl-smoke.ps1 -Test user-flash
@@ -32,6 +34,7 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test system-uart
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-wdt
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-peripherals
+.\scripts\run-rtl-smoke.ps1 -Test tn9k-pwm1
 .\scripts\run-rtl-smoke.ps1 -Test tn9k
 .\scripts\run-rtl-smoke.ps1 -Test mcu-top
 ```
@@ -39,9 +42,13 @@ flowchart LR
 - `user-flash`：对齐、读、页擦除、字写入、错误状态和忙信号的行为模型检查。
 - `uart1`：UART1 MMIO 页、PINMUX 控制位、RX IRQ 到固定 CPU bit 14 的集成检查；UART
   位时序本身复用 `uart` 单元回归。
+- `pwm1` / `pwm1-fabric`：四路共享相位波形、disable 低电平、反相位，以及 PWM1/PINMUX
+  页的真实 fabric 解码检查。
 - `system`：小型 RV32I 程序经过 PicoRV32、真实 MMIO 和 GPIO 的首个 CPU/总线/外设集成门。
 - `system-uart`：经 CPU/MMIO 配置 UART0 后验证真实串行字节。
 - `tn9k-wdt` / `tn9k-peripherals` / `tn9k`：经过 Tang 顶层的复位释放、看门狗、SPI/PWM/GPIO/I2C Pad 连通性和低有效 LED 逻辑检查；不等同于实际 Gowin 板。
+- `tn9k-pwm1`：已编译 PWM1 固件经 PicoRV32/MMIO/PINMUX 到 J5.12..15 四个最终 pad 的
+  高低波形检查；不验证实际 RGB-LCD 共线、电压或功率级。
 - `mcu-top`：使用仅仿真的 `FLASH608K` 端口桩件编译产品顶层，运行已提交 Boot ROM 的空 User Flash 扫描，检查产品封装确实走向物理 Flash 分支；它不模拟真实 Gowin 擦写行为。
 
 每个可公开外设还应覆盖：复位值、字节写掩码、保留位、读写副作用、中断时序、随机/边界值以及编译后 SDK 集成。

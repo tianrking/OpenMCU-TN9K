@@ -137,6 +137,7 @@ omcu_add_firmware(omcu_i2c_smoke examples/i2c_smoke/main.c)
 omcu_add_firmware(omcu_wdt_reset_smoke examples/wdt_reset_smoke/main.c)
 omcu_add_firmware(omcu_tn9k_board_demo examples/tn9k_board_demo/main.c)
 omcu_add_firmware(omcu_irq_smoke examples/irq_smoke/main.c)
+omcu_add_firmware(omcu_pwm1_smoke examples/pwm1_smoke/main.c)
 
 omcu_add_bootloader(omcu_bootloader)
 add_custom_command(TARGET omcu_bootloader POST_BUILD
@@ -148,5 +149,6 @@ add_custom_command(TARGET omcu_bootloader POST_BUILD
 )
 omcu_add_application(omcu_mcu_blink examples/mcu_blink/main.c)
 omcu_add_application(omcu_uart1_loopback examples/uart1_loopback/main.c)
+omcu_add_application(omcu_pwm1_demo examples/pwm1_demo/main.c)
 omcu_add_application(omcu_external_peripherals examples/external_peripherals/main.c)
 target_link_libraries(omcu_external_peripherals PRIVATE omcu_device_drivers)

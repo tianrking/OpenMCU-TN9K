@@ -10,6 +10,7 @@ module omcu_mmio_fabric #(
   parameter logic [15:0] ABI_MINOR = 16'h0006,
   parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
   parameter integer UART1_PRESENT = 0,
+  parameter integer PWM1_PRESENT = 0,
   parameter integer PINMUX_PRESENT = 0
 ) (
   input  logic                  clk_i,
@@ -49,6 +50,7 @@ module omcu_mmio_fabric #(
   output logic                  wdt_irq_o,
   output logic                  wdt_reset_req_o,
   output logic                  pwm_o,
+  output logic [3:0]            pwm1_o,
   output logic                  pinmux_uart1_enable_o,
   output logic                  pinmux_pwm1_enable_o,
   output logic                  pinmux_timer1_enable_o,
@@ -64,6 +66,7 @@ module omcu_mmio_fabric #(
   localparam logic [19:0] PWM0_PAGE   = 20'h40006;
   localparam logic [19:0] IRQCTRL_PAGE = 20'h40007;
   localparam logic [19:0] UART1_PAGE  = 20'h40008;
+  localparam logic [19:0] PWM1_PAGE   = 20'h4000a;
   localparam logic [19:0] PINMUX_PAGE = 20'h4000b;
   localparam logic [19:0] SYSCTRL_PAGE = 20'h4000f;
   localparam integer IRQ_SOURCE_COUNT = (UART1_PRESENT != 0) ? 7 : 6;
@@ -76,6 +79,7 @@ module omcu_mmio_fabric #(
   logic i2c_select;
   logic wdt_select;
   logic pwm_select;
+  logic pwm1_select;
   logic irqctrl_select;
   logic pinmux_select;
   logic sysctrl_select;
@@ -87,6 +91,7 @@ module omcu_mmio_fabric #(
   logic i2c_ready;
   logic wdt_ready;
   logic pwm_ready;
+  logic pwm1_ready;
   logic irqctrl_ready;
   logic pinmux_ready;
   logic sysctrl_ready;
@@ -98,6 +103,7 @@ module omcu_mmio_fabric #(
   logic [31:0] i2c_read_data;
   logic [31:0] wdt_read_data;
   logic [31:0] pwm_read_data;
+  logic [31:0] pwm1_read_data;
   logic [31:0] irqctrl_read_data;
   logic [31:0] pinmux_read_data;
   logic [31:0] sysctrl_read_data;
@@ -112,6 +118,8 @@ module omcu_mmio_fabric #(
   assign i2c_select = req_i && (addr_i[31:12] == I2C0_PAGE);
   assign wdt_select = req_i && (addr_i[31:12] == WDT0_PAGE);
   assign pwm_select = req_i && (addr_i[31:12] == PWM0_PAGE);
+  assign pwm1_select = (PWM1_PRESENT != 0) && req_i &&
+                       (addr_i[31:12] == PWM1_PAGE);
   assign irqctrl_select = req_i && (addr_i[31:12] == IRQCTRL_PAGE);
   assign pinmux_select = (PINMUX_PRESENT != 0) && req_i &&
                          (addr_i[31:12] == PINMUX_PAGE);
@@ -259,6 +267,20 @@ module omcu_mmio_fabric #(
     .pwm_o(pwm_o)
   );
 
+  omcu_pwm1 pwm1 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(pwm1_select),
+    .write_i(write_i),
+    .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
+    .ready_o(pwm1_ready),
+    .read_data_o(pwm1_read_data),
+    .error_o(),
+    .pwm_o(pwm1_o)
+  );
+
   omcu_irq_ctrl #(
     .SOURCE_COUNT(IRQ_SOURCE_COUNT),
     .IRQ_BASE(8)
@@ -336,6 +358,9 @@ module omcu_mmio_fabric #(
     end else if (pwm_select) begin
       ready_o = pwm_ready;
       read_data_o = pwm_read_data;
+    end else if (pwm1_select) begin
+      ready_o = pwm1_ready;
+      read_data_o = pwm1_read_data;
     end else if (irqctrl_select) begin
       ready_o = irqctrl_ready;
       read_data_o = irqctrl_read_data;

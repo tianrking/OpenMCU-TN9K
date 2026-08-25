@@ -64,4 +64,31 @@ static inline bool omcu_tn9k_uart1_release_pins(void) {
   return omcu_pinmux_uart1_enable(false);
 }
 
+/*
+ * Tang PWM1 channel 0..3 maps to GPIO4..7 / J5.12..15 after this call.  All
+ * four routes are in the RGB-LCD-shared group and must not be used with that
+ * interface or connected directly to a motor/power gate.
+ */
+static inline bool omcu_tn9k_pwm1_configure(
+  uint16_t prescale,
+  uint32_t period,
+  uint32_t duty0,
+  uint32_t duty1,
+  uint32_t duty2,
+  uint32_t duty3,
+  uint8_t invert_mask
+) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_PWM1 | OMCU_FEATURE_PINMUX)) {
+    return false;
+  }
+  omcu_pwm1_configure(
+    prescale, period, duty0, duty1, duty2, duty3, invert_mask
+  );
+  return omcu_pinmux_pwm1_enable(true);
+}
+
+static inline bool omcu_tn9k_pwm1_release_pins(void) {
+  return omcu_pinmux_pwm1_enable(false);
+}
+
 #endif  /* OMCU_TN9K_H_ */

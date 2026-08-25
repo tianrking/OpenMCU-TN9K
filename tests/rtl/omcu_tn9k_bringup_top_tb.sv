@@ -50,6 +50,8 @@ module omcu_tn9k_bringup_top_tb;
     resetn = 1'b1;
 
     repeat (90) @(negedge clk_27m);
+    check((dut.system.SYSTEM_FEATURE_BITS & 32'h0000_3500) == 32'h0000_3500,
+          "Tang wrapper must advertise UART1, PWM1, PINMUX and GPIO expansion");
     check(led_n == 6'b111110,
           "the board adapter must turn on only active-low LED0 after firmware bring-up");
 
@@ -91,6 +93,22 @@ module omcu_tn9k_bringup_top_tb;
     release dut.system.mmio.gpio0.gpio_out_q[17];
     release dut.system.mmio.gpio0.gpio_oe_q[17];
     release dut.system.mmio.gpio0.gpio_oe_q[16];
+
+    // PWM1 owns a disjoint four-pad group only while its pinmux bit is set.
+    // Generic GPIO is deliberately forced low here so the high PWM channels
+    // prove that the final board adapter, not merely the peripheral, selects
+    // the alternate function.
+    force dut.system.mmio.gpio0.gpio_oe_q[13:10] = 4'b1111;
+    force dut.system.mmio.gpio0.gpio_out_q[13:10] = 4'b0000;
+    force dut.system.mmio.pinmux.pwm1_enable_q = 1'b1;
+    force dut.pwm1 = 4'b1010;
+    #1 check(gpio[4] == 1'b0 && gpio[5] == 1'b1 &&
+             gpio[6] == 1'b0 && gpio[7] == 1'b1,
+             "PWM1 pinmux must route all four shared-counter channels to J5.12..15");
+    release dut.pwm1;
+    release dut.system.mmio.pinmux.pwm1_enable_q;
+    release dut.system.mmio.gpio0.gpio_out_q[13:10];
+    release dut.system.mmio.gpio0.gpio_oe_q[13:10];
 
     $display("PASS: omcu_tn9k_bringup_top_tb");
     $finish;

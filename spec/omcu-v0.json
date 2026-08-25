@@ -19,6 +19,7 @@
     { "macro": "OMCU_PWM0_BASE", "address": "0x40006000" },
     { "macro": "OMCU_IRQCTRL_BASE", "address": "0x40007000" },
     { "macro": "OMCU_UART1_BASE", "address": "0x40008000" },
+    { "macro": "OMCU_PWM1_BASE", "address": "0x4000A000" },
     { "macro": "OMCU_PINMUX_BASE", "address": "0x4000B000" },
     { "macro": "OMCU_SYSCTRL_BASE", "address": "0x4000F000" }
   ],
@@ -142,6 +143,21 @@
       ]
     },
     {
+      "name": "pwm1",
+      "ctype": "omcu_pwm1_regs_t",
+      "base_macro": "OMCU_PWM1_BASE",
+      "registers": [
+        { "name": "ctrl", "offset": "0x00", "access": "rw", "comment": "shared enable and per-channel invert bits" },
+        { "name": "prescale", "offset": "0x04", "access": "rw", "comment": "shared PWM counter clocks minus one" },
+        { "name": "period", "offset": "0x08", "access": "rw", "comment": "inclusive shared PWM counter top" },
+        { "name": "duty0", "offset": "0x0c", "access": "rw", "comment": "channel 0 high while shared COUNT is strictly lower" },
+        { "name": "duty1", "offset": "0x10", "access": "rw", "comment": "channel 1 high while shared COUNT is strictly lower" },
+        { "name": "duty2", "offset": "0x14", "access": "rw", "comment": "channel 2 high while shared COUNT is strictly lower" },
+        { "name": "duty3", "offset": "0x18", "access": "rw", "comment": "channel 3 high while shared COUNT is strictly lower" },
+        { "name": "count", "offset": "0x1c", "access": "ro", "comment": "current shared PWM counter" }
+      ]
+    },
+    {
       "name": "pinmux",
       "ctype": "omcu_pinmux_regs_t",
       "base_macro": "OMCU_PINMUX_BASE",
@@ -172,6 +188,7 @@
     { "name": "OMCU_FEATURE_PWM0", "value": "1u << 6" },
     { "name": "OMCU_FEATURE_IRQCTRL", "value": "1u << 7" },
     { "name": "OMCU_FEATURE_UART1", "value": "1u << 8" },
+    { "name": "OMCU_FEATURE_PWM1", "value": "1u << 10" },
     { "name": "OMCU_FEATURE_PINMUX", "value": "1u << 12" },
     { "name": "OMCU_FEATURE_GPIO_EXPANSION", "value": "1u << 13" },
     { "name": "OMCU_FEATURE_USER_FLASH", "value": "1u << 14" },
@@ -184,6 +201,7 @@
     { "name": "OMCU_IRQ_UART1", "value": "1u << 14" },
     { "name": "OMCU_IRQ_EXTERNAL_MASK", "value": "UINT32_C(0x00007F00)" },
     { "name": "OMCU_PINMUX_CTRL_UART1_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_PINMUX_CTRL_PWM1_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_TIMER_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_TIMER_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_TIMER_CTRL_AUTO_RELOAD", "value": "1u << 2" },
@@ -212,6 +230,10 @@
     { "name": "OMCU_WDT_STATUS_EXPIRED", "value": "1u << 0" },
     { "name": "OMCU_WDT_FEED_MAGIC", "value": "UINT32_C(0x51F15EED)" },
     { "name": "OMCU_PWM_CTRL_ENABLE", "value": "1u << 0" },
-    { "name": "OMCU_PWM_CTRL_INVERT", "value": "1u << 1" }
+    { "name": "OMCU_PWM_CTRL_INVERT", "value": "1u << 1" },
+    { "name": "OMCU_PWM1_CHANNEL_COUNT", "value": "4u" },
+    { "name": "OMCU_PWM1_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_PWM1_CTRL_INVERT_SHIFT", "value": "4u" },
+    { "name": "OMCU_PWM1_CTRL_INVERT_MASK", "value": "UINT32_C(0x000000F0)" }
   ]
 }

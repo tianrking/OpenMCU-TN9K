@@ -21,6 +21,7 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 | SPI0 CS/MOSI/SCK/MISO | `spi0_*` | 38/37/36/39 | 来自 J5/TF-card 信号组；SPI0 使用时不得同时插入或访问 microSD。 |
 | I2C0 SCL/SDA | `i2c0_scl_io` / `i2c0_sda_io` | 26 / 27 | 真正开漏；外部必须提供合适的 3.3 V 上拉。 |
 | PWM0 | `pwm0_o` | 25 | 单路边沿对齐 PWM。 |
+| PWM1 CH0..3（复用） | GPIO4..7 / `gpio_io[4:7]` | 34 / 40 / 35 / 41 | 默认仍是 GPIO；`PINMUX.CTRL.PWM1_ENABLE=1` 后为四路共享计数器 PWM，对应 J5.12..15。 |
 | 扩展 GPIO 档案 | GPIO0[6..17] / `gpio_io[0..11]` | 28,29,30,33,34,40,35,41,42,51,53,54 | 12 路可输入、输出或高阻；`gpio_io[3..11]` 与 RGB LCD 共线。 |
 | UART1 TX/RX（复用） | GPIO10/11 / `gpio_io[10:11]` | 53 / 54 | 默认仍是 GPIO；`PINMUX.CTRL.UART1_ENABLE=1` 后为 UART1 TX/RX，对应 J5.18/J5.19。 |
 
@@ -58,6 +59,21 @@ omcu_uart1_write_byte('U');
 调用 `omcu_tn9k_uart1_release_pins()`。GPIO10/11 同属于 RGB-LCD 共线组，因此与 RGB LCD
 不可同时使用；首次连接前应以 3.3 V USB 串口、短线、共地和逻辑分析仪完成 HIL。
 
+PWM1 的四路输出使用 GPIO4..7 / J5.12..15，分别为 CH0..3。它们共享一个 16-bit 分频、
+32-bit 周期和计数器，因此相位一致、每路只独立设置 duty 与 invert；复位或 `CTRL.ENABLE=0`
+时四根线都主动输出低电平。下面是一个 1 kHz 左右、四种占空比的安全 GPIO→PWM 切换例子：
+
+```c
+if (!omcu_tn9k_pwm1_configure(26u, 999u, 250u, 500u, 750u, 1000u, 0u)) {
+  /* 位流未宣告 PWM1/PINMUX；保持 GPIO 所有权。 */
+}
+```
+
+`omcu_tn9k_pwm1_configure()` 先写完四路寄存器，再设 `PINMUX.CTRL.PWM1_ENABLE`。要归还
+GPIO4..7 调用 `omcu_tn9k_pwm1_release_pins()`。这四根线也与 RGB LCD 共线，只能驱动经过
+3.3 V、电流和故障策略审查的逻辑输入、LED 缓冲器或外部隔离/栅极驱动级；**不得**直接接电机、
+MOSFET gate、继电器或高压负载。RTL 和数字仿真不等于功率级安全验证。
+
 ## 电气安全规则
 
 1. 不要向这些 I/O 注入 5 V。CST 将上述端口配置为 `LVCMOS33`；在连接任意模块前先
@@ -76,7 +92,8 @@ omcu_uart1_write_byte('U');
 
 - UART：USB 串口终端，115200、8-N-1；观察 `tn9k_board_demo` 的启动文本。UART1 测试时保留
   UART0 作为救砖/下载通道，并在 J5.18/J5.19 使用另一只 3.3 V TTL 串口。
-- PWM：示波器或 LED+限流电阻接 PWM0；默认约 1 kHz、50% 占空比。
+- PWM：示波器或 LED+限流电阻接 PWM0；默认约 1 kHz、50% 占空比。PWM1 测试时使用
+  J5.12..15、逻辑级负载或经过审查的驱动板，并记录四路相位/占空比与 disable 后低电平。
 - GPIO：LED/逻辑分析仪接 GPIO0..11；先从 GPIO0..2 开始，再确认未连接 RGB LCD 后使用 GPIO3..11。
 - SPI：MOSI 和 MISO 用短跳线回环，CS/SCK 接逻辑分析仪；用 SDK `SPI0` 传输 API。
 - I2C：接一个有已知地址的 3.3 V I2C 目标和外部上拉；先用逻辑分析仪检查 START、
@@ -89,7 +106,7 @@ omcu_uart1_write_byte('U');
 - [ ] USB 上电、冷启动和按键复位各 1000 次；
 - [ ] 六个 LED 极性、UART0 与 UART1 TX/RX、27 MHz 时钟的实测；
 - [ ] SRAM 下载、断电消失、Flash 下载、断电后重启四种行为；
-- [ ] GPIO 高/低/高阻、PWM 周期/占空比、SPI 回环；
+- [ ] GPIO 高/低/高阻、PWM0/PWM1 周期/占空比/disable 低电平、SPI 回环；
 - [ ] I2C 真正目标的 ACK/NACK、时钟拉伸和断线恢复；
 - [ ] 连接外设时电压、地、温升和信号完整性检查。
 

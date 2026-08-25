@@ -27,6 +27,7 @@ module omcu_picorv32_system #(
   parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
   parameter integer GPIO_EXPANSION_PRESENT = 0,
   parameter integer UART1_PRESENT = 0,
+  parameter integer PWM1_PRESENT = 0,
   parameter integer PINMUX_PRESENT = 0,
   // In product-loader mode applications execute from SRAM, so PicoRV32 must
   // enter external interrupts at the application's fixed SRAM vector.
@@ -64,6 +65,7 @@ module omcu_picorv32_system #(
   output logic                  wdt_irq_o,
   output logic                  wdt_reset_req_o,
   output logic                  pwm_o,
+  output logic [3:0]            pwm1_o,
   output logic                  pinmux_uart1_enable_o,
   output logic                  pinmux_pwm1_enable_o,
   output logic                  pinmux_timer1_enable_o,
@@ -82,6 +84,7 @@ module omcu_picorv32_system #(
   localparam logic [31:0] SYSTEM_FEATURE_BITS = FEATURE_BITS |
     ((GPIO_EXPANSION_PRESENT != 0) ? 32'h0000_2000 : 32'h0000_0000) |
     ((UART1_PRESENT != 0) ? 32'h0000_0100 : 32'h0000_0000) |
+    ((PWM1_PRESENT != 0) ? 32'h0000_0400 : 32'h0000_0000) |
     ((PINMUX_PRESENT != 0) ? 32'h0000_1000 : 32'h0000_0000) |
     ((USER_FLASH_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
   localparam logic [31:0] CPU_EXTERNAL_IRQ_BITS = 32'h0000_3f00 |
@@ -185,6 +188,7 @@ module omcu_picorv32_system #(
     .ABI_MINOR(ABI_MINOR),
     .FEATURE_BITS(SYSTEM_FEATURE_BITS),
     .UART1_PRESENT(UART1_PRESENT),
+    .PWM1_PRESENT(PWM1_PRESENT),
     .PINMUX_PRESENT(PINMUX_PRESENT)
   ) mmio (
     .clk_i(clk_i),
@@ -221,6 +225,7 @@ module omcu_picorv32_system #(
     .wdt_irq_o(wdt_irq_o),
     .wdt_reset_req_o(wdt_reset_req_o),
     .pwm_o(pwm_o),
+    .pwm1_o(pwm1_o),
     .pinmux_uart1_enable_o(pinmux_uart1_enable_o),
     .pinmux_pwm1_enable_o(pinmux_pwm1_enable_o),
     .pinmux_timer1_enable_o(pinmux_timer1_enable_o),

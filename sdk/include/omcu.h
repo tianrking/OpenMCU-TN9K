@@ -189,6 +189,23 @@ static inline bool omcu_pinmux_uart1_enable(bool enable) {
   return true;
 }
 
+/* Claim or release the reviewed four-channel PWM1 pad group. */
+static inline bool omcu_pinmux_pwm1_enable(bool enable) {
+  uint32_t ctrl;
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_PWM1 | OMCU_FEATURE_PINMUX)) {
+    return false;
+  }
+  ctrl = OMCU_PINMUX->ctrl;
+  if (enable) {
+    ctrl |= OMCU_PINMUX_CTRL_PWM1_ENABLE;
+  } else {
+    ctrl &= ~OMCU_PINMUX_CTRL_PWM1_ENABLE;
+  }
+  OMCU_PINMUX->ctrl = ctrl;
+  return true;
+}
+
 static inline void omcu_timer_start_periodic(
   uint16_t prescale,
   uint32_t compare
@@ -345,6 +362,33 @@ static inline void omcu_pwm0_configure(
   OMCU_PWM0->duty = duty;
   OMCU_PWM0->ctrl = OMCU_PWM_CTRL_ENABLE |
                     (invert ? OMCU_PWM_CTRL_INVERT : 0u);
+}
+
+/*
+ * Configure four PWM1 channels that share one prescaler, period and phase.
+ * Bit n of invert_mask controls channel n.  The caller may update DUTY0..3
+ * directly between cycles when a synchronized multi-register update is not
+ * required by the attached power stage.
+ */
+static inline void omcu_pwm1_configure(
+  uint16_t prescale,
+  uint32_t period,
+  uint32_t duty0,
+  uint32_t duty1,
+  uint32_t duty2,
+  uint32_t duty3,
+  uint8_t invert_mask
+) {
+  OMCU_PWM1->ctrl = 0u;
+  OMCU_PWM1->prescale = prescale;
+  OMCU_PWM1->period = period;
+  OMCU_PWM1->duty0 = duty0;
+  OMCU_PWM1->duty1 = duty1;
+  OMCU_PWM1->duty2 = duty2;
+  OMCU_PWM1->duty3 = duty3;
+  OMCU_PWM1->ctrl = OMCU_PWM1_CTRL_ENABLE |
+                    (((uint32_t)invert_mask << OMCU_PWM1_CTRL_INVERT_SHIFT) &
+                     OMCU_PWM1_CTRL_INVERT_MASK);
 }
 
 #endif  /* OMCU_H_ */

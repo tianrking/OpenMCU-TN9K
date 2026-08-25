@@ -14,6 +14,7 @@
 | `0x4000_6000` | PWM0 | 一路 PWM pad |
 | `0x4000_7000` | IRQCTRL | 七个外设来源的 sticky、屏蔽、强制与优先级视图 |
 | `0x4000_8000` | UART1 | 无 FIFO 的第二路 UART；Tang 上经 PINMUX 连接 GPIO10/11（J5.18/J5.19） |
+| `0x4000_A000` | PWM1 | 四路共享计数器 PWM；Tang 上经 PINMUX 连接 GPIO4..7（J5.12..15） |
 | `0x4000_B000` | PINMUX | 显式选择已审查的扩展 pad 替代功能；复位时所有可用 pad 归 GPIO |
 | `0x4000_F000` | SYSCTRL | `OMCU` ID、ABI、功能位、内存容量 |
 
@@ -175,7 +176,7 @@ W5500 驱动包含公共寄存器初始化、版本核验、TCP/UDP socket 打�
 所有 P0 驱动仅完成源码/编译与 SPI CS 连续帧 RTL 验证。外设的真实 ACK、地址、W5500 链路、
 网络收发、电平、TF 互斥和掉电恢复仍必须逐个记录 HIL，未完成前不能宣称板级已支持。
 
-### PWM0 与 WDT0
+### PWM0、PWM1 与 WDT0
 
 ```c
 omcu_pwm0_configure(26u, 999u, 500u, false); /* 约 1 kHz，50% */
@@ -185,6 +186,21 @@ omcu_wdt0_feed();
 
 PWM 为单通道边沿对齐输出，`PERIOD` 为包含端点的 top 值。看门狗超时的复位请求已经
 在 Tang 顶层仿真中验证会重启 SoC；实际板上复位行为仍需记录。
+
+PWM1 由 `OMCU_FEATURE_PWM1` 和 `OMCU_FEATURE_PINMUX` 共同声明，地址为
+`0x4000_A000`。四个 `DUTY` 寄存器共享 `PRESCALE`、`PERIOD` 和 `COUNT`，因此不会占用
+大 FIFO 或 BSRAM，也不会产生可独立相移的通道。默认/disable 时输出均为低；`CTRL` bit 4..7
+分别反相 CH0..3。Tang 的推荐调用是：
+
+```c
+(void)omcu_tn9k_pwm1_configure(26u, 999u,
+                                250u, 500u, 750u, 1000u,
+                                0u); /* GPIO4..7 -> PWM1 CH0..3 */
+```
+
+若需要在运行中改 duty，直接写 `OMCU_PWM1->duty0` 到 `duty3`；硬件不会替客户实现四路
+影子寄存器的原子更新。不要将 PWM1 描述为互补、死区、故障刹车或高压栅极驱动器；它们不在
+当前合同内。首次实板必须测量每路频率、相位、占空比、disable 低电平和 RGB-LCD 共线边界。
 
 ## 把应用加进 SDK
 

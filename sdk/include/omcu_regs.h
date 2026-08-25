@@ -21,6 +21,7 @@
 #define OMCU_PWM0_BASE           UINT32_C(0x40006000)
 #define OMCU_IRQCTRL_BASE        UINT32_C(0x40007000)
 #define OMCU_UART1_BASE          UINT32_C(0x40008000)
+#define OMCU_PWM1_BASE           UINT32_C(0x4000A000)
 #define OMCU_PINMUX_BASE         UINT32_C(0x4000B000)
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
@@ -110,6 +111,17 @@ typedef struct {
 } omcu_irqctrl_regs_t;
 
 typedef struct {
+  volatile uint32_t ctrl; /* +0x00: shared enable and per-channel invert bits */
+  volatile uint32_t prescale; /* +0x04: shared PWM counter clocks minus one */
+  volatile uint32_t period; /* +0x08: inclusive shared PWM counter top */
+  volatile uint32_t duty0; /* +0x0c: channel 0 high while shared COUNT is strictly lower */
+  volatile uint32_t duty1; /* +0x10: channel 1 high while shared COUNT is strictly lower */
+  volatile uint32_t duty2; /* +0x14: channel 2 high while shared COUNT is strictly lower */
+  volatile uint32_t duty3; /* +0x18: channel 3 high while shared COUNT is strictly lower */
+  volatile const uint32_t count; /* +0x1c: current shared PWM counter */
+} omcu_pwm1_regs_t;
+
+typedef struct {
   volatile uint32_t ctrl; /* +0x00: alternate-function ownership; disabled functions leave pads under GPIO control */
 } omcu_pinmux_regs_t;
 
@@ -130,6 +142,7 @@ typedef struct {
 #define OMCU_WDT0                ((omcu_wdt_regs_t *)(uintptr_t)OMCU_WDT0_BASE)
 #define OMCU_PWM0                ((omcu_pwm_regs_t *)(uintptr_t)OMCU_PWM0_BASE)
 #define OMCU_IRQCTRL             ((omcu_irqctrl_regs_t *)(uintptr_t)OMCU_IRQCTRL_BASE)
+#define OMCU_PWM1                ((omcu_pwm1_regs_t *)(uintptr_t)OMCU_PWM1_BASE)
 #define OMCU_PINMUX              ((omcu_pinmux_regs_t *)(uintptr_t)OMCU_PINMUX_BASE)
 #define OMCU_SYSCTRL             ((omcu_sysctrl_regs_t *)(uintptr_t)OMCU_SYSCTRL_BASE)
 
@@ -143,6 +156,7 @@ enum {
   OMCU_FEATURE_PWM0                = 1u << 6,
   OMCU_FEATURE_IRQCTRL             = 1u << 7,
   OMCU_FEATURE_UART1               = 1u << 8,
+  OMCU_FEATURE_PWM1                = 1u << 10,
   OMCU_FEATURE_PINMUX              = 1u << 12,
   OMCU_FEATURE_GPIO_EXPANSION      = 1u << 13,
   OMCU_FEATURE_USER_FLASH          = 1u << 14,
@@ -155,6 +169,7 @@ enum {
   OMCU_IRQ_UART1                   = 1u << 14,
   OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x00007F00),
   OMCU_PINMUX_CTRL_UART1_ENABLE    = 1u << 0,
+  OMCU_PINMUX_CTRL_PWM1_ENABLE     = 1u << 1,
   OMCU_TIMER_CTRL_ENABLE           = 1u << 0,
   OMCU_TIMER_CTRL_IRQ_ENABLE       = 1u << 1,
   OMCU_TIMER_CTRL_AUTO_RELOAD      = 1u << 2,
@@ -184,6 +199,10 @@ enum {
   OMCU_WDT_FEED_MAGIC              = UINT32_C(0x51F15EED),
   OMCU_PWM_CTRL_ENABLE             = 1u << 0,
   OMCU_PWM_CTRL_INVERT             = 1u << 1,
+  OMCU_PWM1_CHANNEL_COUNT          = 4u,
+  OMCU_PWM1_CTRL_ENABLE            = 1u << 0,
+  OMCU_PWM1_CTRL_INVERT_SHIFT      = 4u,
+  OMCU_PWM1_CTRL_INVERT_MASK       = UINT32_C(0x000000F0),
 };
 
 #endif  /* OMCU_REGS_H_ */

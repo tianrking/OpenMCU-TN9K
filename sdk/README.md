@@ -83,6 +83,7 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 | --- | --- |
 | `omcu_mcu_blink` | 独立 `.omcu` 形式的 LED 闪烁示例。 |
 | `omcu_uart1_loopback` | 独立 `.omcu` 的 UART1 回显/HIL 示例；UART0 保持给升级器。 |
+| `omcu_pwm1_demo` | 独立 `.omcu` 的四路共享计数器 PWM/HIL 示例。 |
 | `omcu_blink` | 旧式 ROM LED 回归。 |
 | `omcu_uart_hello` | UART0 启动文字。 |
 | `omcu_isa_smoke` | 编译器、RV32IMC 指令和启动代码集成检查。 |
@@ -123,3 +124,13 @@ Bootloader 写入它的 `.omcu`，之后再把第二只 3.3 V TTL 串口接到 J
 UART1 没有 FIFO；主循环必须及时读取 `DATA`，否则下一字节会置 `RX_OVERRUN`。使用 RGB LCD
 时不能启用这组 pinmux。真实波特率、电平与共线冲突的 HIL 尚未完成，不能把该示例的编译或
 数字仿真写成实体板验证。
+
+## PWM1 四通道共享计数器
+
+`omcu_pwm1_demo` 生成独立 `.omcu`，演示 GPIO4..7/J5.12..15 的 PWM1 CH0..3。调用
+`omcu_tn9k_pwm1_configure()` 会先完成安全的低电平寄存器配置，再显式交给 pinmux；四个 duty
+使用同一个计数器和周期，适合同步灯带/舵机/低压驱动的逻辑输入。它不具备死区、互补对、
+制动、DMA 或高压功率级保护，不能直接驱动电机/继电器/MOSFET gate。
+
+测试时 UART0 保留给下载器，先以示波器或逻辑分析仪验证 J5.12..15 的频率、四路占空比和
+`CTRL.ENABLE=0` 后低电平。该组与 RGB LCD 共线，HIL 完成前不能声称板级或功率级已支持。
