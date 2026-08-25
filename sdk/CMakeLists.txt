@@ -14,6 +14,10 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 set(OMCU_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 set(OMCU_IMAGE_TOOL "${CMAKE_CURRENT_SOURCE_DIR}/../tools/omcu_image.py")
+set(OMCU_BOOTLOADER_FIXTURE_TOOL
+    "${CMAKE_CURRENT_SOURCE_DIR}/../tools/omcu_bootloader_fixture.py")
+set(OMCU_BOOTLOADER_FIXTURE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../rtl/platform/tangnano9k/firmware/bootloader.hex")
 
 function(omcu_configure_firmware target linker_script)
   target_include_directories(${target} PRIVATE ${OMCU_SDK_ROOT}/include)
@@ -113,4 +117,11 @@ omcu_add_firmware(omcu_tn9k_board_demo examples/tn9k_board_demo/main.c)
 omcu_add_firmware(omcu_irq_smoke examples/irq_smoke/main.c)
 
 omcu_add_bootloader(omcu_bootloader)
+add_custom_command(TARGET omcu_bootloader POST_BUILD
+  COMMAND "${Python3_EXECUTABLE}" "${OMCU_BOOTLOADER_FIXTURE_TOOL}"
+          --generated "${CMAKE_CURRENT_BINARY_DIR}/omcu_bootloader.hex"
+          --fixture "${OMCU_BOOTLOADER_FIXTURE}"
+  COMMENT "Checking the checked-in Tang Nano 9K Boot ROM fixture"
+  VERBATIM
+)
 omcu_add_application(omcu_mcu_blink examples/mcu_blink/main.c)

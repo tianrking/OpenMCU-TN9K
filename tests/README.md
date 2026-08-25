@@ -51,7 +51,10 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test sdk-peripherals
 .\scripts\run-rtl-smoke.ps1 -Test sdk-i2c
 
-python -m unittest tools.tests.test_omcu_image tools.tests.test_omcu_flash_protocol -v
+python -m unittest `
+  tools.tests.test_omcu_bootloader_fixture `
+  tools.tests.test_omcu_image `
+  tools.tests.test_omcu_flash_protocol -v
 ```
 
 - `sdk-isa`：编译器到硬件的 RV32IMC、启动数据重定位、压缩指令和乘除法通路。
@@ -59,6 +62,7 @@ python -m unittest tools.tests.test_omcu_image tools.tests.test_omcu_flash_proto
 - `sdk-i2c`：开漏目标夹具、地址、写/读字节、最终 NACK 和 STOP。
 - `test_omcu_image`：`.omcu` 头部、固定 ABI/地址、长度、对齐、CRC 和破坏检测。
 - `test_omcu_flash_protocol`：帧编码、CRC、长度限制和重传相关协议不变量。
+- `test_omcu_bootloader_fixture`：SDK 刚生成的 Boot ROM 与产品 FPGA 顶层默认固化的 Boot ROM 逐字比较；允许注释和换行不同，但不允许指令内容漂移。
 
 这些测试不直接替代“启动器在真实 User Flash 上写入并重新启动应用”的端到端板级测试。
 

@@ -51,6 +51,8 @@ SDK 构建同时产生不可变启动器和独立应用示例：
 | `build\sdk\omcu_mcu_blink.omcu` | 独立应用示例；可经 UART 更新。 |
 | 其他 `*.hex` | 旧 ROM/RTL bring-up 回归输入；不属于客户交付路径。 |
 
+SDK 构建会自动把刚生成的 `omcu_bootloader.hex` 与产品顶层默认使用的已提交 Boot ROM 夹具逐项比对。若指令内容不一致，构建直接失败；这样平台升级时不会误把旧启动器固化进新的 FPGA 配置。
+
 构建产品位流时必须使用 `-McuMode`：
 
 ```powershell
@@ -115,7 +117,10 @@ python .\tools\omcu_flash.py `
 $env:OMCU_IVERILOG_BIN = 'C:\toolchains\iverilog\bin'
 .\scripts\run-rtl-smoke.ps1 -Test user-flash
 .\scripts\run-rtl-smoke.ps1 -Test mcu-top
-python -m unittest tools.tests.test_omcu_image tools.tests.test_omcu_flash_protocol -v
+python -m unittest `
+  tools.tests.test_omcu_bootloader_fixture `
+  tools.tests.test_omcu_image `
+  tools.tests.test_omcu_flash_protocol -v
 ```
 
 随后保存 Git commit、SDK 构建记录、`omcu_tn9k_mcu_manifest.json`、`.omcu` 哈希、下载器版本、串口日志和实板记录。实板必须覆盖首次固化、冷启动、空白恢复、正常升级、丢包/重复包、错误 CRC/ABI、多个断电时点和外设电气检查。
