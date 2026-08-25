@@ -22,7 +22,10 @@ jobs:
       - name: Check Tang Nano 9K project source coverage
         shell: pwsh
         run: ./scripts/check-tangnano9k-project.ps1
-      - name: Run portable and Tang bring-up RTL smoke tests
+      - name: Check Tang Nano 9K MCU product project source coverage
+        shell: pwsh
+        run: ./scripts/check-tangnano9k-project.ps1 -McuMode
+      - name: Run portable, product and Tang bring-up RTL smoke tests
         shell: pwsh
         run: |
           ./scripts/run-rtl-smoke.ps1 -Test gpio
@@ -34,23 +37,51 @@ jobs:
           ./scripts/run-rtl-smoke.ps1 -Test pwm
           ./scripts/run-rtl-smoke.ps1 -Test irqctrl
           ./scripts/run-rtl-smoke.ps1 -Test sysctrl
+          ./scripts/run-rtl-smoke.ps1 -Test user-flash
           ./scripts/run-rtl-smoke.ps1 -Test system
           ./scripts/run-rtl-smoke.ps1 -Test system-uart
+          ./scripts/run-rtl-smoke.ps1 -Test mcu-top
           ./scripts/run-rtl-smoke.ps1 -Test tn9k
 
   sdk:
     runs-on: ubuntu-latest
+    env:
+      XPACKS_STORE_FOLDER: ${{ github.workspace }}/.xpack-store
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - name: Install RISC-V GNU toolchain
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install RTL simulator and host build tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes cmake ninja-build iverilog \
-            gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+          sudo apt-get install --yes cmake ninja-build iverilog
+      - name: Install pinned xPack RISC-V toolchain
+        shell: pwsh
+        run: |
+          $xpmWork = Join-Path $env:RUNNER_TEMP 'omcu-xpm-sdk'
+          New-Item -ItemType Directory -Force -Path $xpmWork | Out-Null
+          Push-Location $xpmWork
+          try {
+            npm install --no-save xpm@0.23.2
+            $xpmPath = Join-Path $xpmWork 'node_modules/.bin/xpm'
+            & $xpmPath init --name omcu-ci-sdk
+            if ($LASTEXITCODE -ne 0) { throw "xpm init failed with exit code $LASTEXITCODE" }
+            & $xpmPath install '@xpack-dev-tools/riscv-none-elf-gcc@15.2.0-1.1' --verbose
+            if ($LASTEXITCODE -ne 0) { throw "xpm toolchain install failed with exit code $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }
+
+          $compilerPath = Join-Path $xpmWork 'xpacks/.bin/riscv-none-elf-gcc'
+          if (-not (Test-Path -LiteralPath $compilerPath -PathType Leaf)) {
+            throw "xPack did not provide $compilerPath"
+          }
+          (Get-Item -LiteralPath $compilerPath).DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Build RV32IMC firmware through the POSIX SDK entry point
-        run: sh ./scripts/build-sdk.sh --riscv-prefix riscv64-unknown-elf-
+        run: sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
       - name: Execute compiled RV32IMC SDK firmware in SoC simulation
         shell: pwsh
         run: |

@@ -24,11 +24,13 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test i2c
 .\scripts\run-rtl-smoke.ps1 -Test wdt
 .\scripts\run-rtl-smoke.ps1 -Test pwm
+.\scripts\run-rtl-smoke.ps1 -Test irqctrl
 .\scripts\run-rtl-smoke.ps1 -Test sysctrl
 .\scripts\run-rtl-smoke.ps1 -Test user-flash
 .\scripts\run-rtl-smoke.ps1 -Test system
 .\scripts\run-rtl-smoke.ps1 -Test system-uart
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-wdt
+.\scripts\run-rtl-smoke.ps1 -Test tn9k-peripherals
 .\scripts\run-rtl-smoke.ps1 -Test tn9k
 .\scripts\run-rtl-smoke.ps1 -Test mcu-top
 ```
@@ -36,7 +38,7 @@ flowchart LR
 - `user-flash`：对齐、读、页擦除、字写入、错误状态和忙信号的行为模型检查。
 - `system`：小型 RV32I 程序经过 PicoRV32、真实 MMIO 和 GPIO 的首个 CPU/总线/外设集成门。
 - `system-uart`：经 CPU/MMIO 配置 UART0 后验证真实串行字节。
-- `tn9k-wdt` / `tn9k`：经过 Tang 顶层的复位释放、看门狗和低有效 LED 逻辑检查；不等同于实际 Gowin 板。
+- `tn9k-wdt` / `tn9k-peripherals` / `tn9k`：经过 Tang 顶层的复位释放、看门狗、SPI/PWM/GPIO/I2C Pad 连通性和低有效 LED 逻辑检查；不等同于实际 Gowin 板。
 - `mcu-top`：使用仅仿真的 `FLASH608K` 端口桩件编译产品顶层，运行已提交 Boot ROM 的空 User Flash 扫描，检查产品封装确实走向物理 Flash 分支；它不模拟真实 Gowin 擦写行为。
 
 每个可公开外设还应覆盖：复位值、字节写掩码、保留位、读写副作用、中断时序、随机/边界值以及编译后 SDK 集成。
@@ -50,6 +52,9 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test sdk-isa
 .\scripts\run-rtl-smoke.ps1 -Test sdk-peripherals
 .\scripts\run-rtl-smoke.ps1 -Test sdk-i2c
+.\scripts\run-rtl-smoke.ps1 -Test sdk-irq
+.\scripts\run-rtl-smoke.ps1 -Test tn9k-wdt
+.\scripts\run-rtl-smoke.ps1 -Test tn9k-peripherals
 
 python -m unittest `
   tools.tests.test_omcu_bootloader_fixture `
@@ -60,6 +65,8 @@ python -m unittest `
 - `sdk-isa`：编译器到硬件的 RV32IMC、启动数据重定位、压缩指令和乘除法通路。
 - `sdk-peripherals`：特性发现、SPI0、WDT0、PWM0 和 GPIO 成功码。
 - `sdk-i2c`：开漏目标夹具、地址、写/读字节、最终 NACK 和 STOP。
+- `sdk-irq`：固定自定义 IRQ 向量、C 分发钩子、来源确认和 `RETIRQ` 返回。
+- `tn9k-wdt` / `tn9k-peripherals`：已编译 SDK 固件经 Tang 顶层验证看门狗复位和外设 Pad 连通性。
 - `test_omcu_image`：`.omcu` 头部、固定 ABI/地址、长度、对齐、CRC 和破坏检测。
 - `test_omcu_flash_protocol`：帧编码、CRC、长度限制和重传相关协议不变量。
 - `test_omcu_bootloader_fixture`：SDK 刚生成的 Boot ROM 与产品 FPGA 顶层默认固化的 Boot ROM 逐字比较；允许注释和换行不同，但不允许指令内容漂移。
