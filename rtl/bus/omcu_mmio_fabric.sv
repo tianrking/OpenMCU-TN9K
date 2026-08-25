@@ -7,8 +7,8 @@ module omcu_mmio_fabric #(
   parameter integer GPIO_COUNT = 24,
   parameter integer ROM_BYTES = 4096,
   parameter integer SRAM_BYTES = 32768,
-  parameter logic [15:0] ABI_MINOR = 16'h0006,
-  parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
+  parameter logic [15:0] ABI_MINOR = 16'h0007,
+  parameter logic [31:0] FEATURE_BITS = 32'h0000_80ff,
   parameter integer UART1_PRESENT = 0,
   parameter integer PWM1_PRESENT = 0,
   parameter integer TIMER1_PRESENT = 0,
@@ -129,6 +129,7 @@ module omcu_mmio_fabric #(
   logic [31:0] pinmux_read_data;
   logic [31:0] sysctrl_read_data;
   logic [7:0] irq_sources;
+  logic [31:0] run_ticks;
 
   assign gpio_select = req_i && (addr_i[31:12] == GPIO0_PAGE);
   assign uart_select = req_i && (addr_i[31:12] == UART0_PAGE);
@@ -173,6 +174,9 @@ module omcu_mmio_fabric #(
     .ready_o(gpio_ready),
     .read_data_o(gpio_read_data),
     .error_o(),
+    .run_ticks_i(run_ticks),
+    .irq_active_i(irq_vector_o),
+    .reset_cause_i(reset_cause_i),
     .gpio_in_i(gpio_in_i),
     .gpio_out_o(gpio_out_o),
     .gpio_oe_o(gpio_oe_o),
@@ -375,7 +379,8 @@ module omcu_mmio_fabric #(
     .reset_count_i(reset_count_i),
     .boot_request_pending_i(boot_request_pending_i),
     .software_boot_request_o(software_boot_request_o),
-    .boot_request_ack_o(boot_request_ack_o)
+    .boot_request_ack_o(boot_request_ack_o),
+    .run_ticks_o(run_ticks)
   );
 
   always_comb begin

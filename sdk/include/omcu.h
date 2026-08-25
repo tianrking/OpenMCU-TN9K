@@ -171,6 +171,80 @@ static inline void omcu_gpio_toggle(uint32_t mask) {
   OMCU_GPIO0->out_xor = mask;
 }
 
+/*
+ * GPIO reliable-input profile. FILTER_CYCLES=N accepts a changed level only
+ * after N+1 consecutive mismatched samples from the two-flop synchronizer.
+ * It is intended for buttons, slow sensors and industrial dry-contact style
+ * inputs, not signals whose timing must be measured above the system clock.
+ */
+static inline bool omcu_gpio_configure_filter(uint32_t mask, uint8_t filter_cycles) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY)) {
+    return false;
+  }
+  OMCU_GPIO0->filter_cycles = (uint32_t)filter_cycles;
+  OMCU_GPIO0->filter_mask = mask;
+  return true;
+}
+
+typedef struct {
+  uint32_t event_mask;
+  uint32_t input_level;
+  uint32_t irq_active;
+  uint32_t reset_cause;
+  uint32_t run_ticks_lo;
+} omcu_gpio_snapshot_t;
+
+/*
+ * Arm one first-event GPIO snapshot.  With overwrite=false the first selected
+ * edge is retained and a later edge only sets OVERFLOW; this is the recommended
+ * small-black-box policy for fault diagnosis. The optional IRQ shares
+ * OMCU_IRQ_GPIO0, so its ISR must clear SNAPSHOT_STATUS as well as GPIO IRQ
+ * status where applicable.
+ */
+static inline bool omcu_gpio_snapshot_arm(
+  uint32_t rise_mask,
+  uint32_t fall_mask,
+  bool enable_irq,
+  bool overwrite
+) {
+  uint32_t ctrl = OMCU_GPIO_SNAPSHOT_CTRL_ENABLE;
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY)) {
+    return false;
+  }
+  if (enable_irq) {
+    ctrl |= OMCU_GPIO_SNAPSHOT_CTRL_IRQ_ENABLE;
+  }
+  if (overwrite) {
+    ctrl |= OMCU_GPIO_SNAPSHOT_CTRL_OVERWRITE;
+  }
+  OMCU_GPIO0->snapshot_ctrl = 0u;
+  OMCU_GPIO0->snapshot_status = OMCU_GPIO_SNAPSHOT_STATUS_VALID |
+                                OMCU_GPIO_SNAPSHOT_STATUS_OVERFLOW;
+  OMCU_GPIO0->snapshot_rise_en = rise_mask;
+  OMCU_GPIO0->snapshot_fall_en = fall_mask;
+  OMCU_GPIO0->snapshot_ctrl = ctrl;
+  return true;
+}
+
+static inline bool omcu_gpio_snapshot_read(omcu_gpio_snapshot_t *snapshot) {
+  if (snapshot == 0 ||
+      (OMCU_GPIO0->snapshot_status & OMCU_GPIO_SNAPSHOT_STATUS_VALID) == 0u) {
+    return false;
+  }
+  snapshot->event_mask = OMCU_GPIO0->snapshot_event;
+  snapshot->input_level = OMCU_GPIO0->snapshot_input;
+  snapshot->irq_active = OMCU_GPIO0->snapshot_irq;
+  snapshot->reset_cause = OMCU_GPIO0->snapshot_reset;
+  snapshot->run_ticks_lo = OMCU_GPIO0->snapshot_ticks;
+  return true;
+}
+
+static inline void omcu_gpio_snapshot_clear(void) {
+  OMCU_GPIO0->snapshot_status = OMCU_GPIO_SNAPSHOT_STATUS_VALID |
+                                OMCU_GPIO_SNAPSHOT_STATUS_OVERFLOW;
+}
+
 static inline void omcu_uart0_init(uint16_t bauddiv, bool enable_rx_irq) {
   OMCU_UART0->ctrl = 0u;
   OMCU_UART0->bauddiv = bauddiv;

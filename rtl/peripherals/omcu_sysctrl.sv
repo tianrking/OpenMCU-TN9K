@@ -8,8 +8,8 @@
 module omcu_sysctrl #(
   parameter logic [31:0] CHIP_ID = 32'h4f4d_4355,
   parameter logic [15:0] ABI_MAJOR = 16'h0000,
-  parameter logic [15:0] ABI_MINOR = 16'h0006,
-  parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
+  parameter logic [15:0] ABI_MINOR = 16'h0007,
+  parameter logic [31:0] FEATURE_BITS = 32'h0000_80ff,
   parameter logic [31:0] BUILD_ID = 32'h0000_0001,
   parameter integer ROM_BYTES = 4096,
   parameter integer SRAM_BYTES = 32768,
@@ -30,7 +30,11 @@ module omcu_sysctrl #(
   input  logic [31:0] reset_count_i,
   input  logic        boot_request_pending_i,
   output logic        software_boot_request_o,
-  output logic        boot_request_ack_o
+  output logic        boot_request_ack_o,
+
+  // Shared timestamp consumers use the same low word that software reads at
+  // SYSCTRL.RUN_TICKS_LO.  The full 64-bit counter remains the MMIO ABI.
+  output logic [31:0] run_ticks_o
 );
 
   localparam logic [5:0] REG_CHIP_ID    = 6'h00;
@@ -55,6 +59,7 @@ module omcu_sysctrl #(
   // Identity/geometry writes are safely ignored. BOOT_CTRL is intentionally
   // the only write side effect and requires an exact, full-word magic value.
   assign error_o = 1'b0;
+  assign run_ticks_o = run_ticks_q[31:0];
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin

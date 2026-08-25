@@ -3,7 +3,7 @@
   "device": {
     "name": "OpenMCU",
     "abi_major": 0,
-    "abi_minor": 6
+    "abi_minor": 7
   },
   "memory": [
     { "macro": "OMCU_ROM_BASE", "address": "0x00000000" },
@@ -46,7 +46,18 @@
         { "name": "in", "offset": "0x20", "access": "ro", "comment": "sampled input" },
         { "name": "rise_en", "offset": "0x24", "access": "rw", "comment": "rising-edge interrupt enable" },
         { "name": "fall_en", "offset": "0x28", "access": "rw", "comment": "falling-edge interrupt enable" },
-        { "name": "irq_status", "offset": "0x2c", "access": "rw", "comment": "write-one-to-clear" }
+        { "name": "irq_status", "offset": "0x2c", "access": "rw", "comment": "write-one-to-clear" },
+        { "name": "filter_mask", "offset": "0x30", "access": "rw", "comment": "bits selecting two-flop-synchronized digital filtering" },
+        { "name": "filter_cycles", "offset": "0x34", "access": "rw", "comment": "low 8 bits: required consecutive mismatched synchronized samples minus one" },
+        { "name": "snapshot_ctrl", "offset": "0x38", "access": "rw", "comment": "enable, GPIO0 IRQ enable and first-event/overwrite policy" },
+        { "name": "snapshot_rise_en", "offset": "0x3c", "access": "rw", "comment": "rising-edge snapshot trigger mask" },
+        { "name": "snapshot_fall_en", "offset": "0x40", "access": "rw", "comment": "falling-edge snapshot trigger mask" },
+        { "name": "snapshot_status", "offset": "0x44", "access": "rw", "comment": "VALID and OVERFLOW write-one-to-clear" },
+        { "name": "snapshot_event", "offset": "0x48", "access": "ro", "comment": "selected edge bit mask captured with the snapshot" },
+        { "name": "snapshot_input", "offset": "0x4c", "access": "ro", "comment": "filtered GPIO input level captured with the snapshot" },
+        { "name": "snapshot_irq", "offset": "0x50", "access": "ro", "comment": "IRQCTRL active CPU IRQ mask captured with the snapshot" },
+        { "name": "snapshot_reset", "offset": "0x54", "access": "ro", "comment": "retained reset-cause value captured with the snapshot" },
+        { "name": "snapshot_ticks", "offset": "0x58", "access": "ro", "comment": "low 32 bits of SYSCTRL run ticks captured with the snapshot" }
       ]
     },
     {
@@ -216,6 +227,7 @@
     { "name": "OMCU_FEATURE_PINMUX", "value": "1u << 12" },
     { "name": "OMCU_FEATURE_GPIO_EXPANSION", "value": "1u << 13" },
     { "name": "OMCU_FEATURE_USER_FLASH", "value": "1u << 14" },
+    { "name": "OMCU_FEATURE_GPIO_RELIABILITY", "value": "1u << 15" },
     { "name": "OMCU_RESET_CAUSE_EXTERNAL", "value": "1u << 0" },
     { "name": "OMCU_RESET_CAUSE_WATCHDOG", "value": "1u << 1" },
     { "name": "OMCU_RESET_CAUSE_SOFTWARE", "value": "1u << 2" },
@@ -235,6 +247,12 @@
     { "name": "OMCU_PINMUX_CTRL_UART1_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_PINMUX_CTRL_PWM1_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_PINMUX_CTRL_TIMER1_ENABLE", "value": "1u << 2" },
+    { "name": "OMCU_GPIO_FILTER_CYCLES_MASK", "value": "UINT32_C(0x000000FF)" },
+    { "name": "OMCU_GPIO_SNAPSHOT_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_GPIO_SNAPSHOT_CTRL_IRQ_ENABLE", "value": "1u << 1" },
+    { "name": "OMCU_GPIO_SNAPSHOT_CTRL_OVERWRITE", "value": "1u << 2" },
+    { "name": "OMCU_GPIO_SNAPSHOT_STATUS_VALID", "value": "1u << 0" },
+    { "name": "OMCU_GPIO_SNAPSHOT_STATUS_OVERFLOW", "value": "1u << 1" },
     { "name": "OMCU_TIMER_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_TIMER_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_TIMER_CTRL_AUTO_RELOAD", "value": "1u << 2" },

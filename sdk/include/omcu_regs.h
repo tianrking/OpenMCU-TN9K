@@ -27,7 +27,7 @@
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
-#define OMCU_HW_ABI_MINOR      6u
+#define OMCU_HW_ABI_MINOR      7u
 
 #define OMCU_CHIP_ID             UINT32_C(0x4F4D4355)
 #define OMCU_SYSCTRL_ABI_MAJOR_SHIFT 16u
@@ -47,6 +47,17 @@ typedef struct {
   volatile uint32_t rise_en; /* +0x24: rising-edge interrupt enable */
   volatile uint32_t fall_en; /* +0x28: falling-edge interrupt enable */
   volatile uint32_t irq_status; /* +0x2c: write-one-to-clear */
+  volatile uint32_t filter_mask; /* +0x30: bits selecting two-flop-synchronized digital filtering */
+  volatile uint32_t filter_cycles; /* +0x34: low 8 bits: required consecutive mismatched synchronized samples minus one */
+  volatile uint32_t snapshot_ctrl; /* +0x38: enable, GPIO0 IRQ enable and first-event/overwrite policy */
+  volatile uint32_t snapshot_rise_en; /* +0x3c: rising-edge snapshot trigger mask */
+  volatile uint32_t snapshot_fall_en; /* +0x40: falling-edge snapshot trigger mask */
+  volatile uint32_t snapshot_status; /* +0x44: VALID and OVERFLOW write-one-to-clear */
+  volatile const uint32_t snapshot_event; /* +0x48: selected edge bit mask captured with the snapshot */
+  volatile const uint32_t snapshot_input; /* +0x4c: filtered GPIO input level captured with the snapshot */
+  volatile const uint32_t snapshot_irq; /* +0x50: IRQCTRL active CPU IRQ mask captured with the snapshot */
+  volatile const uint32_t snapshot_reset; /* +0x54: retained reset-cause value captured with the snapshot */
+  volatile const uint32_t snapshot_ticks; /* +0x58: low 32 bits of SYSCTRL run ticks captured with the snapshot */
 } omcu_gpio_regs_t;
 
 typedef struct {
@@ -181,6 +192,7 @@ enum {
   OMCU_FEATURE_PINMUX              = 1u << 12,
   OMCU_FEATURE_GPIO_EXPANSION      = 1u << 13,
   OMCU_FEATURE_USER_FLASH          = 1u << 14,
+  OMCU_FEATURE_GPIO_RELIABILITY    = 1u << 15,
   OMCU_RESET_CAUSE_EXTERNAL        = 1u << 0,
   OMCU_RESET_CAUSE_WATCHDOG        = 1u << 1,
   OMCU_RESET_CAUSE_SOFTWARE        = 1u << 2,
@@ -200,6 +212,12 @@ enum {
   OMCU_PINMUX_CTRL_UART1_ENABLE    = 1u << 0,
   OMCU_PINMUX_CTRL_PWM1_ENABLE     = 1u << 1,
   OMCU_PINMUX_CTRL_TIMER1_ENABLE   = 1u << 2,
+  OMCU_GPIO_FILTER_CYCLES_MASK     = UINT32_C(0x000000FF),
+  OMCU_GPIO_SNAPSHOT_CTRL_ENABLE   = 1u << 0,
+  OMCU_GPIO_SNAPSHOT_CTRL_IRQ_ENABLE = 1u << 1,
+  OMCU_GPIO_SNAPSHOT_CTRL_OVERWRITE = 1u << 2,
+  OMCU_GPIO_SNAPSHOT_STATUS_VALID  = 1u << 0,
+  OMCU_GPIO_SNAPSHOT_STATUS_OVERFLOW = 1u << 1,
   OMCU_TIMER_CTRL_ENABLE           = 1u << 0,
   OMCU_TIMER_CTRL_IRQ_ENABLE       = 1u << 1,
   OMCU_TIMER_CTRL_AUTO_RELOAD      = 1u << 2,
