@@ -3,7 +3,7 @@
   "device": {
     "name": "OpenMCU",
     "abi_major": 0,
-    "abi_minor": 5
+    "abi_minor": 6
   },
   "memory": [
     { "macro": "OMCU_ROM_BASE", "address": "0x00000000" },
@@ -74,9 +74,9 @@
       "base_macro": "OMCU_SPI0_BASE",
       "registers": [
         { "name": "data", "offset": "0x00", "access": "rw", "comment": "TX byte write / RX byte read" },
-        { "name": "status", "offset": "0x04", "access": "rw", "comment": "BUSY and DONE, DONE is write-one-to-clear" },
+        { "name": "status", "offset": "0x04", "access": "rw", "comment": "BUSY, DONE W1C and CS_ACTIVE" },
         { "name": "clkdiv", "offset": "0x08", "access": "rw", "comment": "SCK half-period in system clocks minus one" },
-        { "name": "ctrl", "offset": "0x0c", "access": "rw", "comment": "ENABLE and DONE interrupt enable" },
+        { "name": "ctrl", "offset": "0x0c", "access": "rw", "comment": "ENABLE, DONE interrupt enable and explicit multi-byte CS hold" },
         { "name": "start", "offset": "0x10", "access": "wo", "comment": "write one to start one automatic mode-0 byte transfer" }
       ]
     },
@@ -164,8 +164,10 @@
     { "name": "OMCU_TIMER_STATUS_PENDING", "value": "1u << 0" },
     { "name": "OMCU_SPI_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_SPI_CTRL_IRQ_ENABLE", "value": "1u << 1" },
+    { "name": "OMCU_SPI_CTRL_CS_HOLD", "value": "1u << 2" },
     { "name": "OMCU_SPI_STATUS_BUSY", "value": "1u << 0" },
     { "name": "OMCU_SPI_STATUS_DONE", "value": "1u << 1" },
+    { "name": "OMCU_SPI_STATUS_CS_ACTIVE", "value": "1u << 5" },
     { "name": "OMCU_I2C_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_I2C_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_I2C_STATUS_BUSY", "value": "1u << 0" },

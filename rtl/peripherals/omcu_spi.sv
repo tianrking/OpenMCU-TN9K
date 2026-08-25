@@ -1,9 +1,10 @@
 `default_nettype none
 
 // A compact, polling-friendly SPI mode-0 master.  One START command transfers
-// exactly one byte MSB first while automatically asserting one active-low chip
-// select.  A FIFO/QSPI/XIP controller belongs above this predictable byte
-// engine; it must not change this public register contract.
+// exactly one byte MSB first.  By default it automatically asserts/releases
+// one active-low chip select; ABI 0.6 adds an opt-in CS_HOLD control bit for
+// devices whose frame spans multiple bytes.  A FIFO/QSPI/XIP controller still
+// belongs above this predictable byte engine.
 module omcu_spi (
   input  logic        clk_i,
   input  logic        rst_ni,
@@ -32,6 +33,7 @@ module omcu_spi (
 
   logic        enable_q;
   logic        irq_enable_q;
+  logic        cs_hold_q;
   logic        busy_q;
   logic        done_q;
   logic [15:0] clkdiv_q;
@@ -62,9 +64,11 @@ module omcu_spi (
     ctrl_read = '0;
     ctrl_read[0] = enable_q;
     ctrl_read[1] = irq_enable_q;
+    ctrl_read[2] = cs_hold_q;
     status_read = '0;
     status_read[0] = busy_q;
     status_read[1] = done_q;
+    status_read[5] = !cs_n_q;
   end
 
   always_comb begin
@@ -82,6 +86,7 @@ module omcu_spi (
     if (!rst_ni) begin
       enable_q <= 1'b0;
       irq_enable_q <= 1'b0;
+      cs_hold_q <= 1'b0;
       busy_q <= 1'b0;
       done_q <= 1'b0;
       clkdiv_q <= 16'd134;
@@ -108,7 +113,7 @@ module omcu_spi (
             if (bit_index_q == 3'd7) begin
               busy_q <= 1'b0;
               done_q <= 1'b1;
-              cs_n_q <= 1'b1;
+              cs_n_q <= cs_hold_q ? 1'b0 : 1'b1;
               rx_data_q <= rx_shift_q;
             end else begin
               bit_index_q <= bit_index_q + 3'd1;
@@ -122,7 +127,9 @@ module omcu_spi (
       end else begin
         div_count_q <= 16'h0000;
         sck_q <= 1'b0;
-        cs_n_q <= 1'b1;
+        if (!cs_hold_q) begin
+          cs_n_q <= 1'b1;
+        end
       end
 
       if (req_i && write_i) begin
@@ -142,9 +149,15 @@ module omcu_spi (
             if (write_strobe_i[0]) begin
               enable_q <= write_data_i[0];
               irq_enable_q <= write_data_i[1];
+              cs_hold_q <= write_data_i[2];
               if (!write_data_i[0]) begin
                 busy_q <= 1'b0;
                 sck_q <= 1'b0;
+                cs_n_q <= 1'b1;
+              end else if (!busy_q && !write_data_i[2]) begin
+                // Software ends a held multi-byte frame by clearing CS_HOLD
+                // after polling BUSY low.  Writes during BUSY are harmless:
+                // the current byte always retains its complete clock train.
                 cs_n_q <= 1'b1;
               end
             end

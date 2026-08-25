@@ -133,6 +133,28 @@ module omcu_spi_tb;
     read_reg(8'h04, status);
     check(!status[1] && !irq, "SPI DONE must be write-one-to-clear");
 
+    // ABI 0.6 CSHOLD keeps the physical CS assertion across separate byte
+    // START operations.  This is required by real framed SPI devices such as
+    // W5500, ADCs and DACs; the legacy one-byte transfer above remains valid.
+    write_reg(8'h0c, 32'h00000007);
+    write_reg(8'h00, 32'h00000012);
+    write_reg(8'h10, 32'h00000001);
+    repeat (80) @(negedge clk);
+    read_reg(8'h04, status);
+    check(!status[0] && status[5],
+          "CSHOLD must leave CS asserted after its first completed byte");
+    write_reg(8'h00, 32'h00000034);
+    write_reg(8'h10, 32'h00000001);
+    repeat (80) @(negedge clk);
+    check(cs_n == 1'b0,
+          "CSHOLD must not deassert CS between sequential byte transfers");
+    check(mosi_count == 16 && mosi_capture == 8'h34,
+          "CSHOLD must clock both byte transfers under one CS assertion");
+    write_reg(8'h0c, 32'h00000003);
+    @(negedge clk);
+    check(cs_n == 1'b1,
+          "clearing CSHOLD after BUSY releases the framed SPI transaction");
+
     $display("PASS: omcu_spi_tb");
     $finish;
   end

@@ -92,7 +92,8 @@ IRQ RTL 有覆盖，但需要实体板串口回归才能承诺电气兼容性。
 
 ### SPI0
 
-SPI0 是 8-bit、MSB-first、mode 0 主机，每次 `START` 自动拉低一个 CS 并传输一个字节：
+SPI0 是 8-bit、MSB-first、mode 0 主机。默认每次 `START` 自动拉低一个 CS 并传输一个
+字节；ABI `0.6` 增加 `CTRL.CS_HOLD`，使多个字节 `START` 可以共用同一次低有效 CS：
 
 ```c
 uint8_t rx;
@@ -101,6 +102,11 @@ if (!omcu_spi0_transfer(0x9fu, &rx)) {
   /* 处理未使能或异常状态 */
 }
 ```
+
+`omcu_spi0_set_cs_hold(true)` 必须在第一个字节前调用；最后一字节完成且 `BUSY=0` 后调用
+`omcu_spi0_set_cs_hold(false)` 释放 CS。`omcu_bus.h` 已把这条约束封装为
+`omcu_spi0_frame_begin()` / `omcu_spi0_frame_transfer()` / `omcu_spi0_frame_end()`，W5500、
+MCP3008、MCP4921 等多字节帧应使用它，不能靠多次旧式 `omcu_spi0_transfer()` 拼接。
 
 它不是 QSPI/XIP 控制器，没有 FIFO、DMA 或多片选。不要把 TF-card 信号组同时用于
 microSD 和外接 SPI。
@@ -121,6 +127,29 @@ if (!omcu_i2c0_start() ||
 
 没有 DMA、FIFO、仲裁丢失恢复、总线恢复或自动超时。每个产品必须对目标 I2C 器件实现
 外层超时和异常恢复；SCL/SDA 外部上拉是硬性要求。
+
+### P0：外置 ADC、DAC、RTC、EEPROM、传感器与 W5500
+
+`omcu_bus.h` 提供带 `spin_limit` 的 I2C/SPI 事务；它避免设备断线时无限卡住，但该参数是
+CPU 轮询上限，不是精确毫秒计时器。`omcu_devices.h` 提供以下已实现的驱动：
+
+| 器件 / 类别 | API | 连接与边界 |
+| --- | --- | --- |
+| DS3231 RTC | `omcu_ds3231_read_time()` / `omcu_ds3231_write_time()` | I2C，默认 `0x68`。 |
+| AT24Cxx EEPROM | `omcu_at24cxx_read()` / `omcu_at24cxx_write()` | I2C；调用者指定 1/2 字节地址、页大小与 ACK 轮询次数。 |
+| TMP102 温度传感器 | `omcu_tmp102_read_temperature_milli_c()` | I2C，默认 `0x48`，返回毫摄氏度。 |
+| MCP3008 ADC | `omcu_mcp3008_read_channel()` | SPI mode 0，10-bit，使用连续 CS 帧。 |
+| MCP4921 DAC | `omcu_mcp4921_write()` | SPI mode 0，12-bit，使用连续 CS 帧。 |
+| W5500 以太网控制器 | `omcu_w5500_initialize()`、socket API | SPI mode 0；W5500 自带网络协议硬件，不是 FPGA 内 MAC/PHY。 |
+
+W5500 驱动包含公共寄存器初始化、版本核验、TCP/UDP socket 打开、TCP 连接、环形 TX/RX
+缓冲收发。应用必须提供静态 MAC/IP 或自行在上层实现 DHCP；不得把它描述成已经有 FPGA
+以太网 MAC/PHY。模块 IRQ 可接一根已通过电压/HIL 验收的 GPIO，并复用 GPIO0 边沿中断；
+没有接 IRQ 时可轮询 W5500 socket 状态。完整可编译模板是
+`omcu_external_peripherals`。
+
+所有 P0 驱动仅完成源码/编译与 SPI CS 连续帧 RTL 验证。外设的真实 ACK、地址、W5500 链路、
+网络收发、电平、TF 互斥和掉电恢复仍必须逐个记录 HIL，未完成前不能宣称板级已支持。
 
 ### PWM0 与 WDT0
 

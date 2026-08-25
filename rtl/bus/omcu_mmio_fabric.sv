@@ -7,7 +7,7 @@ module omcu_mmio_fabric #(
   parameter integer GPIO_COUNT = 24,
   parameter integer ROM_BYTES = 4096,
   parameter integer SRAM_BYTES = 32768,
-  parameter logic [15:0] ABI_MINOR = 16'h0005,
+  parameter logic [15:0] ABI_MINOR = 16'h0006,
   parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff
 ) (
   input  logic                  clk_i,

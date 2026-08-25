@@ -19,6 +19,28 @@ set(OMCU_BOOTLOADER_FIXTURE_TOOL
 set(OMCU_BOOTLOADER_FIXTURE
     "${CMAKE_CURRENT_SOURCE_DIR}/../rtl/platform/tangnano9k/firmware/bootloader.hex")
 
+# P0 board drivers are an ordinary static library.  They add no FPGA RAM or
+# logic; applications opt in by linking it and retain ownership of all I/O
+# electrical choices and transaction buffers.
+add_library(omcu_device_drivers STATIC
+  ${OMCU_SDK_ROOT}/drivers/omcu_bus.c
+  ${OMCU_SDK_ROOT}/drivers/omcu_devices.c
+)
+target_include_directories(omcu_device_drivers PUBLIC ${OMCU_SDK_ROOT}/include)
+target_compile_options(omcu_device_drivers PRIVATE
+  -march=${OMCU_MARCH}
+  -mabi=${OMCU_MABI}
+  -Os
+  -ffreestanding
+  -fno-common
+  -ffunction-sections
+  -fdata-sections
+  -msmall-data-limit=0
+  -Wall
+  -Wextra
+  -Werror
+)
+
 function(omcu_configure_firmware target linker_script)
   target_include_directories(${target} PRIVATE ${OMCU_SDK_ROOT}/include)
   target_compile_options(${target} PRIVATE
@@ -125,3 +147,5 @@ add_custom_command(TARGET omcu_bootloader POST_BUILD
   VERBATIM
 )
 omcu_add_application(omcu_mcu_blink examples/mcu_blink/main.c)
+omcu_add_application(omcu_external_peripherals examples/external_peripherals/main.c)
+target_link_libraries(omcu_external_peripherals PRIVATE omcu_device_drivers)

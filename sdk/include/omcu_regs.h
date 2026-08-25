@@ -23,7 +23,7 @@
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
-#define OMCU_HW_ABI_MINOR      5u
+#define OMCU_HW_ABI_MINOR      6u
 
 #define OMCU_CHIP_ID             UINT32_C(0x4F4D4355)
 #define OMCU_SYSCTRL_ABI_MAJOR_SHIFT 16u
@@ -62,9 +62,9 @@ typedef struct {
 
 typedef struct {
   volatile uint32_t data; /* +0x00: TX byte write / RX byte read */
-  volatile uint32_t status; /* +0x04: BUSY and DONE, DONE is write-one-to-clear */
+  volatile uint32_t status; /* +0x04: BUSY, DONE W1C and CS_ACTIVE */
   volatile uint32_t clkdiv; /* +0x08: SCK half-period in system clocks minus one */
-  volatile uint32_t ctrl; /* +0x0c: ENABLE and DONE interrupt enable */
+  volatile uint32_t ctrl; /* +0x0c: ENABLE, DONE interrupt enable and explicit multi-byte CS hold */
   volatile uint32_t start; /* +0x10: write one to start one automatic mode-0 byte transfer */
 } omcu_spi_regs_t;
 
@@ -141,8 +141,10 @@ enum {
   OMCU_TIMER_STATUS_PENDING        = 1u << 0,
   OMCU_SPI_CTRL_ENABLE             = 1u << 0,
   OMCU_SPI_CTRL_IRQ_ENABLE         = 1u << 1,
+  OMCU_SPI_CTRL_CS_HOLD            = 1u << 2,
   OMCU_SPI_STATUS_BUSY             = 1u << 0,
   OMCU_SPI_STATUS_DONE             = 1u << 1,
+  OMCU_SPI_STATUS_CS_ACTIVE        = 1u << 5,
   OMCU_I2C_CTRL_ENABLE             = 1u << 0,
   OMCU_I2C_CTRL_IRQ_ENABLE         = 1u << 1,
   OMCU_I2C_STATUS_BUSY             = 1u << 0,

@@ -23,7 +23,7 @@ module omcu_picorv32_system #(
   parameter integer USER_FLASH_PRESENT = 0,
   parameter integer USER_FLASH_USE_GOWIN_PRIMITIVE = 0,
   parameter integer CLOCK_HZ = 27000000,
-  parameter logic [15:0] ABI_MINOR = 16'h0005,
+  parameter logic [15:0] ABI_MINOR = 16'h0006,
   parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
   // In product-loader mode applications execute from SRAM, so PicoRV32 must
   // enter external interrupts at the application's fixed SRAM vector.

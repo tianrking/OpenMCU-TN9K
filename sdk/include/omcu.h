@@ -179,6 +179,27 @@ static inline bool omcu_spi0_transfer(uint8_t tx, uint8_t *rx) {
   return true;
 }
 
+/*
+ * Keep CS asserted across separately started SPI bytes.  This is required by
+ * framed devices such as W5500 and MCP3008.  Set it before the first START,
+ * wait for the final transfer to finish, then clear it to release CS.  The
+ * default remains one automatic CS assertion per byte for ABI 0.5 software.
+ */
+static inline void omcu_spi0_set_cs_hold(bool hold) {
+  uint32_t ctrl = OMCU_SPI0->ctrl;
+
+  if (hold) {
+    ctrl |= OMCU_SPI_CTRL_CS_HOLD;
+  } else {
+    ctrl &= ~OMCU_SPI_CTRL_CS_HOLD;
+  }
+  OMCU_SPI0->ctrl = ctrl;
+}
+
+static inline bool omcu_spi0_cs_active(void) {
+  return (OMCU_SPI0->status & OMCU_SPI_STATUS_CS_ACTIVE) != 0u;
+}
+
 static inline void omcu_i2c0_init(uint16_t clkdiv, bool enable_done_irq) {
   OMCU_I2C0->ctrl = 0u;
   OMCU_I2C0->clkdiv = clkdiv;

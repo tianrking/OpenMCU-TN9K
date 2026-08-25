@@ -73,7 +73,7 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 | 启动器 SRAM | 应用区顶部之外的 4 KiB | 启动器校验、复制和 UART 会话；应用不可使用 |
 | User Flash | `0x2000_0000`，76 KiB | A/B 应用槽；由启动器控制 |
 
-应用镜像固定从 `0x1000_0000` 装载和入口，最大已对齐载荷为 36,800 字节。镜像包含硬件 ABI `0x00000005`、载荷长度、CRC32 和状态字；不要手工修改头部或绕开 `tools/omcu_image.py`。
+应用镜像固定从 `0x1000_0000` 装载和入口，最大已对齐载荷为 36,800 字节。镜像包含硬件 ABI `0x00000006`、载荷长度、CRC32 和状态字；不要手工修改头部或绕开 `tools/omcu_image.py`。
 
 `omcu_tn9k.h` 只定义 27 MHz 时钟和逻辑 LED/GPIO 位掩码，不暴露 FPGA 封装管脚。物理管脚、电平和外设冲突请看 [Tang Nano 9K 平台说明](../rtl/platform/tangnano9k/README.md)。
 
@@ -90,5 +90,24 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 | `omcu_irq_smoke` | TIMER0 到 IRQCTRL、固定向量、C ISR、`RETIRQ` 的全链路检查。 |
 | `omcu_wdt_reset_smoke` | 经 Tang 封装的看门狗复位检查。 |
 | `omcu_tn9k_board_demo` | UART、PWM、逻辑 LED、扩展 GPIO 和 WDT 的板级 bring-up 示例。 |
+| `omcu_external_peripherals` | P0 外置 RTC、温度传感器和 W5500 静态网络配置模板；生成独立 `.omcu`。 |
 
 中断是 PicoRV32 自定义 ABI，而不是特权 RISC-V CSR/PLIC API。应用启用中断前必须阅读 [`docs/interrupts.md`](../docs/interrupts.md)。
+
+## P0 外置器件驱动
+
+`omcu_device_drivers` 是 SDK 内置的无动态内存静态库。客户应用在 CMake 中显式链接它：
+
+```cmake
+omcu_add_application(omcu_my_sensor examples/my_sensor/main.c)
+target_link_libraries(omcu_my_sensor PRIVATE omcu_device_drivers)
+```
+
+公开头文件为 `omcu_bus.h` 与 `omcu_devices.h`：提供有界超时的 I2C/SPI 事务，DS3231 RTC、
+AT24Cxx EEPROM、TMP102 温度传感器、MCP3008 ADC、MCP4921 DAC，以及 W5500 的初始化、
+socket 打开/连接/收发 API。W5500、MCP3008 和 MCP4921 的帧会通过 SPI0 `CS_HOLD` 保持
+片选，不能再把每字节自动释放 CS 的旧语义误用于这些器件。
+
+这些是可编译、可调用的外设驱动，不等于目标模块已完成实体板 HIL。使用前必须确认 3.3 V、
+共地、I2C 外部上拉，以及 SPI0 与 TF 卡不能同时使用；W5500 的 TX/RX 缓冲区总量还必须由
+应用控制在芯片的 16 KiB 总预算内。
