@@ -32,7 +32,7 @@ Third-party code must not assume any of the following in v1:
 
 The CPU can read its internal cycle/instruction counters through PicoRV32's
 supported counter encodings, but this is not advertised as the full `Zicsr`
-extension. v0.4 does expose a deliberately narrow, documented PicoRV32
+extension. ABI 0.5 does expose a deliberately narrow, documented PicoRV32
 custom-IRQ path through `omcu.h`: six external sources use bits 8 through 13,
 the SDK owns vector `0x10`, and applications provide the C dispatch hook. It
 does not make the core a privileged RISC-V implementation. A later

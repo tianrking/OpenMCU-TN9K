@@ -26,12 +26,13 @@ flowchart LR
 
 ## 推荐阅读顺序
 
-1. [独立 MCU 固件开发与升级](mcu-firmware-update.md)：产品流程、A/B 槽、UART 协议、恢复和安全边界。
-2. [硬件与引脚](hardware-and-pins.md)：Tang Nano 9K 的电压、引脚、串口、I2C 和 SPI 注意事项。
-3. [构建与烧录](build-and-program.md)：可重复 SDK / FPGA 构建，SRAM 试运行和配置 Flash 固化。
-4. [外设与 SDK](peripherals-and-sdk.md)：C API、寄存器和示例边界。
-5. [中断开发约定](interrupts.md)：PicoRV32 自定义 IRQ ABI、固定向量和 ISR 规则。
-6. [验证与发布状态](validation-and-release.md)：证据层级与对外发布门槛。
+1. [标准工程数据手册](datasheet.md)：CPU、内存、引脚、全部寄存器、升级协议、缺失能力与验证状态。
+2. [独立 MCU 固件开发与升级](mcu-firmware-update.md)：产品流程、A/B 槽、UART 协议、恢复和安全边界。
+3. [硬件与引脚](hardware-and-pins.md)：Tang Nano 9K 的电压、引脚、串口、I2C 和 SPI 注意事项。
+4. [构建与烧录](build-and-program.md)：可重复 SDK / FPGA 构建，SRAM 试运行和配置 Flash 固化。
+5. [外设与 SDK](peripherals-and-sdk.md)：C API、寄存器和示例边界。
+6. [中断开发约定](interrupts.md)：PicoRV32 自定义 IRQ ABI、固定向量和 ISR 规则。
+7. [验证与发布状态](validation-and-release.md)：证据层级与对外发布门槛。
 
 ## 平台首次构建：FPGA 工程
 

@@ -12,6 +12,8 @@
 
 `omcu_mcu_blink` 是最小的独立 MCU 应用示例。它和以后客户写的应用一样，生成 `*.omcu`，不需要重新构建 FPGA 位流。
 
+CPU、内存、全部寄存器、引脚和明确不提供的能力见 [中文工程数据手册](../docs/zh-CN/datasheet.md)。
+
 ## 环境准备
 
 - CMake 3.20 或更新版本、Ninja；

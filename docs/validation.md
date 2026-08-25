@@ -96,18 +96,18 @@ Nano 9K target:
   `GW1NR-LV9QN88PC6/I5`.
 - `scripts/build-tangnano9k-open.ps1 -RomInitFile
   .\build\sdk\omcu_irq_smoke.hex -RomKiB 8 -SramKiB 44`: passed for the
-  current v0.4 external-IRQ RTL using
+  historical v0.4 external-IRQ RTL using
   Yosys 0.68, nextpnr-himbaechel-gowin 0.11.1 and Apycula 0.32.
 - The two board-demo/peripheral-smoke implementations recorded below are
   retained historical pre-v0.4 ROM-selection baselines; they use the same
-  device, constraints, memory geometry and tool versions but not the current
-  IRQ-enabled RTL.
+  device, constraints, memory geometry and tool versions but not the later
+  product MCU RTL.
 - For each build, the script converts the sparse input `.hex` into a dense
   2,048-word NOP-padded image, supplies it as the literal boot-ROM
   `$readmemh` input during front-end parsing, then hashes the `INIT_RAM_xx`
   data of the four boot-ROM BSRAM cells in both the synthesized and P&R JSON.
   A build fails if those two fingerprints differ.
-- Current `omcu_irq_smoke`: input SHA-256
+- Historical `omcu_irq_smoke`: input SHA-256
   `1409af0b9d1a1498520e6378752a2959c7d58979a4d5f0c232fa5bdd253d0b4d`,
   synthesized/P&R BSRAM fingerprint
   `173d1cf6c36fc89aedc62a7e5bff39cb255e064d2bfccaa616ec0bc604295c82`,

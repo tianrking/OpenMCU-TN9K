@@ -16,8 +16,9 @@ hand-written convenience layer built on those generated definitions. The
 generator's `-Check` mode is a required CI gate once CI is enabled.
 
 The corresponding human register reference is
-[`docs/registers.md`](registers.md); it is reviewed alongside the JSON and RTL
-until documentation generation is added.
+[`docs/registers.md`](registers.md). The current complete product specification
+is the Chinese-first [`docs/zh-CN/datasheet.md`](zh-CN/datasheet.md), reviewed
+alongside the JSON and RTL until documentation generation is added.
 
 The next step is to generate the register reference and Rust bindings from the
 same reviewed source. Hand-editing generated register definitions is prohibited
@@ -33,7 +34,7 @@ because it creates silent hardware/software divergence.
 
 ## Required public SDK functions
 
-The v0.4 SDK includes device/feature discovery, GPIO, timer, UART console,
+The ABI 0.5 SDK includes device/feature discovery, GPIO, timer, UART console,
 polled SPI byte transfer, composable I2C START/STOP/read/write-byte helpers,
 watchdog start/feed/stop, PWM configuration, and the executable external IRQ
 entry points `omcu_irq_set_mask()`, `omcu_irq_wait()`,
@@ -57,6 +58,7 @@ prefix and drive the same CMake toolchain file, linker script and generated
 register header. The supported-host CI matrix compiles every SDK target on
 Windows, Linux and macOS; its result is still distinct from a board test.
 
-The SDK still needs a serial/QSPI programmer, board-information CLI and target
-metadata loader. A standards-complete privileged RISC-V trap/interrupt core is
-also a future CPU-adapter feature, not an implied property of this ABI.
+The SDK includes the independent-application image packer and UART serial
+programmer for the Tang Nano 9K User Flash A/B path. A board-information CLI,
+standard QSPI/XIP path, and a standards-complete privileged RISC-V
+trap/interrupt core remain future features, not implied properties of this ABI.

@@ -1,6 +1,6 @@
-# OpenMCU v0.4 中断开发约定
+# OpenMCU ABI 0.5 中断开发约定
 
-OpenMCU v0.4 为 RV32IMC FPGA 目标提供了一条真正可执行的外部中断链路：外设事件捕获、
+OpenMCU ABI 0.5 为 RV32IMC FPGA 目标保留了一条真正可执行的外部中断链路：外设事件捕获、
 软件使能和应答寄存器、CPU 投递、固定向量、完整 C ABI 现场保护，以及 SDK 分发入口。
 凡是 `SYSCTRL.FEATURES` 声明 `OMCU_FEATURE_IRQCTRL` 的仿真或 Tang Nano 9K 封装，
 都遵循这一约定。

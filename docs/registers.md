@@ -1,11 +1,12 @@
-# OpenMCU v0.4 register reference
+# OpenMCU ABI 0.5 register reference
 
 All v0 MMIO registers are 32-bit little-endian and word-aligned. Addresses are
-stable within ABI major version 0. ABI minor 4 adds IRQCTRL and the documented
-PicoRV32 custom-IRQ SDK path to the previous GPIO/UART/timer/SPI/I2C/WDT/PWM
-blocks. The reviewed machine-readable register source is
+stable within ABI major version 0. ABI minor 5 retains IRQCTRL and the
+documented PicoRV32 custom-IRQ SDK path, and adds the User Flash feature bit
+for the Tang Nano 9K product mode. The reviewed machine-readable register source is
 [`spec/omcu-v0.json`](../spec/omcu-v0.json); the C register header is generated
-from that source.
+from that source. The current complete Chinese product specification, including
+User Flash, reset values and pin bindings, is [`zh-CN/datasheet.md`](zh-CN/datasheet.md).
 
 ## GPIO0 — `0x4000_0000`
 
@@ -61,8 +62,8 @@ zero and continues.
 
 SPI0 is a compact 8-bit, MSB-first, CPOL=0/CPHA=0 (mode-0) master. A `START`
 operation automatically asserts one active-low chip select for exactly one byte
-transfer. It is intentionally the low-level engine below a future QSPI/XIP or
-DMA controller.
+transfer. A future QSPI/XIP or DMA controller would require a new, separately
+documented ABI block.
 
 | Offset | Register | Access | Meaning |
 | --- | --- | --- | --- |
@@ -163,8 +164,8 @@ live level-style source is intentionally captured again.
 | Offset | Register | Access | Meaning |
 | --- | --- | --- | --- |
 | `0x00` | `CHIP_ID` | RO | `0x4F4D4355` (`OMCU`) |
-| `0x04` | `ABI` | RO | ABI major in bits `31:16`, minor in bits `15:0` (`0.4`) |
-| `0x08` | `FEATURES` | RO | Bit 0 GPIO0, 1 UART0, 2 TIMER0, 3 SPI0, 4 I2C0, 5 WDT0, 6 PWM0, 7 IRQCTRL |
+| `0x04` | `ABI` | RO | ABI major in bits `31:16`, minor in bits `15:0` (`0.5`) |
+| `0x08` | `FEATURES` | RO | Bits 0..7: GPIO0/UART0/TIMER0/SPI0/I2C0/WDT0/PWM0/IRQCTRL; bit 14: User Flash |
 | `0x0C` | `BUILD_ID` | RO | Platform build identifier |
 | `0x10` | `MEMORY_KIB` | RO | SRAM KiB in bits `31:16`, ROM KiB in bits `15:0` |
 

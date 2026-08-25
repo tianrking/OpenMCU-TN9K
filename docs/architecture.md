@@ -15,9 +15,9 @@ change the public peripheral ABI.
 
 | Address range | Block | Notes |
 | --- | --- | --- |
-| `0x0000_0000-0x0000_FFFF` | boot ROM aperture | Immutable reset vector and external-flash loader |
+| `0x0000_0000-0x0000_FFFF` | boot ROM aperture | Immutable reset vector and product Bootloader |
 | `0x1000_0000-0x1000_FFFF` | main SRAM aperture | Platform wrapper selects FPGA BRAM or ASIC SRAM macro |
-| `0x2000_0000-0x20FF_FFFF` | QSPI/XIP window | External firmware storage; exact size is board-dependent |
+| `0x2000_0000-0x20FF_FFFF` | User Flash aperture | Tang Nano 9K product uses 76 KiB of GW1NR User Flash; legacy QSPI macro is only an alias, not XIP |
 | `0x4000_0000-0x4000_0FFF` | GPIO0 | v0 portable GPIO peripheral |
 | `0x4000_1000-0x4000_1FFF` | UART0 | Console, loader and diagnostics |
 | `0x4000_2000-0x4000_2FFF` | TIMER0 | v0 portable timer peripheral |
@@ -26,7 +26,7 @@ change the public peripheral ABI.
 | `0x4000_5000-0x4000_5FFF` | WDT0 | Independent watchdog |
 | `0x4000_6000-0x4000_6FFF` | PWM0 | Edge-aligned PWM generator |
 | `0x4000_7000-0x4000_7FFF` | IRQCTRL | Sticky external-event capture, masking, force and priority view |
-| `0x4000_F000-0x4000_FFFF` | SYSCTRL | Chip ID, build ID, reset reason and clock metadata |
+| `0x4000_F000-0x4000_FFFF` | SYSCTRL | Chip ID, ABI, feature bits, build ID and actual ROM/SRAM KiB |
 
 No compatible release may move an existing block. New functions receive a new
 range; an incompatible behavior requires a new major device revision.
@@ -77,8 +77,9 @@ and surfaced as a simulation/bring-up diagnostic; the minimal adapter does not
 yet turn them into a RISC-V access fault.
 
 The ROM initialization file is a simulation/FPGA-bring-up mechanism, not the
-final update solution. The product boot path remains: immutable loader ->
-verified external-QSPI firmware -> SRAM execution.
+customer update solution. The Tang Nano 9K product boot path is: immutable
+loader -> verified GW1NR User Flash A/B image -> SRAM execution. The customer
+application is not compiled into the FPGA configuration.
 
 ## Reset and clock contract
 

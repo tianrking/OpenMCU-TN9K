@@ -1,6 +1,6 @@
-# OpenMCU v0.4 interrupt contract
+# OpenMCU ABI 0.5 interrupt contract
 
-OpenMCU v0.4 adds a complete, executable external-interrupt path for the
+OpenMCU ABI 0.5 retains a complete, executable external-interrupt path for the
 RV32IMC FPGA target. It covers peripheral event capture, software enable and
 acknowledge registers, CPU delivery, a fixed vector, a full C-ABI save/restore
 wrapper, and an SDK dispatch hook. The contract applies to the simulation and

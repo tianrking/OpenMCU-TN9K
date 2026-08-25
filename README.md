@@ -135,6 +135,7 @@ asic/                        FPGA 到 ASIC 的明确交接边界
 arm/                         ARM 后端授权边界（不含 ARM IP）
 ```
 
+- [标准工程数据手册（中文）](docs/zh-CN/datasheet.md)
 - [中文开发总览](docs/zh-CN/README.md)
 - [独立 MCU 固件开发与升级](docs/zh-CN/mcu-firmware-update.md)
 - [构建与烧录](docs/zh-CN/build-and-program.md)
