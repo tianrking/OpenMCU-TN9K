@@ -1,5 +1,9 @@
 # 外设、SDK 与应用开发
 
+> **主规格书入口：**完整的引脚、复用、寄存器语义、IRQ、位宽和电气边界见
+> [《OpenMCU-TN9K 外设与引脚完整规格书》](peripheral-pin-specification.md)。
+> 本页保留面向 C/C++ 应用的 SDK API、用法和示例说明。
+
 ## 稳定地址空间
 
 | 基址 | 外设 | Tang 顶层连接 |

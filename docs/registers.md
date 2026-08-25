@@ -3,7 +3,9 @@
 所有 MMIO 寄存器为 32-bit、小端、4-byte 对齐。ABI 主版本为 0 时，本文件列出的既有地址不变；
 应用应先读取 `SYSCTRL.CHIP_ID`、ABI 主版本和 `FEATURES`，再使用可选外设。机器可读的唯一来源是
 [`spec/omcu-v0.json`](../spec/omcu-v0.json)，C 头文件 [`sdk/include/omcu_regs.h`](../sdk/include/omcu_regs.h)
-由它生成。面向 Tang 产品的引脚、电气和更新流程见[中文工程数据手册](zh-CN/datasheet.md)。
+由它生成。面向 Tang 产品的完整引脚、电气、复用和外设合同见
+[中文外设与引脚完整规格书](zh-CN/peripheral-pin-specification.md)；升级流程见
+[中文工程数据手册](zh-CN/datasheet.md)。
 
 `RW1C` 表示“写 1 清除”；未列出的位读为 0、写入时忽略，除非该外设另有说明。
 

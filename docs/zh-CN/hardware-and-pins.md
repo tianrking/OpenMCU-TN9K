@@ -1,5 +1,9 @@
 # Tang Nano 9K 硬件与引脚
 
+> **主规格书入口：**所有已约束 package pad、J5 逻辑映射、PINMUX 所有权、外设寄存器和不支持能力以
+> [《OpenMCU-TN9K 外设与引脚完整规格书》](peripheral-pin-specification.md)为准。
+> 本页专注于接线、电气注意事项、实验步骤和实体板 HIL，不重复维护另一份引脚真相源。
+
 ## 板级边界
 
 目标板是 `GW1NR-LV9QN88PC6/I5`（GW1N-9C）。Sipeed 的 Tang Nano 9K 产品资料列出
