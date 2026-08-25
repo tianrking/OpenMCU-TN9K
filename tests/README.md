@@ -20,6 +20,7 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test gpio
 .\scripts\run-rtl-smoke.ps1 -Test timer
 .\scripts\run-rtl-smoke.ps1 -Test uart
+.\scripts\run-rtl-smoke.ps1 -Test uart1
 .\scripts\run-rtl-smoke.ps1 -Test spi
 .\scripts\run-rtl-smoke.ps1 -Test i2c
 .\scripts\run-rtl-smoke.ps1 -Test wdt
@@ -36,6 +37,8 @@ flowchart LR
 ```
 
 - `user-flash`：对齐、读、页擦除、字写入、错误状态和忙信号的行为模型检查。
+- `uart1`：UART1 MMIO 页、PINMUX 控制位、RX IRQ 到固定 CPU bit 14 的集成检查；UART
+  位时序本身复用 `uart` 单元回归。
 - `system`：小型 RV32I 程序经过 PicoRV32、真实 MMIO 和 GPIO 的首个 CPU/总线/外设集成门。
 - `system-uart`：经 CPU/MMIO 配置 UART0 后验证真实串行字节。
 - `tn9k-wdt` / `tn9k-peripherals` / `tn9k`：经过 Tang 顶层的复位释放、看门狗、SPI/PWM/GPIO/I2C Pad 连通性和低有效 LED 逻辑检查；不等同于实际 Gowin 板。

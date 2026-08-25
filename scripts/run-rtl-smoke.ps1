@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('timer', 'gpio', 'uart', 'spi', 'i2c', 'wdt', 'pwm', 'irqctrl', 'sysctrl', 'user-flash', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', 'tn9k', 'mcu-top')]
+    [ValidateSet('timer', 'gpio', 'uart', 'uart1', 'spi', 'i2c', 'wdt', 'pwm', 'irqctrl', 'sysctrl', 'pinmux', 'user-flash', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', 'tn9k', 'mcu-top')]
     [string]$Test = 'timer'
 )
 
@@ -139,6 +139,40 @@ switch ($Test) {
         & $vvpPath $output
         if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
     }
+    'uart1' {
+        $output = Join-Path $buildDir 'omcu_uart1_fabric_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_uart1_fabric_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_uart1_fabric_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
+    'pinmux' {
+        $output = Join-Path $buildDir 'omcu_pinmux_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_pinmux_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_pinmux_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
     'user-flash' {
         $output = Join-Path $buildDir 'omcu_user_flash_tb.vvp'
         $sources = @(
@@ -164,6 +198,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -193,6 +228,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -226,6 +262,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -259,6 +296,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -292,6 +330,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -325,6 +364,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -358,6 +398,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -392,6 +433,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -422,6 +464,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),
@@ -454,6 +497,7 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_user_flash.sv'),
             (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
             (Join-Path $projectRoot 'rtl\cpu\omcu_picorv32_system.sv'),

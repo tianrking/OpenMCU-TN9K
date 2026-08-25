@@ -20,6 +20,8 @@
 #define OMCU_WDT0_BASE           UINT32_C(0x40005000)
 #define OMCU_PWM0_BASE           UINT32_C(0x40006000)
 #define OMCU_IRQCTRL_BASE        UINT32_C(0x40007000)
+#define OMCU_UART1_BASE          UINT32_C(0x40008000)
+#define OMCU_PINMUX_BASE         UINT32_C(0x4000B000)
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
@@ -51,6 +53,13 @@ typedef struct {
   volatile uint32_t bauddiv; /* +0x08: system clocks per UART bit minus one */
   volatile uint32_t ctrl; /* +0x0c: TX enable, RX enable, RX IRQ enable */
 } omcu_uart_regs_t;
+
+typedef struct {
+  volatile uint32_t data; /* +0x00: TX write / RX read byte */
+  volatile uint32_t status; /* +0x04: TX ready, RX valid and sticky errors */
+  volatile uint32_t bauddiv; /* +0x08: system clocks per UART bit minus one */
+  volatile uint32_t ctrl; /* +0x0c: TX enable, RX enable, RX IRQ enable */
+} omcu_uart1_regs_t;
 
 typedef struct {
   volatile uint32_t ctrl; /* +0x00: EN, IRQ_EN, AUTO_RELOAD */
@@ -101,6 +110,10 @@ typedef struct {
 } omcu_irqctrl_regs_t;
 
 typedef struct {
+  volatile uint32_t ctrl; /* +0x00: alternate-function ownership; disabled functions leave pads under GPIO control */
+} omcu_pinmux_regs_t;
+
+typedef struct {
   volatile const uint32_t chip_id; /* +0x00: OpenMCU chip identifier */
   volatile const uint32_t abi; /* +0x04: major in bits 31:16, minor in bits 15:0 */
   volatile const uint32_t features; /* +0x08: implemented peripheral feature bits */
@@ -110,12 +123,14 @@ typedef struct {
 
 #define OMCU_GPIO0               ((omcu_gpio_regs_t *)(uintptr_t)OMCU_GPIO0_BASE)
 #define OMCU_UART0               ((omcu_uart_regs_t *)(uintptr_t)OMCU_UART0_BASE)
+#define OMCU_UART1               ((omcu_uart1_regs_t *)(uintptr_t)OMCU_UART1_BASE)
 #define OMCU_TIMER0              ((omcu_timer_regs_t *)(uintptr_t)OMCU_TIMER0_BASE)
 #define OMCU_SPI0                ((omcu_spi_regs_t *)(uintptr_t)OMCU_SPI0_BASE)
 #define OMCU_I2C0                ((omcu_i2c_regs_t *)(uintptr_t)OMCU_I2C0_BASE)
 #define OMCU_WDT0                ((omcu_wdt_regs_t *)(uintptr_t)OMCU_WDT0_BASE)
 #define OMCU_PWM0                ((omcu_pwm_regs_t *)(uintptr_t)OMCU_PWM0_BASE)
 #define OMCU_IRQCTRL             ((omcu_irqctrl_regs_t *)(uintptr_t)OMCU_IRQCTRL_BASE)
+#define OMCU_PINMUX              ((omcu_pinmux_regs_t *)(uintptr_t)OMCU_PINMUX_BASE)
 #define OMCU_SYSCTRL             ((omcu_sysctrl_regs_t *)(uintptr_t)OMCU_SYSCTRL_BASE)
 
 enum {
@@ -127,6 +142,8 @@ enum {
   OMCU_FEATURE_WDT0                = 1u << 5,
   OMCU_FEATURE_PWM0                = 1u << 6,
   OMCU_FEATURE_IRQCTRL             = 1u << 7,
+  OMCU_FEATURE_UART1               = 1u << 8,
+  OMCU_FEATURE_PINMUX              = 1u << 12,
   OMCU_FEATURE_GPIO_EXPANSION      = 1u << 13,
   OMCU_FEATURE_USER_FLASH          = 1u << 14,
   OMCU_IRQ_GPIO0                   = 1u << 8,
@@ -135,7 +152,9 @@ enum {
   OMCU_IRQ_SPI0                    = 1u << 11,
   OMCU_IRQ_I2C0                    = 1u << 12,
   OMCU_IRQ_WDT0                    = 1u << 13,
-  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x00003F00),
+  OMCU_IRQ_UART1                   = 1u << 14,
+  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x00007F00),
+  OMCU_PINMUX_CTRL_UART1_ENABLE    = 1u << 0,
   OMCU_TIMER_CTRL_ENABLE           = 1u << 0,
   OMCU_TIMER_CTRL_IRQ_ENABLE       = 1u << 1,
   OMCU_TIMER_CTRL_AUTO_RELOAD      = 1u << 2,

@@ -16,6 +16,7 @@
         <File path="../../../peripherals/omcu_pwm.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_irq_ctrl.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_sysctrl.sv" type="file.verilog" enable="1"/>
+        <File path="../../../peripherals/omcu_pinmux.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_user_flash.sv" type="file.verilog" enable="1"/>
         <File path="../../../bus/omcu_mmio_fabric.sv" type="file.verilog" enable="1"/>
         <File path="../../../cpu/omcu_picorv32_system.sv" type="file.verilog" enable="1"/>

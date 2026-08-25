@@ -147,5 +147,6 @@ add_custom_command(TARGET omcu_bootloader POST_BUILD
   VERBATIM
 )
 omcu_add_application(omcu_mcu_blink examples/mcu_blink/main.c)
+omcu_add_application(omcu_uart1_loopback examples/uart1_loopback/main.c)
 omcu_add_application(omcu_external_peripherals examples/external_peripherals/main.c)
 target_link_libraries(omcu_external_peripherals PRIVATE omcu_device_drivers)

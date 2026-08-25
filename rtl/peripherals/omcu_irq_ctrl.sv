@@ -2,7 +2,8 @@
 
 // OpenMCU's compact external interrupt controller.  It latches short
 // peripheral events, provides a software-visible enable/acknowledge policy,
-// and maps the six portable sources onto PicoRV32 external IRQ inputs 8..13.
+// and maps SOURCE_COUNT portable sources onto consecutive PicoRV32 external
+// IRQ inputs beginning at IRQ_BASE.
 // IRQ 0..2 are deliberately reserved for PicoRV32's timer, illegal-instruction
 // and bus-error facilities, so a peripheral can never alias a core fault.
 module omcu_irq_ctrl #(
@@ -90,7 +91,7 @@ module omcu_irq_ctrl #(
 
   always_comb begin
     // Lowest numbered active external IRQ wins.  The returned number is the
-    // CPU IRQ bit index (8..13), not a register offset; zero means none.
+    // CPU IRQ bit index, not a register offset; zero means none.
     highest_read = '0;
     for (priority_index = 0;
          priority_index < SOURCE_COUNT;

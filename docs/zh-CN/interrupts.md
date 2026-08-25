@@ -1,6 +1,6 @@
-# OpenMCU ABI 0.5 中断开发约定
+# OpenMCU ABI 0.6 中断开发约定
 
-OpenMCU ABI 0.5 为 RV32IMC FPGA 目标保留了一条真正可执行的外部中断链路：外设事件捕获、
+OpenMCU ABI 0.6 为 RV32IMC FPGA 目标保留了一条真正可执行的外部中断链路：外设事件捕获、
 软件使能和应答寄存器、CPU 投递、固定向量、完整 C ABI 现场保护，以及 SDK 分发入口。
 凡是 `SYSCTRL.FEATURES` 声明 `OMCU_FEATURE_IRQCTRL` 的仿真或 Tang Nano 9K 封装，
 都遵循这一约定。
@@ -18,13 +18,13 @@ OpenMCU ABI 0.5 为 RV32IMC FPGA 目标保留了一条真正可执行的外部�
 ## 中断如何从外设走到 C 函数
 
 ```text
-GPIO / UART / TIMER / SPI / I2C / WDT 事件
+GPIO / UART0 / TIMER / SPI / I2C / WDT / UART1 事件
                     |
                     v
         IRQCTRL：sticky pending + enable + force
                     |
                     v
-         PicoRV32 外部输入 bit 8 到 bit 13
+         PicoRV32 外部输入 bit 8 到 bit 14
                     |
                     v
  固定向量 0x10 -> SDK 包装器 -> omcu_irq_dispatch(mask)
@@ -41,10 +41,12 @@ GPIO / UART / TIMER / SPI / I2C / WDT 事件
 | 11 / `OMCU_IRQ_SPI0` | SPI0 | 如有需要读取结果，再 W1C `STATUS.DONE`。 |
 | 12 / `OMCU_IRQ_I2C0` | I2C0 | 完成本字节事务，再 W1C 终态状态位。 |
 | 13 / `OMCU_IRQ_WDT0` | WDT0 | 执行产品级策略，再清除 expiry 或停止/喂狗。 |
+| 14 / `OMCU_IRQ_UART1` | UART1 | 在 `RX_VALID` 为一时读取 `DATA`，再确认 IRQCTRL。 |
 
 PicoRV32 的 bit 0 到 bit 2 保留给它自己的 timer、非法指令与总线错误路径。bit 3 到
-bit 7、bit 14 到 bit 31 在本平台被硬件永久屏蔽。`OMCU_IRQ_EXTERNAL_MASK` 精确等于
-`0x0000_3F00`。
+bit 7、bit 15 到 bit 31 在当前平台被硬件永久屏蔽。`OMCU_IRQ_EXTERNAL_MASK` 精确等于
+`0x0000_7F00`。UART1 是可选功能：仅在 `SYSCTRL.FEATURES` 报告
+`OMCU_FEATURE_UART1` 时 bit 14 才是有效来源。
 
 ## IRQCTRL 寄存器
 

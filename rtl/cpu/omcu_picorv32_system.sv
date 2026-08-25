@@ -26,6 +26,8 @@ module omcu_picorv32_system #(
   parameter logic [15:0] ABI_MINOR = 16'h0006,
   parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
   parameter integer GPIO_EXPANSION_PRESENT = 0,
+  parameter integer UART1_PRESENT = 0,
+  parameter integer PINMUX_PRESENT = 0,
   // In product-loader mode applications execute from SRAM, so PicoRV32 must
   // enter external interrupts at the application's fixed SRAM vector.
   parameter integer APPLICATION_BOOT_MODE = 0,
@@ -45,6 +47,9 @@ module omcu_picorv32_system #(
   input  logic                  uart_rx_i,
   output logic                  uart_tx_o,
   output logic                  uart_irq_o,
+  input  logic                  uart1_rx_i,
+  output logic                  uart1_tx_o,
+  output logic                  uart1_irq_o,
   output logic                  timer_irq_o,
   input  logic                  spi_miso_i,
   output logic                  spi_mosi_o,
@@ -59,6 +64,9 @@ module omcu_picorv32_system #(
   output logic                  wdt_irq_o,
   output logic                  wdt_reset_req_o,
   output logic                  pwm_o,
+  output logic                  pinmux_uart1_enable_o,
+  output logic                  pinmux_pwm1_enable_o,
+  output logic                  pinmux_timer1_enable_o,
 
   output logic                  cpu_trap_o,
   output logic                  bus_error_o
@@ -73,7 +81,11 @@ module omcu_picorv32_system #(
   localparam logic [31:0] BOOT_ROM_BYTES = ROM_WORDS * 4;
   localparam logic [31:0] SYSTEM_FEATURE_BITS = FEATURE_BITS |
     ((GPIO_EXPANSION_PRESENT != 0) ? 32'h0000_2000 : 32'h0000_0000) |
+    ((UART1_PRESENT != 0) ? 32'h0000_0100 : 32'h0000_0000) |
+    ((PINMUX_PRESENT != 0) ? 32'h0000_1000 : 32'h0000_0000) |
     ((USER_FLASH_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
+  localparam logic [31:0] CPU_EXTERNAL_IRQ_BITS = 32'h0000_3f00 |
+    ((UART1_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
   localparam logic [31:0] STACK_ADDRESS = SRAM_BASE + SRAM_BYTES - 4;
   localparam integer ROM_ADDR_BITS = $clog2(ROM_WORDS);
   localparam integer SRAM_WORDS = SRAM_BYTES / 4;
@@ -171,7 +183,9 @@ module omcu_picorv32_system #(
     .ROM_BYTES(BOOT_ROM_BYTES),
     .SRAM_BYTES(SRAM_BYTES),
     .ABI_MINOR(ABI_MINOR),
-    .FEATURE_BITS(SYSTEM_FEATURE_BITS)
+    .FEATURE_BITS(SYSTEM_FEATURE_BITS),
+    .UART1_PRESENT(UART1_PRESENT),
+    .PINMUX_PRESENT(PINMUX_PRESENT)
   ) mmio (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
@@ -190,6 +204,9 @@ module omcu_picorv32_system #(
     .uart_rx_i(uart_rx_i),
     .uart_tx_o(uart_tx_o),
     .uart_irq_o(uart_irq_o),
+    .uart1_rx_i(uart1_rx_i),
+    .uart1_tx_o(uart1_tx_o),
+    .uart1_irq_o(uart1_irq_o),
     .timer_irq_o(timer_irq_o),
     .spi_miso_i(spi_miso_i),
     .spi_mosi_o(spi_mosi_o),
@@ -204,6 +221,9 @@ module omcu_picorv32_system #(
     .wdt_irq_o(wdt_irq_o),
     .wdt_reset_req_o(wdt_reset_req_o),
     .pwm_o(pwm_o),
+    .pinmux_uart1_enable_o(pinmux_uart1_enable_o),
+    .pinmux_pwm1_enable_o(pinmux_pwm1_enable_o),
+    .pinmux_timer1_enable_o(pinmux_timer1_enable_o),
     .irq_vector_o(cpu_irq_vector)
   );
 
@@ -275,10 +295,10 @@ module omcu_picorv32_system #(
     .ENABLE_IRQ(1'b1),
     .ENABLE_IRQ_QREGS(1'b1),
     .ENABLE_IRQ_TIMER(1'b0),
-    // Bits 0..2 are PicoRV32-reserved; the portable IRQ controller owns only
-    // bits 8..13. Everything else is permanently masked in hardware.
-    .MASKED_IRQ(32'hffff_c0ff),
-    .LATCHED_IRQ(32'h0000_3f00),
+    // Bits 0..2 are PicoRV32-reserved; the portable IRQ controller owns bits
+    // 8..13 and, when advertised, UART1 at bit 14. Everything else is masked.
+    .MASKED_IRQ(~CPU_EXTERNAL_IRQ_BITS),
+    .LATCHED_IRQ(CPU_EXTERNAL_IRQ_BITS),
     .ENABLE_TRACE(1'b0),
     .PROGADDR_RESET(32'h0000_0000),
     .PROGADDR_IRQ(

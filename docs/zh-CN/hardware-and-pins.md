@@ -22,6 +22,7 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 | I2C0 SCL/SDA | `i2c0_scl_io` / `i2c0_sda_io` | 26 / 27 | 真正开漏；外部必须提供合适的 3.3 V 上拉。 |
 | PWM0 | `pwm0_o` | 25 | 单路边沿对齐 PWM。 |
 | 扩展 GPIO 档案 | GPIO0[6..17] / `gpio_io[0..11]` | 28,29,30,33,34,40,35,41,42,51,53,54 | 12 路可输入、输出或高阻；`gpio_io[3..11]` 与 RGB LCD 共线。 |
+| UART1 TX/RX（复用） | GPIO10/11 / `gpio_io[10:11]` | 53 / 54 | 默认仍是 GPIO；`PINMUX.CTRL.UART1_ENABLE=1` 后为 UART1 TX/RX，对应 J5.18/J5.19。 |
 
 `GPIO0[0..5]` 与 LED 专用映射不可同时作为外部数字引脚使用。ABI 0.6 的
 `GPIO0[6..17]` 是 12 路扩展档案，SDK 中对应 `OMCU_TN9K_GPIO0` 至
@@ -35,6 +36,27 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 
 该档案已经具有 RTL 顶层、CST 和数字仿真覆盖，但尚未完成实体板电压、线缆、显示复用和
 目标外设 HIL。它不包含 J6 的 1.8 V 信号、HDMI 对、JTAG/MODE/DONE 或“所有未用 IOB”。
+
+## UART1 与显式 pinmux
+
+UART0 始终保留给 Bootloader、下载和默认日志。需要第二路设备串口时，ABI 0.6 在 J5 的
+两个已约束 3.3 V pad 上提供无 FIFO 的 UART1：TX 为 GPIO10 / J5.18 / package pad 53，RX
+为 GPIO11 / J5.19 / package pad 54。复位时这两个 pad 仍是普通高阻 GPIO，不会因为 FPGA
+中存在 UART1 而被暗中占用。
+
+```c
+#include "omcu_tn9k.h"
+
+if (!omcu_tn9k_uart1_init(omcu_tn9k_uart_bauddiv(115200u), true)) {
+  /* 位流没有 UART1/PINMUX 特性时不要访问 UART1 寄存器。 */
+}
+omcu_uart1_write_byte('U');
+```
+
+该 helper 先配置 UART1，再写 `PINMUX.CTRL.UART1_ENABLE`。启用后顶层强制 TX 为输出，
+并把 RX pad 释放为输入；通用 GPIO 的 `OE` 不再能与 UART1 RX 争用。要归还两根线给 GPIO，
+调用 `omcu_tn9k_uart1_release_pins()`。GPIO10/11 同属于 RGB-LCD 共线组，因此与 RGB LCD
+不可同时使用；首次连接前应以 3.3 V USB 串口、短线、共地和逻辑分析仪完成 HIL。
 
 ## 电气安全规则
 
@@ -52,7 +74,8 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 
 用一个 3.3 V 传感器或小型转接板即可完成最小回归：
 
-- UART：USB 串口终端，115200、8-N-1；观察 `tn9k_board_demo` 的启动文本。
+- UART：USB 串口终端，115200、8-N-1；观察 `tn9k_board_demo` 的启动文本。UART1 测试时保留
+  UART0 作为救砖/下载通道，并在 J5.18/J5.19 使用另一只 3.3 V TTL 串口。
 - PWM：示波器或 LED+限流电阻接 PWM0；默认约 1 kHz、50% 占空比。
 - GPIO：LED/逻辑分析仪接 GPIO0..11；先从 GPIO0..2 开始，再确认未连接 RGB LCD 后使用 GPIO3..11。
 - SPI：MOSI 和 MISO 用短跳线回环，CS/SCK 接逻辑分析仪；用 SDK `SPI0` 传输 API。
@@ -64,7 +87,7 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 在声称“可用开发板”前，逐项记录板 revision、使用的 `.fs` SHA-256、工具版本和结果：
 
 - [ ] USB 上电、冷启动和按键复位各 1000 次；
-- [ ] 六个 LED 极性、UART TX/RX、27 MHz 时钟的实测；
+- [ ] 六个 LED 极性、UART0 与 UART1 TX/RX、27 MHz 时钟的实测；
 - [ ] SRAM 下载、断电消失、Flash 下载、断电后重启四种行为；
 - [ ] GPIO 高/低/高阻、PWM 周期/占空比、SPI 回环；
 - [ ] I2C 真正目标的 ACK/NACK、时钟拉伸和断线恢复；

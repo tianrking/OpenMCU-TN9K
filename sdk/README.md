@@ -82,6 +82,7 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 | 目标 | 目的 |
 | --- | --- |
 | `omcu_mcu_blink` | 独立 `.omcu` 形式的 LED 闪烁示例。 |
+| `omcu_uart1_loopback` | 独立 `.omcu` 的 UART1 回显/HIL 示例；UART0 保持给升级器。 |
 | `omcu_blink` | 旧式 ROM LED 回归。 |
 | `omcu_uart_hello` | UART0 启动文字。 |
 | `omcu_isa_smoke` | 编译器、RV32IMC 指令和启动代码集成检查。 |
@@ -111,3 +112,14 @@ socket 打开/连接/收发 API。W5500、MCP3008 和 MCP4921 的帧会通过 SP
 这些是可编译、可调用的外设驱动，不等于目标模块已完成实体板 HIL。使用前必须确认 3.3 V、
 共地、I2C 外部上拉，以及 SPI0 与 TF 卡不能同时使用；W5500 的 TX/RX 缓冲区总量还必须由
 应用控制在芯片的 16 KiB 总预算内。
+
+## UART1 第二路串口
+
+`omcu_uart1_loopback` 是独立应用镜像，不会重新编进 FPGA。它检查
+`OMCU_FEATURE_UART1 | OMCU_FEATURE_PINMUX`，把 UART1 配为 115200 8-N-1，并显式将
+Tang Nano 9K 的 GPIO10/J5.18 设为 TX、GPIO11/J5.19 设为 RX。烧录方式仍是先由 UART0
+Bootloader 写入它的 `.omcu`，之后再把第二只 3.3 V TTL 串口接到 J5.18/J5.19 验证回显。
+
+UART1 没有 FIFO；主循环必须及时读取 `DATA`，否则下一字节会置 `RX_OVERRUN`。使用 RGB LCD
+时不能启用这组 pinmux。真实波特率、电平与共线冲突的 HIL 尚未完成，不能把该示例的编译或
+数字仿真写成实体板验证。

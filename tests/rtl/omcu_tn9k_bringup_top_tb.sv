@@ -67,6 +67,31 @@ module omcu_tn9k_bringup_top_tb;
     release dut.system.mmio.gpio0.gpio_out_q[17];
     release dut.system.mmio.gpio0.gpio_oe_q[17];
 
+    // The software-visible PINMUX claim must take GPIO10/11 away from the
+    // generic output driver at the final board pad.  Force the UART state
+    // here because this test's ROM does not issue a UART1 MMIO transaction;
+    // omcu_uart1_fabric_tb covers that decoded-register path separately.
+    force dut.system.mmio.gpio0.gpio_oe_q[16] = 1'b0;
+    force dut.system.mmio.gpio0.gpio_oe_q[17] = 1'b1;
+    force dut.system.mmio.gpio0.gpio_out_q[17] = 1'b0;
+    force dut.system.mmio.pinmux.uart1_enable_q = 1'b1;
+    force dut.system.mmio.uart1.tx_busy_q = 1'b1;
+    force dut.system.mmio.uart1.tx_shift_q = 10'b1111111110;
+    #1 check(gpio[10] == 1'b0,
+             "UART1 pinmux must drive TX low on GPIO10/J5.18 start bit");
+    check(gpio[11] == 1'b1,
+          "UART1 pinmux must release GPIO11/J5.19 for RX despite GPIO OE");
+    force gpio[11] = 1'b0;
+    #1 check(dut.system.uart1_rx_i == 1'b0,
+             "UART1 RX pad must reach the system UART1 receiver input");
+    release gpio[11];
+    release dut.system.mmio.uart1.tx_shift_q;
+    release dut.system.mmio.uart1.tx_busy_q;
+    release dut.system.mmio.pinmux.uart1_enable_q;
+    release dut.system.mmio.gpio0.gpio_out_q[17];
+    release dut.system.mmio.gpio0.gpio_oe_q[17];
+    release dut.system.mmio.gpio0.gpio_oe_q[16];
+
     $display("PASS: omcu_tn9k_bringup_top_tb");
     $finish;
   end

@@ -133,6 +133,62 @@ static inline uint8_t omcu_uart0_read_byte(void) {
   return (uint8_t)OMCU_UART0->data;
 }
 
+/*
+ * UART1 has the same deliberately small, no-FIFO register contract as
+ * UART0.  It is an optional peripheral: board support must also select an
+ * approved alternate-function route before its pins become visible.
+ */
+static inline void omcu_uart1_init(uint16_t bauddiv, bool enable_rx_irq) {
+  OMCU_UART1->ctrl = 0u;
+  OMCU_UART1->bauddiv = bauddiv;
+  OMCU_UART1->status = OMCU_UART_STATUS_RX_OVERRUN |
+                       OMCU_UART_STATUS_RX_FRAMING_ERROR;
+  OMCU_UART1->ctrl = OMCU_UART_CTRL_TX_ENABLE |
+                    OMCU_UART_CTRL_RX_ENABLE |
+                    (enable_rx_irq ? OMCU_UART_CTRL_RX_IRQ_ENABLE : 0u);
+}
+
+static inline bool omcu_uart1_tx_ready(void) {
+  return (OMCU_UART1->status & OMCU_UART_STATUS_TX_READY) != 0u;
+}
+
+static inline void omcu_uart1_write_byte(uint8_t byte) {
+  while (!omcu_uart1_tx_ready()) {
+  }
+  OMCU_UART1->data = byte;
+}
+
+static inline bool omcu_uart1_rx_ready(void) {
+  return (OMCU_UART1->status & OMCU_UART_STATUS_RX_VALID) != 0u;
+}
+
+static inline uint8_t omcu_uart1_read_byte(void) {
+  return (uint8_t)OMCU_UART1->data;
+}
+
+/*
+ * Request or release the portable UART1 pin-function claim.  It is a
+ * feature-gated operation so an application can use one binary with a
+ * smaller OpenMCU configuration without touching an undecoded MMIO page.
+ * Board headers document the actual pins; a generic system does not assume
+ * that UART1 has any particular package-pad mapping.
+ */
+static inline bool omcu_pinmux_uart1_enable(bool enable) {
+  uint32_t ctrl;
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_UART1 | OMCU_FEATURE_PINMUX)) {
+    return false;
+  }
+  ctrl = OMCU_PINMUX->ctrl;
+  if (enable) {
+    ctrl |= OMCU_PINMUX_CTRL_UART1_ENABLE;
+  } else {
+    ctrl &= ~OMCU_PINMUX_CTRL_UART1_ENABLE;
+  }
+  OMCU_PINMUX->ctrl = ctrl;
+  return true;
+}
+
 static inline void omcu_timer_start_periodic(
   uint16_t prescale,
   uint32_t compare

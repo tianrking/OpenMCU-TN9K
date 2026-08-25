@@ -32,7 +32,7 @@
 #define OMCU_TN9K_GPIO10          (UINT32_C(1) << 16)
 #define OMCU_TN9K_GPIO11          (UINT32_C(1) << 17)
 
-/* Rounded divider for the UART0 convention: clocks-per-bit minus one. */
+/* Rounded divider for the UART0/UART1 convention: clocks-per-bit minus one. */
 static inline uint16_t omcu_tn9k_uart_bauddiv(uint32_t baud) {
   uint32_t clocks_per_bit;
 
@@ -41,6 +41,27 @@ static inline uint16_t omcu_tn9k_uart_bauddiv(uint32_t baud) {
   }
   clocks_per_bit = (OMCU_TN9K_SYSCLK_HZ + (baud / 2u)) / baud;
   return (uint16_t)((clocks_per_bit == 0u) ? 0u : clocks_per_bit - 1u);
+}
+
+/*
+ * Tang Nano 9K routes UART1 TX to GPIO10 / J5.18 and UART1 RX to GPIO11 /
+ * J5.19 only after this call.  Before it, both pads remain ordinary GPIO.
+ * The two pins share the RGB-LCD header group, so do not enable this route
+ * while an RGB LCD uses that interface.
+ */
+static inline bool omcu_tn9k_uart1_init(
+  uint16_t bauddiv,
+  bool enable_rx_irq
+) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_UART1 | OMCU_FEATURE_PINMUX)) {
+    return false;
+  }
+  omcu_uart1_init(bauddiv, enable_rx_irq);
+  return omcu_pinmux_uart1_enable(true);
+}
+
+static inline bool omcu_tn9k_uart1_release_pins(void) {
+  return omcu_pinmux_uart1_enable(false);
 }
 
 #endif  /* OMCU_TN9K_H_ */
