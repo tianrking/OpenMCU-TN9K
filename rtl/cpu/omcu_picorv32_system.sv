@@ -17,6 +17,14 @@ module omcu_picorv32_system #(
   parameter integer GPIO_COUNT = 24,
   parameter integer ROM_WORDS = 1024,
   parameter integer SRAM_BYTES = 32768,
+  // The Tang Nano 9K product target maps its separate 608 Kbit user flash at
+  // 0x2000_0000. Generic simulation/bring-up builds leave it absent.
+  parameter integer USER_FLASH_BYTES = 4,
+  parameter integer USER_FLASH_PRESENT = 0,
+  parameter integer CLOCK_HZ = 27000000,
+  // In product-loader mode applications execute from SRAM, so PicoRV32 must
+  // enter external interrupts at the application's fixed SRAM vector.
+  parameter integer APPLICATION_BOOT_MODE = 0,
 `ifdef OMCU_ROM_IMAGE_BUILD
   parameter ROM_INIT_FILE = `OMCU_ROM_IMAGE_FILE
 `else
@@ -54,6 +62,8 @@ module omcu_picorv32_system #(
 
   localparam logic [31:0] SRAM_BASE = 32'h1000_0000;
   localparam logic [31:0] SRAM_END = SRAM_BASE + SRAM_BYTES;
+  localparam logic [31:0] USER_FLASH_BASE = 32'h2000_0000;
+  localparam logic [31:0] USER_FLASH_END = USER_FLASH_BASE + USER_FLASH_BYTES;
   localparam logic [31:0] MMIO_BASE = 32'h4000_0000;
   localparam logic [31:0] MMIO_END = 32'h4001_0000;
   localparam logic [31:0] BOOT_ROM_BYTES = ROM_WORDS * 4;
@@ -74,6 +84,7 @@ module omcu_picorv32_system #(
 
   logic rom_select;
   logic sram_select;
+  logic user_flash_select;
   logic mmio_select;
   logic unmapped_select;
   logic [ROM_ADDR_BITS-1:0] rom_word_index;
@@ -81,6 +92,9 @@ module omcu_picorv32_system #(
   logic mmio_ready;
   logic [31:0] mmio_read_data;
   logic mmio_error;
+  logic user_flash_ready;
+  logic [31:0] user_flash_read_data;
+  logic user_flash_error;
   logic [31:0] cpu_irq_vector;
   logic [31:0] cpu_eoi;
 
@@ -114,11 +128,16 @@ module omcu_picorv32_system #(
   assign sram_select = cpu_mem_valid &&
                        (cpu_mem_addr >= SRAM_BASE) &&
                        (cpu_mem_addr < SRAM_END);
+  assign user_flash_select = (USER_FLASH_PRESENT != 0) &&
+                             cpu_mem_valid &&
+                             (cpu_mem_addr >= USER_FLASH_BASE) &&
+                             (cpu_mem_addr < USER_FLASH_END);
   assign mmio_select = cpu_mem_valid &&
                        (cpu_mem_addr >= MMIO_BASE) &&
                        (cpu_mem_addr < MMIO_END);
   assign unmapped_select = cpu_mem_valid &&
-                           !rom_select && !sram_select && !mmio_select;
+                            !rom_select && !sram_select && !user_flash_select &&
+                            !mmio_select;
   assign rom_word_index = cpu_mem_addr[ROM_ADDR_BITS+1:2];
   assign sram_word_index = cpu_mem_addr[SRAM_ADDR_BITS+1:2];
 
@@ -126,8 +145,9 @@ module omcu_picorv32_system #(
   // PicoRV32 adapter. This signal is a diagnostic for simulation and board
   // bring-up; the longer-term CPU/debug adapter will promote it to an error.
   assign bus_error_o = unmapped_select ||
-                       (rom_select && (|cpu_mem_wstrb)) ||
-                       (mmio_select && mmio_error);
+                        (rom_select && (|cpu_mem_wstrb)) ||
+                        (user_flash_select && user_flash_error) ||
+                        (mmio_select && mmio_error);
 
   always_ff @(posedge clk_i) begin
     if (sram_select && (|cpu_mem_wstrb)) begin
@@ -178,6 +198,27 @@ module omcu_picorv32_system #(
     .irq_vector_o(cpu_irq_vector)
   );
 
+  // This window is intentionally independent of the FPGA configuration ROM.
+  // In the Tang product target it is backed by GW1NR-9C user flash; a generic
+  // behavioral model keeps the same transaction contract available in RTL
+  // simulation.
+  omcu_user_flash #(
+    .FLASH_BYTES(USER_FLASH_BYTES),
+    .CLOCK_HZ(CLOCK_HZ),
+    .PRESENT(USER_FLASH_PRESENT)
+  ) user_flash (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(user_flash_select),
+    .write_i(|cpu_mem_wstrb),
+    .addr_i(cpu_mem_addr - USER_FLASH_BASE),
+    .write_data_i(cpu_mem_wdata),
+    .write_strobe_i(cpu_mem_wstrb),
+    .ready_o(user_flash_ready),
+    .read_data_o(user_flash_read_data),
+    .error_o(user_flash_error)
+  );
+
   always_comb begin
     cpu_mem_ready = 1'b0;
     cpu_mem_rdata = 32'h0000_0000;
@@ -188,6 +229,9 @@ module omcu_picorv32_system #(
     end else if (sram_select) begin
       cpu_mem_ready = 1'b1;
       cpu_mem_rdata = sram[sram_word_index];
+    end else if (user_flash_select) begin
+      cpu_mem_ready = user_flash_ready;
+      cpu_mem_rdata = user_flash_read_data;
     end else if (mmio_select) begin
       cpu_mem_ready = mmio_ready;
       cpu_mem_rdata = mmio_read_data;
@@ -227,7 +271,9 @@ module omcu_picorv32_system #(
     .LATCHED_IRQ(32'h0000_3f00),
     .ENABLE_TRACE(1'b0),
     .PROGADDR_RESET(32'h0000_0000),
-    .PROGADDR_IRQ(32'h0000_0010),
+    .PROGADDR_IRQ(
+      APPLICATION_BOOT_MODE ? (SRAM_BASE + 32'h0000_0010) : 32'h0000_0010
+    ),
     .STACKADDR(STACK_ADDRESS)
   ) cpu (
     .clk(clk_i),
