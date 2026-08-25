@@ -1,125 +1,97 @@
 # 验证状态与发布门槛
 
-> **当前源代码基线：** ABI `0.6`，P0/P1 已实现
-> **当前 FPGA 工件：** `build/tangnano9k-mcu-abi06-final/omcu_tn9k_mcu.fs`
-> **结论：** 自动化回归和目标器件 P&R/packing 已通过；实体 Tang Nano 9K HIL 与量产安全门禁尚未完成。
+> **当前产品基线：** ABI `0.8`、`rv32im` / `ilp32`、4 KiB Boot ROM、44 KiB SRAM、76 KiB User Flash A/B。<br>
+> **可追溯 FPGA 构建：** `build/tangnano9k-mcu-abi08-rv32im-release/`。<br>
+> **结论：** RTL、SDK、镜像工具和精确目标器件的开源 P&R/packing 已通过；实体 Tang Nano 9K HIL、长期可靠性、安全启动和量产资格尚未完成。
 
-本页明确区分“代码存在”“数字仿真通过”“可生成位流”“实体板通过”和“可量产”。它们不可互相
-替代。对外发布时必须同时保存对应 Git commit、`.fs`、manifest、`.omcu`、工具版本与真实板记录。
+本页明确区分“源码存在”“数字仿真通过”“已生成目标位流”“实体板通过”和“可量产”。它们不能互相替代。对外发布时必须保存对应 Git commit、`.fs`、manifest、`.omcu`、工具版本与真实板记录。
 
-## 1. 当前证据矩阵
+## 1. 证据矩阵
 
-| 层级 | 状态 | 本次证据 | 未覆盖的内容 |
+| 层级 | 状态 | 已有证据 | 尚未覆盖 |
 | --- | --- | --- | --- |
-| 规格/SDK 同步 | 已通过 | `generate-sdk.ps1 -Check`，ABI 0.6 生成头与 JSON 一致 | 客户项目、第三方工具链兼容性。 |
-| SDK / Boot ROM | 已通过 | 全部 SDK 目标编译；`omcu_bootloader.hex` 与 FPGA fixture 逐 word 一致 | 实体 UART 下载与真实 Boot ROM 运行。 |
-| RTL / 集成仿真 | 已通过 | 30 个 smoke 目标，含 P0 总线、UART1/PWM1/TIMER1、PCPI div、诊断/Bootloader 与 Tang 顶层 | 真实电平、异步噪声、功率级和 User Flash 行为。 |
-| 镜像/下载协议 | 已通过 | 9 个 Python 测试，覆盖 fixture、`.omcu` 完整性、UART 帧/重传不变量 | 真实串口丢包、断电、设备互操作性。 |
-| FPGA 产品构建 | 已通过 | 精确目标器件的综合、P&R、packing、ROM BSRAM 指纹和 `.fs` SHA-256 | 下载到实体板、冷启动、电气与长期可靠性。 |
-| User Flash A/B | 预 HIL | RTL、Bootloader、镜像与协议已覆盖 | 真正 `FLASH608K` 擦写时序、掉电、寿命、温度。 |
-| 安全启动 | 未实现 | CRC32 检测损坏、A/B 回退 | 签名、密钥、调试锁定、反回滚、安全生产。 |
+| 规格 / SDK 同步 | 已通过 | `generate-sdk.ps1 -Check`，ABI 0.8 JSON 与生成头一致 | 客户项目与第三方工具链兼容性 |
+| SDK / Boot ROM | 已通过 | 全量 SDK 以 `rv32im` 构建；已提交 Boot ROM fixture 与生成 `.hex` 逐 word 一致 | 实体 UART 下载与真实 ROM 启动 |
+| RTL / 集成仿真 | 已通过 | 36 个 smoke 目标，覆盖全部公开外设、CPU、SDK、User Flash 模型、Tang 顶层及新原子 MMIO 合同 | 真实电平、异步噪声、功率级和真实 Flash |
+| 镜像 / 下载协议 | 已通过 | Python 单元测试 9/9，覆盖 fixture、镜像完整性与 UART 帧不变量 | 真实串口丢包、断电和设备互操作 |
+| FPGA 产品构建 | 已通过（非 HIL） | `GW1NR-LV9QN88PC6/I5` 的综合、P&R、packing、ROM BSRAM 指纹、manifest 和 `.fs` SHA-256 | 下载到实体板、冷启动、电气与长期可靠性 |
+| User Flash A/B | 预 HIL | RTL、Bootloader、镜像和协议回退路径 | `FLASH608K` 实际擦写、掉电、寿命、温度 |
+| 安全启动 | 未实现 | CRC32 损坏检测、A/B 回退 | 签名、密钥、调试锁定、反回滚和安全生产 |
 
-## 2. 本次已运行的自动化检查
+## 2. 本次自动化检查
 
-### SDK、生成规格和产品工程
-
-```powershell
-.\scripts\generate-sdk.ps1 -Check
-.\scripts\check-tangnano9k-project.ps1 -McuMode
-
-$prefix = 'C:\...\bin\riscv-none-elf-'
-.\scripts\build-sdk.ps1 -RiscvPrefix $prefix
-```
-
-结果：产品工程覆盖 20 个规范 RTL 源、25 个 MCU pad 绑定；SDK 全量构建成功，且检查到
-`rtl/platform/tangnano9k/firmware/bootloader.hex` 与刚构建的 Boot ROM 完全一致。
-
-### RTL 与固件集成
+### SDK、规格与 Boot ROM
 
 ```powershell
-$env:OMCU_IVERILOG_BIN = 'C:\ProgramData\chocolatey\lib\iverilog\tools\bin'
-
-'timer', 'timer1', 'timer1-fabric', 'gpio', 'uart', 'uart1', 'spi', 'i2c', `
-  'wdt', 'pwm', 'pwm1', 'pwm1-fabric', 'irqctrl', 'sysctrl', 'pinmux', `
-  'user-flash', 'pcpi-div', 'system', 'system-uart', 'sdk-isa', `
-  'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', `
-  'tn9k-pwm1', 'tn9k-timer1', 'tn9k-boot-request', 'tn9k', 'mcu-top' |
-  ForEach-Object { .\scripts\run-rtl-smoke.ps1 -Test $_ }
-
-python -m unittest `
-  tools.tests.test_omcu_bootloader_fixture `
-  tools.tests.test_omcu_image `
-  tools.tests.test_omcu_flash_protocol -v
+.scriptsgenerate-sdk.ps1 -Check
+cmake --build .\build\sdk
+python -m unittest discover -s tools\tests -p 'test_*.py' -v
 ```
 
-30/30 RTL/集成 smoke 和 9/9 Python 测试通过。新增的重点覆盖包括：
+结果：生成头与规范一致；SDK 全量构建完成，所有 `.omcu` 镜像使用硬件 ABI `0x00000008`；
+Boot ROM fixture 检查通过；Python 测试 **9/9** 通过。
 
-- PCPI `DIV/DIVU/REM/REMU`、零除和 `INT32_MIN / -1`；
-- PWM1/TIMER1 的低 16-bit 寄存器合同与 TIMER1 8-bit 滤波；
-- UART1/PWM1/TIMER1 的真实 fabric/pinmux 译码；
-- `RESET_CAUSE`、运行 tick、内部复位计数、软件请求一次复位和 Boot ROM 返更新会话；
-- 已编译 `rv32imc` 固件经过 PicoRV32/MMIO/Tang 顶层到最终逻辑 pad 的数字路径。
+### RTL、CPU、外设与产品顶层
 
-Icarus Verilog 对部分 `always_comb` 常量选择和 `unique case` 报告已知的信息性限制提示。测试仍通过，
-但这不是“零警告仿真签核”；发布时应保留日志，并由 HIL/其他工具进一步复核。
+```powershell
+$tests = 'timer','gpio','uart','spi','i2c','wdt','pwm','irqctrl','sysctrl', `
+  'wdt-supervisor','timer1','alarm','pulse','fault','alarm-pulse-fabric', `
+  'fault-fabric','timer1-fabric','pwm1','pwm1-fabric','uart1','pinmux', `
+  'user-flash','pcpi-div','system','system-uart','sdk-isa','sdk-peripherals', `
+  'sdk-i2c','sdk-irq','tn9k-wdt','tn9k-peripherals','tn9k-pwm1', `
+  'tn9k-timer1','tn9k-boot-request','mcu-top','tn9k'
+$tests | ForEach-Object { .\scripts\run-rtl-smoke.ps1 -Test $_ }
+```
 
-## 3. ABI 0.6 最终产品 P&R / packing
+结果：**36/36** 通过，重点包括：
+
+- RV32IM 的乘、除、取余及标准边界；旧 `rv32imc` 二进制不属于产品 ABI；
+- GPIO 两级同步、全端口稳定滤波、普通/FAULT 快照；ALARM0、PULSE0、FAULT0 和增强 WDT；
+- UART/SPI/I2C、GPIO、定时器、PWM、IRQCTRL、FAULT0 等配置/命令寄存器的部分 MMIO 写拒绝；
+- Bootloader 请求、复位原因、运行 tick、User Flash 模型、A/B 路径，以及编译固件到 Tang 顶层 pad 的数字路径。
+
+Icarus Verilog 会对部分 `always_comb` 常量选择和 `unique case` 输出已知的信息性限制提示；它们不等于 RTL 失败，也不构成“零警告仿真签核”。应保留日志并用 HIL/其他工具复核。
+
+## 3. ABI 0.8 最终产品 P&R / packing
 
 运行：
 
 ```powershell
-$tools = 'C:\...\yowasp-gowin\Scripts'
+$tools = (Resolve-Path .\.venv\yowasp-gowin\Scripts).Path
 .\scripts\build-tangnano9k-open.ps1 -McuMode `
   -ToolBin $tools `
-  -BuildDirectory .\build\tangnano9k-mcu-abi06-final
+  -BuildDirectory .\build\tangnano9k-mcu-abi08-rv32im-release
 ```
 
-构建 manifest：
-`build/tangnano9k-mcu-abi06-final/omcu_tn9k_mcu_manifest.json`。
+manifest：`build/tangnano9k-mcu-abi08-rv32im-release/omcu_tn9k_mcu_manifest.json`。
 
-| 项目 | 本次记录 |
+| 项目 | 记录值 |
 | --- | --- |
 | 顶层 / 器件 | `omcu_tn9k_mcu_top` / `GW1NR-LV9QN88PC6/I5`（GW1N-9C） |
-| 构建模式 | `mcu_mode=true`；Bootloader 在 FPGA 配置中，应用独立写入 User Flash A/B。 |
-| Boot ROM / SRAM | 8 KiB（2,048 words） / 44 KiB（45,056 B） |
+| 产品模式 | `mcu_mode=true`；Bootloader 固化在 FPGA 配置中，客户应用写入独立 User Flash A/B 槽 |
+| Boot ROM / SRAM | 4 KiB（1,024 words） / 44 KiB（45,056 B） |
 | User Flash | 77,824 B（76 KiB），2 × 36,864 B 槽，单应用载荷上限 36,800 B |
-| Boot ROM 哈希链 | SDK 输入 `f04f3ca394ab8de0ae8bca550808d7808649ee093083d9028094e998c8ca5656`；综合/P&R BSRAM 指纹相同 `7cd55876a448ff28dff9e2aa157428a48d1ed64b38a7cac45a810568abb47a28`（4 个单元） |
-| `.fs` SHA-256 | `6d7973037b53a33ba1a9f7e113f0ca0ad6acb0b45700ba595ad2842213ccdd9f` |
-| 时钟 | `platform.clk_27m_i`：27.000 MHz 约束，40.356754 MHz 实现，12.258037 ns 裕量 |
-| LUT4 | 6,844 / 8,640（79.21%） |
-| DFF | 2,154 / 6,480（33.24%） |
-| BSRAM | 26 / 26（100.00%） |
-| ALU / MULT36X36 / IOB | 1,464 / 6,480；1 / 5；15 / 276 |
-| 工具 | YoWASP Yosys 0.68，nextpnr-himbaechel-gowin 0.11.1，Apycula 0.32（锁文件见 `toolchains/`） |
+| Boot ROM 哈希链 | SDK 输入 SHA-256 `ce3528a1c607e5d6c47c9a75db656c7cf3cb4a230cd6226d701acc06e41de6d2`；综合/P&R BSRAM 初始化指纹一致 `3c1605bcf45d0c27dd0911867b4c9dd8321c2462285f7322f24a418175d36b8d`（2 个单元） |
+| `.fs` SHA-256 | `1666a4c6218a040a11b2a21906b7681471ad1ebe847b3c2decf3cd6f4cfeb075` |
+| 时钟 | `platform.clk_27m_i`：27.000 MHz 约束，40.533421 MHz 实现，12.366037 ns 裕量 |
+| LUT4 / DFF / BSRAM | 6,962 / 8,640（80.58%）；2,511 / 6,480（38.75%）；24 / 26（92.31%） |
+| ALU / MULT36X36 / IOB | 1,336 / 6,480；1 / 5；15 / 276 |
+| 工具 | YoWASP Yosys 0.68、nextpnr-himbaechel-gowin 0.11.1、Apycula 0.32 |
 
-该结果证明此精确源码、约束、Boot ROM 和目标器件可以完成开源综合、P&R 与 packing；它**不**证明
-同一个文件已经下载到真实板，也不证明任何引脚、电平、Flash 或外设行为。
+该结果证明这一源码、约束、Boot ROM 和目标器件可以完成开源综合、P&R 与 packing；它**不**证明该文件已经下载到真实板，也不证明引脚、电平、Flash 或外设行为。
+
+Yosys 会对顶层 I2C/GPIO 三态 Pad 发出有限三态支持警告；P&R/packing 成功不能描述为“零警告签核”。
 
 ## 4. 必须完成的实体板 HIL
 
-### 平台固化与基本恢复
+1. 先 SRAM 下载 `.fs`，检查 27 MHz、LED、UART0 和外部复位；核对 manifest 后再固化配置 Flash，至少做 10 次冷启动。
+2. 空白/有效/损坏的 A/B 镜像、正常升级、重复帧/重连，以及擦除、数据页写入、`END` 校验、最终提交四阶段断电。
+3. GPIO 电平/高阻、RGB LCD 共线、UART0/1、PWM0/1 波形、TIMER1 编码器/噪声、GPIO 端口滤波和快照。
+4. ALARM0、PULSE0、FAULT0 门控/清除、WDT 预警/窗口/heartbeat/真实复位时序；故障试验只连接安全逻辑负载和人工受控条件。
+5. I2C 上拉、ACK/NACK/时钟拉伸；SPI 回环、TF 互斥及 DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 目标模块与链路。
+6. 温度、电压、长线、反复擦写和外部电源矩阵；按实际板卡 revision、模块和本次 `.fs` SHA-256 记录完整日志。
 
-1. 先 SRAM 下载本页 `.fs`，检查 27 MHz、LED、UART0 和外部复位。
-2. 核对 manifest / SHA-256 后才用 `-Destination flash -ConfirmFlash` 固化配置，至少做 10 次冷启动。
-3. 记录板卡 revision、FPGA 丝印、电源、下载器、工具版本、时间和完整日志。
-
-### 用户固件与异常恢复
-
-1. 空白 User Flash、正常 A/B 交替更新、损坏 ABI/CRC/长度、重复帧和重连。
-2. 在擦除、数据页写入、`END` 校验、最终提交四阶段分别断电；上电只能启动旧有效槽或等待恢复。
-3. 应用调用 `omcu_tn9k_request_bootloader()` 后，确认 `SOFTWARE` 原因、一次复位和持续 UART0 更新会话。
-4. 在目标温度/电压下做重复更新和擦写寿命矩阵；以厂商规格和实测记录制定限制。
-
-### P0/P1 外设与电气
-
-1. GPIO 高/低/高阻、RGB LCD 共线互斥、3.3 V Bank 与共地；
-2. UART0/1 的 115200 8N1、TX/RX、电平、overrun；
-3. PWM0/PWM1 的频率、四路相位、占空比、disable 后低电平，且使用安全逻辑/外部驱动级；
-4. TIMER1 的真实 A/B Gray 序列、滤波、正反向、非法跳变和噪声；
-5. I2C 上拉、真实 ACK/NACK/时钟拉伸；SPI 回环、TF 互斥和目标设备；
-6. DS3231/AT24Cxx/TMP102/MCP3008/MCP4921/W5500 的真实模块与 W5500 链路/IRQ。
-
-## 5. 对外发布卫生
+## 5. 对外发布卫生与安全缺口
 
 ```powershell
 git status --short
@@ -127,12 +99,6 @@ git diff --check
 git ls-files | Select-String -Pattern '(?i)(\.fs$|\.bit$|\.elf$|\.vcd$)'
 ```
 
-除了有意保留的手写 ROM fixture 外，不提交构建位流、私钥、token、`.env`、客户网络信息或受限 IP。
-构建输出本身被 Git 忽略；若发布二进制，建议作为带 manifest/哈希的 GitHub Release 附件，而不是混入
-源代码提交。推送后以该 commit 的 GitHub Actions 实际结果作为 CI 证据，本机输出不能替代远端 CI。
+构建位流、私钥、token、`.env`、客户网络信息或受限 IP 不应混入源代码提交。若发布二进制，应将 `.fs`、manifest、报告和哈希作为 GitHub Release 附件保存。远端 CI、实板记录和签核流程仍须独立完成。
 
-## 6. 量产前的安全缺口
-
-当前 CRC32、A/B 和原子提交仅提供传输/存储损坏检测与回退，不提供来源认证。攻击者可接触的
-产品在量产前必须加入签名验签、信任根/密钥管理、调试锁定、反回滚、威胁建模、安全评审和受控
-密钥注入流程。在这些条件满足之前，工程定位应是教学、原型和受控环境 FPGA MCU 平台。
+当前 CRC32、A/B 与原子提交只解决传输/存储损坏和回退，不提供来源认证。攻击者可接触的产品在量产前必须补充签名验签、信任根/密钥管理、调试锁定、反回滚、威胁建模、安全评审和受控密钥注入流程。在这些条件满足之前，本工程定位为教学、原型与受控环境的 FPGA MCU 平台。

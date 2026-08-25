@@ -47,7 +47,7 @@ SDK 构建同时产生不可变启动器和独立应用示例：
 
 | 文件 | 用途 |
 | --- | --- |
-| `build\sdk\omcu_bootloader.hex` | 进入产品 FPGA 的 8 KiB Boot ROM；不是客户更新包。 |
+| `build\sdk\omcu_bootloader.hex` | 进入产品 FPGA 的 4 KiB Boot ROM；不是客户更新包。 |
 | `build\sdk\omcu_mcu_blink.omcu` | 独立应用示例；可经 UART 更新。 |
 | 其他 `*.hex` | 旧 ROM/RTL bring-up 回归输入；不属于客户交付路径。 |
 
@@ -62,7 +62,7 @@ $tools = (Resolve-Path .\.venv\yowasp-gowin\Scripts).Path
   -BuildDirectory .\build\tangnano9k-mcu
 ```
 
-该模式固定 8 KiB Boot ROM + 44 KiB SRAM（40 KiB 应用区加 4 KiB 启动器工作区），启用 76 KiB GW1NR User Flash。脚本会生成并核验：
+该模式固定 4 KiB Boot ROM + 44 KiB SRAM（40 KiB 应用区加 4 KiB 启动器工作区），启用 76 KiB GW1NR User Flash。脚本会生成并核验：
 
 - `omcu_tn9k_mcu.fs`：产品 FPGA 配置；
 - `omcu_tn9k_mcu_manifest.json`：器件、顶层、`mcu_mode`、工具版本、ROM 嵌入、User Flash 几何、时序、资源和位流 SHA-256；

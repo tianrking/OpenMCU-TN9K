@@ -13,21 +13,21 @@
 
 ## 这是什么
 
-OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 RV32IMC CPU、ROM/SRAM、18 位 GPIO 档案（其中 12 路为外扩）、UART0/1、TIMER0/1、SPI、I2C、看门狗、PWM0/四路 PWM1、IRQCTRL、诊断 SYSCTRL 和 User Flash 控制器组合成一个固定 ABI 0.6 的 MCU 平台。
+OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 `RV32IM` CPU、ROM/SRAM、12 路受约束 J5 GPIO、UART0/1、TIMER0/1、SPI、I2C、增强看门狗、PWM0/四路 PWM1、IRQCTRL、ALARM0、PULSE0、FAULT0、PINMUX、诊断 SYSCTRL 和 User Flash 控制器组合成固定硬件 ABI `0.8` 的 MCU 平台。板载 LED0..5 镜像 GPIO0..5 的输出/OE，不再占用独立的 GPIO 编号。
 
 PicoRV32 是 FPGA 配置内部使用的 CPU IP 依赖；它不是客户每次开发应用都要“引用”的库。对应用开发者而言，本项目提供的是普通的裸机 SDK、链接脚本、应用镜像格式和串口升级工具。
 
 ```mermaid
 flowchart TB
   subgraph 平台层[一次性固化的 FPGA 平台]
-    CPU[PicoRV32 RV32IMC] --> MMIO[OpenMCU MMIO / 寄存器 ABI]
-    MMIO --> PERI[GPIO · UART · TIMER · SPI · I2C · WDT · PWM · IRQCTRL]
-    CPU --> ROM[8 KiB Boot ROM：启动器]
+    CPU[PicoRV32 RV32IM] --> MMIO[OpenMCU MMIO / 寄存器 ABI]
+    MMIO --> PERI[GPIO · UART · TIMER · SPI · I2C · WDT · PWM · ALARM · PULSE · FAULT · IRQCTRL]
+    CPU --> ROM[4 KiB Boot ROM：启动器]
     CPU --> RAM[44 KiB SRAM]
     MMIO --> UF[76 KiB GW1NR User Flash 控制器]
   end
   subgraph 客户层[可反复更新的客户 MCU 应用]
-    APP[C/C++ 裸机程序] --> ELF[RV32IMC ELF]
+    APP[C/C++ 裸机程序] --> ELF[RV32IM ELF]
     ELF --> IMG[.omcu 镜像]
     IMG -->|UART0| UF
     UF -->|验证后复制| RAM
@@ -110,7 +110,7 @@ python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
 
 | 项目 | 固定值 | 目的 |
 | --- | ---: | --- |
-| Boot ROM | 8 KiB | 位于 FPGA 配置内部，只放稳定启动器 |
+| Boot ROM | 4 KiB | 位于 FPGA 配置内部，只放稳定启动器 |
 | SRAM | 44 KiB | 40 KiB 客户应用运行区 + 4 KiB 启动器临时区 |
 | User Flash | 76 KiB | 与 FPGA 配置 Flash 分离的持久应用存储 |
 | 应用槽 | 2 × 36 KiB | A/B 轮换写入，保留上一个可启动版本 |
@@ -118,6 +118,8 @@ python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
 | 镜像完整性 | 头部 CRC32 + 载荷 CRC32 | 拒绝损坏、错误 ABI 或未提交镜像 |
 
 升级必须经历 `STAGING → 载荷写入与回读校验 → COMMITTED`。只有最后的状态字写入使新槽可启动，因此更新中掉电不会让半写入的应用替代旧的有效应用。
+
+**MMIO 写入约定：** 除 User Flash 的擦除命令（规定的低字节命令）和 SRAM 的普通字节/半字访问外，所有外设的配置、命令和 W1C 寄存器均要求一次完整的 32-bit 写入（`wstrb=1111`）。SDK 使用自然对齐的 `volatile uint32_t` 访问；字节或半字 MMIO 写会被硬件忽略，避免把控制状态更新成半个值。
 
 **安全边界：** CRC32 解决偶发损坏和断电一致性，不提供来源认证或防篡改能力。面向攻击者可接触的升级接口，发布产品前还需要签名验证、密钥管理、调试锁定和回滚策略。
 
@@ -145,7 +147,7 @@ arm/                         ARM 后端授权边界（不含 ARM IP）
 - [构建与烧录](docs/zh-CN/build-and-program.md)
 - [硬件与引脚](docs/zh-CN/hardware-and-pins.md)
 - [外设与 SDK](docs/zh-CN/peripherals-and-sdk.md)
-- [ABI 0.6 寄存器参考](docs/registers.md)
+- [ABI 0.8 寄存器参考](docs/registers.md)
 - [中断开发约定](docs/zh-CN/interrupts.md)
 - [测试计划](tests/README.md)
 - [ASIC 交接边界](asic/README.md)

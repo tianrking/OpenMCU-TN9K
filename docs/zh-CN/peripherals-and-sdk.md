@@ -16,11 +16,14 @@
 | `0x4000_4000` | I2C0 | 开漏 SCL/SDA |
 | `0x4000_5000` | WDT0 | 连接 Tang 顶层复位序列器 |
 | `0x4000_6000` | PWM0 | 一路 PWM pad |
-| `0x4000_7000` | IRQCTRL | 八个外设来源的 sticky、屏蔽、强制与优先级视图 |
+| `0x4000_7000` | IRQCTRL | 十一个外设来源的 sticky、屏蔽、强制与优先级视图 |
 | `0x4000_8000` | UART1 | 无 FIFO 的第二路 UART；Tang 上经 PINMUX 连接 GPIO10/11（J5.18/J5.19） |
 | `0x4000_9000` | TIMER1 | 两路同步滤波捕获、比较定时器和正交编码器；Tang 上经 PINMUX 连接 GPIO8/9（J5.16/J5.17） |
 | `0x4000_A000` | PWM1 | 四路共享计数器 PWM；Tang 上经 PINMUX 连接 GPIO4..7（J5.12..15） |
 | `0x4000_B000` | PINMUX | 显式选择已审查的扩展 pad 替代功能；复位时所有可用 pad 归 GPIO |
+| `0x4000_C000` | ALARM0 | 两路并行硬件 compare / periodic alarm |
+| `0x4000_D000` | PULSE0 | GPIO0..2 中单选一路的低速边沿计数 / 周期测量 |
+| `0x4000_E000` | FAULT0 | GPIO3 故障锁存、PWM/GPIO 门控和共享快照 |
 | `0x4000_F000` | SYSCTRL | `OMCU` ID、ABI、功能位、内存容量、复位诊断与产品 Bootloader 请求 |
 
 所有寄存器是 32-bit little-endian；SDK 不建议使用裸常数地址。包含 `omcu.h` 后可使用
@@ -53,10 +56,10 @@ ROM/SRAM KiB；如果 ABI 主版本不同，应用应拒绝运行。
 ### GPIO 和 LED
 
 ```c
-omcu_gpio_enable_output(OMCU_TN9K_LED0 | OMCU_TN9K_GPIO0);
+omcu_gpio_enable_output(OMCU_TN9K_LED0);
 omcu_gpio_set(OMCU_TN9K_LED0);       /* LED0 点亮：顶层处理低有效极性 */
-omcu_gpio_toggle(OMCU_TN9K_GPIO0);  /* 扩展 GPIO0 切换 */
-omcu_gpio_disable_output(OMCU_TN9K_GPIO0); /* 释放为高阻输入 */
+omcu_gpio_toggle(OMCU_TN9K_GPIO6);  /* J5.14 上的 GPIO6 切换 */
+omcu_gpio_disable_output(OMCU_TN9K_GPIO6); /* 释放为高阻输入 */
 ```
 
 `OMCU_FEATURE_GPIO_EXPANSION` 表示产品顶层已提供 12 路档案；它不是这些 pad 已通过外设
@@ -65,7 +68,7 @@ omcu_gpio_disable_output(OMCU_TN9K_GPIO0); /* 释放为高阻输入 */
 
 ### 中断与 IRQCTRL
 
-IRQCTRL 已把 GPIO0/UART0/TIMER0/SPI0/I2C0/WDT0/UART1/TIMER1 分别映射为 CPU bit 8..15；应用程序
+IRQCTRL 已把 GPIO0/UART0/TIMER0/SPI0/I2C0/WDT0/UART1/TIMER1/ALARM0/PULSE0/FAULT0 分别映射为 CPU bit 8..18；应用程序
 不必写 Verilog，也不应直接发射 PicoRV32 自定义指令。定义一个 strong
 `omcu_irq_dispatch(uint32_t pending)`，先清外设来源、再清 IRQCTRL：
 
@@ -123,7 +126,7 @@ RTL、MMIO、IRQCTRL bit 14 和 Tang pad mux 都有数字仿真覆盖；真实 3
 ### SPI0
 
 SPI0 是 8-bit、MSB-first、mode 0 主机。默认每次 `START` 自动拉低一个 CS 并传输一个
-字节；ABI `0.6` 增加 `CTRL.CS_HOLD`，使多个字节 `START` 可以共用同一次低有效 CS：
+字节；当前 ABI 的 `CTRL.CS_HOLD` 使多个字节 `START` 可以共用同一次低有效 CS：
 
 ```c
 uint8_t rx;
@@ -236,6 +239,38 @@ if (omcu_tn9k_timer1_configure(0u, UINT16_MAX, 4u, ctrl)) {
 `00 -> 01 -> 11 -> 10 -> 00`；`CTRL.QUADRATURE_REVERSE` 只翻转位置方向。它没有 DMA、FIFO、
 边沿排队、速度计算或异步高速计数能力；外部信号必须满足同步/滤波时序，且 GPIO8/9 与 RGB LCD
 共线。RTL 和编译固件仿真已覆盖，但真实编码器、电压、线缆与噪声 HIL 仍待完成。
+
+### GPIO 可靠性、事件快照、ALARM0、PULSE0 与 FAULT0
+
+GPIO0 的每根输入都会经过两级同步；额外 `FILTER_CYCLES=N` 是**整个 12-bit 端口**共享的 N+1
+稳定样本窗口，不是每根 pin 独立去抖。`omcu_gpio_snapshot_arm()` 复用 GPIO 的边沿使能掩码，
+`omcu_gpio_snapshot_read()` 返回边沿 mask、过滤后输入、run tick、IRQCTRL active 与 reset cause。
+FAULT0 trip 会优先覆盖该记录并把 `snapshot.forced` 置真，便于故障后诊断。
+
+```c
+omcu_gpio_configure_filter(4u);
+omcu_gpio_snapshot_arm(OMCU_TN9K_GPIO6, 0u, false, true);
+/* ISR 或主循环： */
+omcu_gpio_snapshot_t snapshot;
+if (omcu_gpio_snapshot_read(&snapshot) && snapshot.forced) {
+  /* 从 FAULT0 获得的优先快照；先使外部系统安全。 */
+}
+```
+
+ALARM0 使用 `omcu_alarm0_start(prescale)` 时会把 TIMER0 配为无 IRQ 的自由运行 16-bit 时基，随后可用
+`omcu_alarm0_schedule_after()` 配置两个独立相对 compare 通道；它们在同一 TIMER0 tick 并行判定，
+不存在扫描延迟。若 TIMER0 已由应用配置，则必须先调用 `omcu_alarm0_attach_timer0()`，再只由一个
+模块负责 TIMER0 的 prescale/count/compare 配置。PULSE0 使用
+`omcu_tn9k_pulse0_configure()`，只能从 GPIO0/J5.8、GPIO1/J5.9、GPIO2/J5.10 中选择一个输入；
+切换输入会清空计数和周期 epoch，且不能把它当作高速异步计数器。
+
+FAULT0 使用 GPIO3/J5.11。`omcu_tn9k_fault0_configure()` 会先让 PINMUX 释放该 GPIO 输出，再允许
+故障锁存按配置拉低 PWM0/PWM1、释放全部 12 路 GPIO 为高阻并触发强制快照。清锁存必须使用
+`omcu_fault0_clear()`，且采样输入已经 inactive；外部急停、隔离、断电或功率级保护仍必须由板级硬件实现。
+
+增强 WDT 由 `omcu_wdt0_start_supervisor()` 配置 pretimeout、最小喂狗窗口和 8 位任务 heartbeat mask。
+每个关键任务用 `omcu_wdt0_heartbeat_kick()` 报告进度；任一 required bit 缺失或过早喂狗都会被拒绝并置诊断。
+该机制适合发现软件健康状态失真，但不是独立时钟、认证安全 watchdog 或外部故障联锁。
 
 ### SYSCTRL：复位诊断与产品 Bootloader 请求
 

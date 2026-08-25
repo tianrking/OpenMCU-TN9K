@@ -29,6 +29,12 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test pwm1-fabric
 .\scripts\run-rtl-smoke.ps1 -Test timer1
 .\scripts\run-rtl-smoke.ps1 -Test timer1-fabric
+.\scripts\run-rtl-smoke.ps1 -Test alarm
+.\scripts\run-rtl-smoke.ps1 -Test pulse
+.\scripts\run-rtl-smoke.ps1 -Test alarm-pulse-fabric
+.\scripts\run-rtl-smoke.ps1 -Test fault
+.\scripts\run-rtl-smoke.ps1 -Test fault-fabric
+.\scripts\run-rtl-smoke.ps1 -Test wdt-supervisor
 .\scripts\run-rtl-smoke.ps1 -Test irqctrl
 .\scripts\run-rtl-smoke.ps1 -Test sysctrl
 .\scripts\run-rtl-smoke.ps1 -Test user-flash
@@ -51,8 +57,15 @@ flowchart LR
   页的真实 fabric 解码检查。
 - `timer1` / `timer1-fabric`：两级同步后的连续样本滤波、上升/下降沿时间戳、Gray 正反向
   解码、非法双边沿和 TIMER1/PINMUX/IRQCTRL bit 15 的真实 fabric 解码检查。
+- `gpio`：12 路 GPIO 的两级同步、全端口 N+1 稳定滤波、边沿 IRQ、普通/FAULT 强制事件快照。
+- `alarm` / `alarm-pulse-fabric`：复用 TIMER0 时基的两个并行 ALARM0 compare 通道的同 tick、one-shot、
+  周期、W1C 和 IRQCTRL bit 16 路径。
+- `pulse` / `alarm-pulse-fabric`：GPIO0..2 单选 PULSE0 的同步滤波、上/下降沿、16-bit count/period、
+  epoch 切换、pinmux 与 IRQCTRL bit 17 路径。
+- `fault` / `fault-fabric`：FAULT0 的同步滤波、锁存、clear 拒绝、PWM/GPIO 门控、共享快照和 IRQCTRL bit 18 路径。
+- `wdt-supervisor`：WDT0 pretimeout、窗口、heartbeat、拒绝喂狗、W1C 与复位请求路径。
 - `pcpi-div`：紧凑 PCPI 除法器的 `DIV/DIVU/REM/REMU`、零除和 `INT32_MIN / -1` 边界；
-  `sdk-isa` 另用真实已编译 `rv32imc` 镜像覆盖 CPU 集成。
+  `sdk-isa` 另用真实已编译 `rv32im` 镜像覆盖 CPU 集成。
 - `system`：小型 RV32I 程序经过 PicoRV32、真实 MMIO 和 GPIO 的首个 CPU/总线/外设集成门。
 - `system-uart`：经 CPU/MMIO 配置 UART0 后验证真实串行字节。
 - `tn9k-wdt` / `tn9k-peripherals` / `tn9k`：经过 Tang 顶层的复位释放、看门狗、SPI/PWM/GPIO/I2C Pad 连通性和低有效 LED 逻辑检查；不等同于实际 Gowin 板。
@@ -64,7 +77,7 @@ flowchart LR
   一次、保留 `SOFTWARE` 原因/计数/pending，并在下一轮启动恢复运行 tick；不验证实体板复位键或串口。
 - `mcu-top`：使用仅仿真的 `FLASH608K` 端口桩件编译产品顶层，运行已提交 Boot ROM 的空 User Flash 扫描，检查产品封装确实走向物理 Flash 分支，并验证 Boot ROM 会确认保留的软件回 Bootloader 请求；它不模拟真实 Gowin 擦写行为。
 
-每个可公开外设还应覆盖：复位值、字节写掩码、保留位、读写副作用、中断时序、随机/边界值以及编译后 SDK 集成。
+每个可公开外设还应覆盖：复位值、完整 32-bit 原子写与部分写拒绝、保留位、读写副作用、中断时序、随机/边界值以及编译后 SDK 集成。
 
 ## SDK、镜像与协议测试
 
@@ -85,7 +98,7 @@ python -m unittest `
   tools.tests.test_omcu_flash_protocol -v
 ```
 
-- `sdk-isa`：编译器到硬件的 RV32IMC、启动数据重定位、压缩指令和乘除法通路。
+- `sdk-isa`：编译器到硬件的 RV32IM、启动数据重定位和乘除法通路；产品配置明确不支持压缩指令。
 - `sdk-peripherals`：特性发现、SPI0、WDT0、PWM0 和 GPIO 成功码。
 - `sdk-i2c`：开漏目标夹具、地址、写/读字节、最终 NACK 和 STOP。
 - `sdk-irq`：固定自定义 IRQ 向量、C 分发钩子、来源确认和 `RETIRQ` 返回。
@@ -122,6 +135,7 @@ python -m unittest `
 | 断电恢复 | 擦除、DATA、END 前和最终提交后分别断电；提交前保持旧槽可启动。 |
 | 串口异常 | 丢包、重复帧、错误 CRC、错误长度、错误 ABI 均被安全拒绝或幂等处理。 |
 | 外设与引脚 | UART、LED、GPIO、I2C、SPI/TF 冲突、PWM、TIMER1 捕获/编码器、WDT 在真实电平和外设上通过。 |
+| 可靠性/保护扩展 | GPIO 端口滤波/快照、ALARM 同 tick、PULSE 输入范围、FAULT 门控与 clear、WDT 窗口/heartbeat 在安全逻辑负载和真实复位条件下通过。 |
 | 重复升级 | 覆盖预期的擦写/更新次数，记录失败、回退与恢复结果。 |
 
 只有这些 HIL 项目、供电/温度边界和产品安全策略完成后，才可把平台从工程预览提升为客户可交付版本。

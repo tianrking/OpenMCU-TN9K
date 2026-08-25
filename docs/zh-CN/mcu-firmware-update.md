@@ -60,7 +60,7 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
   -BuildDirectory .\build\tangnano9k-mcu
 ```
 
-该模式固定为 8 KiB Boot ROM + 44 KiB SRAM，使用 `omcu_bootloader.hex` 作为 FPGA ROM 初始化文件，并生成：
+该模式固定为 4 KiB Boot ROM + 44 KiB SRAM，使用 `omcu_bootloader.hex` 作为 FPGA ROM 初始化文件，并生成：
 
 - `build\tangnano9k-mcu\omcu_tn9k_mcu.fs`：待下载的产品 FPGA 位流；
 - `build\tangnano9k-mcu\omcu_tn9k_mcu_manifest.json`：包含设备、顶层、模式、位流哈希、ROM 初始化和 User Flash 布局的可核验清单；
@@ -86,7 +86,7 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
 SDK 的 `omcu_add_application()` 目标使用 `sdk/linker/omcu_application.ld`，自动执行：
 
 ```text
-C/C++ 源码 -> RV32IMC ELF -> 原始 SRAM 二进制 -> 带校验头的 .omcu
+C/C++ 源码 -> RV32IM ELF -> 原始 SRAM 二进制 -> 带校验头的 .omcu
 ```
 
 仓库提供的最小独立应用是 `sdk/examples/mcu_blink/main.c`，构建后为：
@@ -104,7 +104,7 @@ omcu_add_application(my_product_app examples/my_product_app/main.c)
 
 然后重新运行 `build-sdk`，得到 `build\sdk\my_product_app.omcu`。旧的 `omcu_add_firmware()` 和 `.hex` 只保留给 RTL/FPGA bring-up 回归；它们不适用于已交付 MCU 的客户升级。
 
-应用的编译 ABI 必须与目标匹配：当前为 `rv32imc` / `ilp32`，硬件 ABI 为 `0x00000006`。镜像工具和启动器都会拒绝 ABI、入口地址、长度或 CRC 不匹配的文件。
+应用的编译 ABI 必须与目标匹配：当前为 `rv32im` / `ilp32`，硬件 ABI 为 `0x00000008`。压缩指令 `C` 未启用；旧 `rv32imc` / ABI 0.7 镜像不兼容。镜像工具和启动器都会拒绝 ABI、入口地址、长度或 CRC 不匹配的文件。
 
 ## C. 客户通过 UART 更新
 

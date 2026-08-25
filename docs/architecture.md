@@ -29,7 +29,7 @@ OpenMCU 是一个小型、常规、便于软件开发的 RISC-V MCU。它不是 
 
 兼容发布不得移动既有模块。新增能力必须使用新的地址范围；不兼容行为必须对应新的主设备版本。
 
-表中 ROM 和 SRAM 区域是保留地址窗口，并不承诺每个平台都实现 64 KiB。Tang Nano 9K 产品封装默认使用 8 KiB Boot ROM 与 44 KiB SRAM；这是经开源 P&R 流验证的全 BSRAM 配置（26/26 BSRAM）。可移植系统仍为其他平台保留参数化能力，SYSCTRL 在第三方固件依赖前公开精确可用容量与特性位图。
+表中 ROM 和 SRAM 区域是保留地址窗口，并不承诺每个平台都实现 64 KiB。Tang Nano 9K 产品封装固定使用 4 KiB Boot ROM 与 44 KiB SRAM；泛用 bring-up 封装仍可参数化。SYSCTRL 会公开实际 ROM/SRAM KiB 和特性位图，第三方固件必须以它们及硬件 ABI 为准，而不能从保留窗口大小推断容量。
 
 ## 可移植 MMIO 事务
 
@@ -42,9 +42,11 @@ req, write, address[31:0], write_data[31:0], write_strobe[3:0]
 
 这避免将 PicoRV32、Ibex、LiteX、Wishbone、APB、Gowin 或 ASIC 的实现细节暴露给外设。v0 外设总线为单主设备；简单模块可单周期就绪。未来的互连可以流水化事务，但必须保持可见的访问顺序和寄存器语义。
 
+除 SRAM 的普通字节/半字访问以及 User Flash 文档化的擦除命令外，MMIO 的配置、命令和 W1C 写均采用原子 32-bit 事务：`write_strobe=4'b1111` 才会生效，部分字写被忽略。这样 CPU、SDK 与总线桥不会把外设控制状态更新成半个值。
+
 ## v0 可执行 CPU 适配器
 
-<code>rtl/cpu/omcu_picorv32_system.sv</code> 将可移植模块组成一个可执行的 RV32IMC 系统。它把 PicoRV32 置于内存映射适配器之后，并连接：
+<code>rtl/cpu/omcu_picorv32_system.sv</code> 将可移植模块组成一个可执行的 RV32IM 系统。它把 PicoRV32 置于内存映射适配器之后，并连接：
 
 ~~~text
 PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric
@@ -53,7 +55,7 @@ PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric
                                       -> IRQCTRL -> PicoRV32 IRQ 位 8..15
 ~~~
 
-该适配器启用已批准的 <code>M</code>、<code>C</code> 指令扩展。快速乘法器和紧凑 32 步 PCPI 除法器保留标准 RV32M 语义；为给完整 P1 外设腾出资源，寄存器堆为单端口、移位器为迭代实现。它刻意不承诺 <code>Zicsr</code>、特权机器态、标准 RISC-V Trap CSR、PLIC/CLINT、调试支持、原子操作或浮点；PicoRV32 内部 <code>cycle/instret</code> 也不属于公开 ABI，软件使用 SYSCTRL 64-bit tick。
+该适配器启用已批准的 <code>M</code> 指令扩展，**不启用 <code>C</code> 压缩指令**。快速乘法器和紧凑 32 步 PCPI 除法器保留标准 RV32M 语义；为给完整 P1 与可靠性/诊断外设腾出资源，寄存器堆为单端口、移位器为迭代实现。它刻意不承诺 <code>Zicsr</code>、特权机器态、标准 RISC-V Trap CSR、PLIC/CLINT、调试支持、原子操作或浮点；PicoRV32 内部 <code>cycle/instret</code> 也不属于公开 ABI，软件使用 SYSCTRL 64-bit tick。旧 `rv32imc` 二进制与产品 ABI 0.8 不兼容，Bootloader 会拒绝旧 ABI 镜像。
 
 它实现了单独版本化的 PicoRV32 自定义 IRQ ABI：IRQCTRL 将八个外设源映射到 CPU 位 8 至 15，SDK 独占固定 <code>0x10</code> 向量并完整保存 C ABI 上下文。精确的非标准边界与确认顺序见 <a href="interrupts.md">中断约定</a>。非法事务或写 ROM 事务会被应答并作为仿真/bring-up 诊断呈现；这个最小适配器暂不把它们转换为 RISC-V 访问异常。
 

@@ -25,14 +25,15 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 | SPI0 CS/MOSI/SCK/MISO | `spi0_*` | 38/37/36/39 | 来自 J5/TF-card 信号组；SPI0 使用时不得同时插入或访问 microSD。 |
 | I2C0 SCL/SDA | `i2c0_scl_io` / `i2c0_sda_io` | 26 / 27 | 真正开漏；外部必须提供合适的 3.3 V 上拉。 |
 | PWM0 | `pwm0_o` | 25 | 单路边沿对齐 PWM。 |
+| PULSE0 输入（复用） | GPIO0..2 / `gpio_io[0:2]` | 28 / 29 / 30 | `PINMUX.CTRL.PULSE0_ENABLE=1` 后三根 GPIO 输出全被释放，PULSE0 一次只测一路。 |
+| FAULT0 输入（复用） | GPIO3 / `gpio_io[3]` | 33 | `PINMUX.CTRL.FAULT0_ENABLE=1` 后作为 FAULT0 输入；可门控 PWM/GPIO，但不是安全认证急停。 |
 | PWM1 CH0..3（复用） | GPIO4..7 / `gpio_io[4:7]` | 34 / 40 / 35 / 41 | 默认仍是 GPIO；`PINMUX.CTRL.PWM1_ENABLE=1` 后为四路共享计数器 PWM，对应 J5.12..15。 |
 | TIMER1 A/B 输入（复用） | GPIO8/9 / `gpio_io[8:9]` | 42 / 51 | 默认仍是 GPIO；`PINMUX.CTRL.TIMER1_ENABLE=1` 后两根 pad 被释放为输入，对应 J5.16/J5.17，可作同步滤波捕获或正交编码器 A/B。 |
-| 扩展 GPIO 档案 | GPIO0[6..17] / `gpio_io[0..11]` | 28,29,30,33,34,40,35,41,42,51,53,54 | 12 路可输入、输出或高阻；`gpio_io[3..11]` 与 RGB LCD 共线。 |
+| 扩展 GPIO 档案 | GPIO0[0..11] / `gpio_io[0..11]` | 28,29,30,33,34,40,35,41,42,51,53,54 | 12 路可输入、输出或高阻；GPIO0[0..5] 同时镜像 LED0..5，`gpio_io[3..11]` 与 RGB LCD 共线。 |
 | UART1 TX/RX（复用） | GPIO10/11 / `gpio_io[10:11]` | 53 / 54 | 默认仍是 GPIO；`PINMUX.CTRL.UART1_ENABLE=1` 后为 UART1 TX/RX，对应 J5.18/J5.19。 |
 
-`GPIO0[0..5]` 与 LED 专用映射不可同时作为外部数字引脚使用。ABI 0.6 的
-`GPIO0[6..17]` 是 12 路扩展档案，SDK 中对应 `OMCU_TN9K_GPIO0` 至
-`OMCU_TN9K_GPIO11`。它们在顶层中真正遵守 `OE`：软件清掉 `OE` 后，FPGA pad 会释放为
+`GPIO0[0..5]` 会镜像板载低有效 LED，但并非 LED 专用的私有寄存器位；SDK 中它们仍是
+`OMCU_TN9K_GPIO0` 至 `OMCU_TN9K_GPIO5`。全部 12 路逻辑 GPIO 均遵守 `OE`：软件清掉 `OE` 后，FPGA pad 会释放为
 高阻，而不是把“1”推到外部总线。
 
 | SDK GPIO | `gpio_io` | J5 针脚 | package pad | 复用边界 |
@@ -43,9 +44,9 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 该档案已经具有 RTL 顶层、CST 和数字仿真覆盖，但尚未完成实体板电压、线缆、显示复用和
 目标外设 HIL。它不包含 J6 的 1.8 V 信号、HDMI 对、JTAG/MODE/DONE 或“所有未用 IOB”。
 
-## UART1、PWM1、TIMER1 与显式 pinmux
+## UART1、PWM1、TIMER1、PULSE0、FAULT0 与显式 pinmux
 
-UART0 始终保留给 Bootloader、下载和默认日志。需要第二路设备串口时，ABI 0.6 在 J5 的
+UART0 始终保留给 Bootloader、下载和默认日志。需要第二路设备串口时，ABI 0.8 在 J5 的
 两个已约束 3.3 V pad 上提供无 FIFO 的 UART1：TX 为 GPIO10 / J5.18 / package pad 53，RX
 为 GPIO11 / J5.19 / package pad 54。复位时这两个 pad 仍是普通高阻 GPIO，不会因为 FPGA
 中存在 UART1 而被暗中占用。
@@ -103,6 +104,15 @@ if (!omcu_tn9k_timer1_configure(0u, UINT16_MAX, 4u, ctrl)) {
 pad 当普通 GPIO 输入使用；高速、跨时钟、长线或抗扰要求高的编码器需要专用前端和实体板 HIL。
 两根线同样与 RGB LCD 共线，不能与显示器同时启用。
 
+PULSE0 使用 GPIO0..2 / J5.8..10。调用 `omcu_tn9k_pulse0_configure()` 后顶层会释放三根 pad 的
+GPIO 输出，随后 PULSE0 只从其中一个所选输入计数。输入已经过两级同步和数字稳定滤波，但依然只适合
+3.3 V、共地、低速霍尔/流量/脉冲传感器；不要接 5 V、编码器高速 A/B、无整形的长线或把它当作三路
+并行频率计。
+
+FAULT0 使用 GPIO3 / J5.11。应用应在外部物理故障实际消失后才调用 `omcu_fault0_clear()`；启用
+`GATE_PWM0`、`GATE_PWM1` 或 `GATE_GPIO` 时，FPGA 只会控制对应的逻辑输出：PWM 被拉低、所有公开 GPIO
+被释放高阻。它不能切断外部供电、保证外置驱动器状态、处理异步急停，也不提供功能安全认证。
+
 ## 电气安全规则
 
 1. 不要向这些 I/O 注入 5 V。CST 将上述端口配置为 `LVCMOS33`；在连接任意模块前先
@@ -114,6 +124,8 @@ pad 当普通 GPIO 输入使用；高速、跨时钟、长线或抗扰要求高�
 4. 任何外设连线必须共地。先断电连接，先用 SRAM 下载测试，再考虑 Flash。
 5. 外部输入的异步边沿会进入 GPIO 采样逻辑。高速/跨时钟信号应在外部或新增 RTL 中
    同步处理，不要把本 MCU GPIO 当作高速采样接口。
+6. PULSE0、FAULT0 和普通 GPIO 的同步/滤波只说明数字采样路径；传感器的浪涌、ESD、隔离、
+   接地回路、输入阈值和失效安全状态必须由外部电路承担。
 
 ## 建议的首块外设实验板
 
@@ -126,6 +138,8 @@ pad 当普通 GPIO 输入使用；高速、跨时钟、长线或抗扰要求高�
 - TIMER1：先确认未连接 RGB LCD，再向 J5.16/J5.17 输入已知低压 A/B Gray 序列；记录滤波值、
   正反向计数、捕获时间戳、非法跳变和噪声下的误计数。
 - GPIO：LED/逻辑分析仪接 GPIO0..11；先从 GPIO0..2 开始，再确认未连接 RGB LCD 后使用 GPIO3..11。
+- PULSE0 / FAULT0：分别用经限压的 3.3 V 信号发生器或人工开关验证滤波、边沿、锁存、清除拒绝、
+  PWM 拉低和 GPIO 高阻；保持 UART0 连接，先在低风险逻辑负载上试验。
 - SPI：MOSI 和 MISO 用短跳线回环，CS/SCK 接逻辑分析仪；用 SDK `SPI0` 传输 API。
 - I2C：接一个有已知地址的 3.3 V I2C 目标和外部上拉；先用逻辑分析仪检查 START、
   地址、ACK、STOP，再写目标专用事务。
@@ -138,6 +152,8 @@ pad 当普通 GPIO 输入使用；高速、跨时钟、长线或抗扰要求高�
 - [ ] 六个 LED 极性、UART0 与 UART1 TX/RX、27 MHz 时钟的实测；
 - [ ] SRAM 下载、断电消失、Flash 下载、断电后重启四种行为；
 - [ ] GPIO 高/低/高阻、PWM0/PWM1 周期/占空比/disable 低电平、TIMER1 捕获/正交方向、SPI 回环；
+- [ ] GPIO 同步/端口滤波/快照，ALARM0 同 tick，PULSE0 边沿/周期，FAULT0 锁存/门控/清除拒绝，
+  增强 WDT 的预警/窗口/heartbeat/复位原因；
 - [ ] I2C 真正目标的 ACK/NACK、时钟拉伸和断线恢复；
 - [ ] 连接外设时电压、地、温升和信号完整性检查。
 

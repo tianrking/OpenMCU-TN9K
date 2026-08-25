@@ -2,34 +2,45 @@
 
 ## 固定的编译器目标
 
-Tang Nano 9K v1 硬件与 SDK 固定使用 **<code>rv32imc</code> 与 <code>ilp32</code> ABI**。这是一个有意保持紧凑的 MCU 级、已批准的非特权 RISC-V ISA 配置；它不表示实现了所有 RISC-V 扩展。
+Tang Nano 9K 产品 MCU 配置与 SDK 固定使用 **`rv32im` / `ilp32`**。这是一个有意收敛的、非特权 RISC-V 裸机目标；它不是“实现全部 RISC-V 扩展”的声明。
 
 | 组成 | OpenMCU-TN9K v1 的承诺 |
 | --- | --- |
-| 基础整数 ISA | RV32I，32 个通用 32 位寄存器 |
-| 乘除法 | <code>M</code>，快速乘法器加 OpenMCU 的资源受控 32 步 PCPI 除法器；保留零除和有符号溢出语义 |
-| 代码密度 | <code>C</code>，在取指和译码路径中启用 |
-| 编译器 ABI | <code>ilp32</code>、小端、无操作系统裸机环境 |
-| 同步 | CPU 适配器接受 <code>FENCE</code>；v1 总线仅有一个主设备，MMIO 保持顺序 |
-| 构建参数 | <code>-march=rv32imc -mabi=ilp32</code> |
+| 基础整数 ISA | RV32I，32 个通用 32-bit 寄存器 |
+| 乘除法 | `M`；快速乘法器加资源受控的 32 步 PCPI 除法器，保留零除和有符号溢出语义 |
+| 压缩指令 | **不启用 `C` 扩展**；取指和译码只接受 RV32I/RV32M 指令 |
+| 编译器 ABI | `ilp32`、小端、无操作系统裸机环境 |
+| 同步 | CPU 适配器接受 `FENCE`；v1 只有一个总线主设备，MMIO 保持顺序 |
+| 构建参数 | `-march=rv32im -mabi=ilp32` |
 
-<code>RV32IMC</code> 是规范的 RISC-V ISA 命名。实现来源是 <a href="../LICENSES.md">LICENSES.md</a> 中固定的 PicoRV32 修订版；其上游文档说明该内核可配置为 RV32IMC。
+实现来源是 [LICENSES.md](../LICENSES.md) 中固定修订版的 PicoRV32。PicoRV32 是可配置 CPU IP；本工程明确选择其 RV32IM 配置，而不是要求客户应用工程直接依赖它。
+
+## ABI 0.8 的兼容性边界
+
+为给可靠 GPIO、事件快照、ALARM0、PULSE0、FAULT0、增强 WDT 与既有 P1 外设腾出实现资源，产品配置关闭了压缩指令译码。这个改变会使旧的 `rv32imc` 机器码不可执行，因此硬件 ABI 升为 **`0x0000_0008`**：
+
+- 新应用必须由本仓库 SDK 以 `rv32im` / `ilp32` 编译和打包；
+- Bootloader 对 `.omcu` 头部执行 ABI 精确匹配，旧 ABI `0.7` 镜像会被拒绝，而不会被误启动；
+- 重新编译 C/C++ 源码即可迁移；源代码层面不要求改写为“非 RISC-V”程序；
+- 把旧 `.hex` 直接嵌进泛用 bring-up ROM 不受该保护，必须自行确认其 ISA 与硬件一致。
+
+关闭 `C` 可能增加代码体积，因此产品应用仍受现有 40 KiB SRAM 运行区和 `.omcu` 载荷上限约束。发布应用应检查链接产物大小；不要将 `rv32imc` 当作可选优化参数。
 
 ## 明确不包含的能力
 
-第三方代码在 v1 中不得假定具备以下任一能力：
+第三方代码不得假定具备以下任一能力：
 
-- <code>A</code>、<code>F</code>、<code>D</code>、<code>Q</code>、<code>B</code>、向量、Hypervisor、Supervisor 或 User-mode ISA；
-- 通用 <code>Zicsr</code> CSR 读写、机器态异常 CSR、PMP 或标准 RISC-V 调试传输；
+- `A`、`F`、`D`、`Q`、`B`、`C`、向量、Hypervisor、Supervisor 或 User-mode ISA；
+- 通用 `Zicsr` CSR 读写、机器态异常 CSR、PMP 或标准 RISC-V 调试传输；
 - 标准 RISC-V 中断控制器、PLIC/CLINT、特权中断 CSR，或应用直接使用 PicoRV32 自定义 IRQ 指令码；
 - 非对齐访问、缓存一致性、DMA 或 Linux 支持。
 
-PicoRV32 的内部周期/指令计数器为节省 LUT 已禁用，不是公开 CSR 或 ABI；运行时间请使用 SYSCTRL 的 64-bit `RUN_TICKS`。ABI 0.6 通过 <code>omcu.h</code> 提供了一条刻意收窄、已经文档化的 PicoRV32 自定义 IRQ 路径：八个外部源使用位 8 至 15，SDK 独占 <code>0x10</code> 向量，应用提供 C 语言分发钩子。这不会使内核成为特权 RISC-V 实现。
+PicoRV32 的内部周期/指令计数器为节省 LUT 已禁用，不是公开 CSR 或 ABI；运行时间请使用 SYSCTRL 的 64-bit `RUN_TICKS`。ABI 0.8 通过 `omcu.h` 提供一条刻意收窄、已经文档化的 PicoRV32 自定义 IRQ 路径：十一项外部源使用位 8 至 18，SDK 独占 `0x10` 向量，应用提供 C 语言分发钩子。这不会使内核成为特权 RISC-V 实现。
 
-今后若接入标准完整的异常/中断内核适配器，属于新的硬件能力，必须同步更新 SYSCTRL 特性位和 SDK 支持。具体的非标准边界见 <a href="interrupts.md">中断约定</a>。
+今后若接入标准完整的异常/中断内核适配器，属于新的硬件能力，必须同步更新 SYSCTRL 特性位和 SDK 支持。具体的非标准边界见 [中断约定](interrupts.md)。
 
-## 为什么它是 9K 的默认配置
+## 为什么这是 9K 的默认配置
 
-9K FPGA 应服务于产品级微控制器外形：完整 32 寄存器 ABI、紧凑代码、硬件乘法和可验证的 RV32M 除法。为留出 GPIO/UART1/PWM1/TIMER1/诊断资源，当前实现采用单端口寄存器堆和迭代移位器；这改变某些指令时延，不改变 `rv32imc` 语义。浮点、原子操作和向量会占用宝贵的 LUT/BRAM，却不是常见 GPIO、传感器、显示和控制固件的刚需。
+9K FPGA 应服务于稳定的 MCU 外形：完整 32 寄存器 ABI、硬件乘法和可验证的 RV32M 除法。当前实现采用单端口寄存器堆和迭代移位器；这会改变部分指令时延，但不改变 RV32IM 指令语义。关闭压缩指令是为可靠性/诊断外设保留 LUT 的明确资源取舍，不是功能缺失被悄悄隐藏。
 
-最终资源与时序边界必须以实际构建和布局布线报告为准，不能以文字估算代替。
+浮点、原子操作、向量和更大缓存会继续占用宝贵的 LUT/BRAM，却不是常见 GPIO、传感器、显示和控制固件的刚需。最终资源与时序边界必须以同一源码的实际综合、布局布线和打包报告为准，不能以文字估算代替。

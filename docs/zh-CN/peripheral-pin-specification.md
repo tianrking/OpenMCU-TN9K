@@ -1,9 +1,9 @@
 # OpenMCU-TN9K 外设与引脚完整规格书
 
-> **文档编号：** OMCU-TN9K-PS-0.6<br>
-> **适用工程：** `omcu_tn9k_mcu_top`，OpenMCU 硬件 ABI `0.6`<br>
+> **文档编号：** OMCU-TN9K-PS-0.8<br>
+> **适用工程：** `omcu_tn9k_mcu_top`，OpenMCU 硬件 ABI `0.8`<br>
 > **目标器件：** Tang Nano 9K，`GW1NR-LV9QN88PC6/I5`（`GW1N-9C`）<br>
-> **文档状态：** RTL、SDK、寄存器生成规范、Tang 顶层约束及目标器件 P&R 已对齐；实体板 HIL、绝对最大额定值、长期可靠性和量产资格尚未完成。
+> **文档状态：** RTL、SDK、寄存器生成规范、Tang 顶层约束与 ABI 0.8 的目标器件 P&R/packing 已对齐；实体板 HIL、绝对最大额定值、长期可靠性和量产资格尚未完成。
 
 这是面向硬件、嵌入式软件和测试人员的**单一主规格书**。它集中描述当前 MCU 产品位流的 CPU、存储、
 全部可用外设、完整已约束顶层引脚、J5 扩展映射、PINMUX 所有权、电气边界和升级路径。应用开发者只需
@@ -11,7 +11,7 @@
 
 机器可读寄存器规范仍以 [`spec/omcu-v0.json`](../../spec/omcu-v0.json) 为唯一生成源，
 [`sdk/include/omcu_regs.h`](../../sdk/include/omcu_regs.h) 由它生成。本页面向人的说明与这两个文件、
-Tang 顶层和 CST 约束一起构成当前 ABI `0.6` 合同。
+Tang 顶层和 CST 约束一起构成当前 ABI `0.8` 合同。
 
 ## 1. 阅读结论与证据边界
 
@@ -24,10 +24,10 @@ UART0 写入 GW1NR 的 User Flash A/B 槽。**客户应用不编进 FPGA 位流�
 ```mermaid
 flowchart TB
   subgraph BIT[一次固化的 FPGA 配置]
-    CPU[PicoRV32\nRV32IMC] --> MMIO[OpenMCU MMIO ABI 0.6]
-    CPU --> ROM[8 KiB Boot ROM\nUART0 Bootloader]
+    CPU[PicoRV32\nRV32IM] --> MMIO[OpenMCU MMIO ABI 0.8]
+    CPU --> ROM[4 KiB Boot ROM\nUART0 Bootloader]
     CPU --> SRAM[44 KiB SRAM]
-    MMIO --> P[GPIO · UART · TIMER · SPI · I2C · WDT · PWM]
+    MMIO --> P[GPIO · UART · TIMER · SPI · I2C · WDT · PWM · ALARM · PULSE · FAULT]
     MMIO --> SYS[IRQCTRL · PINMUX · SYSCTRL]
     MMIO --> UF[76 KiB User Flash 控制器]
   end
@@ -43,9 +43,9 @@ flowchart TB
 | 结论层级 | 当前状态 | 含义 |
 | --- | --- | --- |
 | 源码 / RTL | 已实现 | 本页描述的模块、地址、顶层连接和约束文件已存在于仓库。 |
-| SDK / 规格同步 | 已验证 | ABI `0.6` JSON、生成头文件、Boot ROM 和 SDK 示例已做自动化检查。 |
+| SDK / 规格同步 | 已验证 | ABI `0.8` JSON、生成头文件、Boot ROM 和 SDK 示例已做自动化检查。 |
 | 数字仿真 | 已验证 | 外设、PINMUX、已编译固件到 Tang 顶层 pad 的数字路径已有回归覆盖。 |
-| 目标器件 P&R | 已验证 | 精确 `GW1NR-LV9QN88PC6/I5` 的 MCU 产品模式可完成综合、P&R 与 packing。 |
+| 目标器件 P&R | 已验证（非 HIL） | 精确 `GW1NR-LV9QN88PC6/I5` 的同一 ABI 0.8 源码已完成综合、P&R、packing、ROM 嵌入指纹和 manifest。 |
 | 实体板 HIL | 待完成 | 未在本规格书中把 UART 电平、I2C ACK、W5500 链路、PWM 波形、User Flash 擦写或引脚电气宣称为实测通过。 |
 | 量产 / 安全认证 | 未实现 | CRC32 与 A/B 回退不是签名安全启动；也没有温度、寿命、EMC、ESD 或认证结论。 |
 
@@ -70,28 +70,28 @@ flowchart TB
 | --- | --- |
 | FPGA 顶层 | `omcu_tn9k_mcu_top` |
 | 系统时钟 | 板载 `clk_27m_i`，27 MHz；不使用未经 HIL 的 PLL。 |
-| CPU | PicoRV32 适配器，`RV32IMC` / `ilp32`。 |
-| CPU 资源取舍 | 单端口寄存器堆、迭代移位、紧凑 32 步 PCPI 除法；`DIV/DIVU/REM/REMU` 语义保留。 |
+| CPU | PicoRV32 适配器，`RV32IM` / `ilp32`；压缩指令 `C` 未启用，仅支持自然对齐的指令和数据访问。 |
+| CPU 资源取舍 | 单端口寄存器堆、迭代移位、DSP 加速乘法、紧凑 32 步 PCPI 除法；`DIV/DIVU/REM/REMU` 语义保留。 |
 | CPU 计数器 | PicoRV32 内部 `cycle/instret` 不属于公开 ABI；运行时间使用 SYSCTRL 64-bit `RUN_TICKS`。 |
-| 硬件 ABI | `0x0000_0006`（主版本 `0`、次版本 `6`）。 |
+| 硬件 ABI | `0x0000_0008`（主版本 `0`、次版本 `8`）。旧 ABI 0.7 / `rv32imc` 镜像不可执行且由 Bootloader 拒绝。 |
 | `CHIP_ID` | `0x4F4D_4355`，ASCII 为 `OMCU`。 |
-| `FEATURES` | 产品位流为 `0x0000_7FFF`（bit 0..14 全部置位）。 |
-| Boot ROM | 8 KiB，2,048 个 32-bit words；只放稳定 UART0 Bootloader。 |
+| `FEATURES` | 产品位流为 `0x000F_FFFF`（bit 0..19 全部置位）。 |
+| Boot ROM | 4 KiB，1,024 个 32-bit words；只放稳定 UART0 Bootloader。 |
 | SRAM | 44 KiB：40 KiB 客户应用运行区 + 4 KiB Bootloader 工作区。 |
 | User Flash | 76 KiB / 77,824 B，独立于 FPGA 配置 Flash；38 个 2 KiB 页。 |
 | 应用槽 | 2 × 36 KiB（各 18 页）；每槽 64 B 镜像头，最大载荷 36,800 B；末尾 2 页保留。 |
-| 已公开扩展 I/O | 12 路三态 GPIO，均来自经过顶层/CST/文档共同约束的 J5 路由。 |
+| 已公开扩展 I/O | 12 路三态 GPIO，均来自经过顶层/CST/文档共同约束的 J5 路由；LED0..5 镜像 GPIO0..5。 |
 
 ### 2.1 地址空间
 
-所有寄存器为小端、32-bit、4-byte 对齐。`RW1C` 表示“写 1 清除”；未列出的位读为 0、写入忽略。
+所有寄存器为小端、32-bit、4-byte 对齐。`RW1C` 表示“写 1 清除”；未列出的位读为 0、写入忽略。除 User Flash 明确的擦除命令和 SRAM 的普通字节/半字访问外，MMIO 的配置、命令与 RW1C 必须以完整自然对齐 32-bit 写入；部分字写被硬件忽略。
 
 | 范围 / 基址 | 资源 | 说明 |
 | --- | --- | --- |
-| `0x0000_0000` | Boot ROM | 8 KiB 只读启动器镜像。 |
+| `0x0000_0000` | Boot ROM | 4 KiB 只读启动器镜像。 |
 | `0x1000_0000` | SRAM | 44 KiB；应用加载和运行地址。 |
 | `0x2000_0000` | User Flash | 77,824 B 字节寻址窗口；由 Bootloader 管理应用槽。 |
-| `0x4000_0000` | GPIO0 | 6 个 LED 逻辑位 + 12 路外扩 GPIO。 |
+| `0x4000_0000` | GPIO0 | 12 路 J5 GPIO、两级同步、端口一致性数字滤波、边沿 IRQ 与事件快照；LED0..5 镜像 bit0..5。 |
 | `0x4000_1000` | UART0 | Bootloader、恢复和默认日志串口。 |
 | `0x4000_2000` | TIMER0 | 32-bit 基础比较定时器。 |
 | `0x4000_3000` | SPI0 | mode 0、单片选、逐字节主机。 |
@@ -103,6 +103,9 @@ flowchart TB
 | `0x4000_9000` | TIMER1 | 16-bit 定时、双捕获、滤波和正交编码器。 |
 | `0x4000_A000` | PWM1 | 四路共享 16-bit 计数器 PWM；使用前必须申请 PINMUX。 |
 | `0x4000_B000` | PINMUX | UART1 / PWM1 / TIMER1 的显式 pad 所有权。 |
+| `0x4000_C000` | ALARM0 | 两路独立 16-bit 硬件比较闹钟。 |
+| `0x4000_D000` | PULSE0 | 一次选择一路的低速脉冲计数 / 周期测量。 |
+| `0x4000_E000` | FAULT0 | 锁存故障、PWM/GPIO 安全门控和共享事件快照。 |
 | `0x4000_F000` | SYSCTRL | 芯片信息、特性、内存、复位诊断与 Bootloader 请求。 |
 
 ### 2.2 特性位
@@ -120,6 +123,11 @@ bring-up 位流能运行而假定它具备产品模式的 User Flash、UART1 或
 | 12 | `PINMUX` | 可显式把指定 J5 pad 交给替代功能。 |
 | 13 | `GPIO_EXPANSION` | 12 路 J5 扩展 GPIO 档案。 |
 | 14 | `USER_FLASH` | 产品位流具备 GW1NR User Flash 与 A/B 应用存储合同。 |
+| 15 | `GPIO_RELIABILITY` | GPIO 两级同步、端口一致性数字滤波与事件快照。 |
+| 16 | `ALARM0` | 两路硬件比较闹钟。 |
+| 17 | `PULSE0` | 低速脉冲计数 / 周期测量。 |
+| 18 | `FAULT0` | 硬件故障锁存与安全输出门控。 |
+| 19 | `WDT_SUPERVISOR` | 预警、窗口、心跳与拒绝喂狗诊断。 |
 
 ## 3. 时钟、复位与应用启动
 
@@ -191,8 +199,9 @@ MODE/DONE/配置相关引脚、板载配置 SPI Flash、PSRAM、RGB LCD 专用�
 | `led_n_o[4]` | 输出 | 15 | pull-up、drive 8 | 板载 LED4，低有效。 |
 | `led_n_o[5]` | 输出 | 16 | pull-up、drive 8 | 板载 LED5，低有效。 |
 
-`GPIO0[0..5]` 只控制板载 LED：清除相应 `OE` 会让该 LED 熄灭；它们不映射到外部排针，不能当作
-扩展 GPIO 使用。
+`LED0..5` 镜像 `GPIO0[0..5]`：该 bit 的 `OE=1` 且 `OUT=1` 时对应低有效 LED 点亮；同一 bit 同时
+控制 J5.8..13 的 GPIO 输出。因此 LED 不是私有 GPIO，也不能和外部连接的电平需求分开设置。需要让
+某一根 J5 输入高阻时，清除对应 `OE`，LED 也会熄灭。
 
 #### 4.1.2 固定外设 I/O
 
@@ -211,23 +220,23 @@ MODE/DONE/配置相关引脚、板载配置 SPI Flash、PSRAM、RGB LCD 专用�
 
 #### 4.1.3 12 路扩展 GPIO：完整映射
 
-GPIO 寄存器位 `6..17` 对应下表逻辑 GPIO `GPIO0..11`。所有扩展 pad 初始归 GPIO 所有；只有
+GPIO 寄存器位 `0..11` 对应下表逻辑 GPIO `GPIO0..11`。所有扩展 pad 初始归 GPIO 所有；只有
 `PINMUX.CTRL` 的相应位为 1 时，替代外设才接管指定 pad。
 
 | GPIO 寄存器 bit | SDK 宏 | `gpio_io[]` | J5 针脚 | package pad | 默认功能 | 替代功能 / 互斥条件 |
 | ---: | --- | ---: | --- | ---: | --- | --- |
-| 6 | `OMCU_TN9K_GPIO0` | 0 | J5.8 | 28 | 三态 GPIO | 无替代功能。 |
-| 7 | `OMCU_TN9K_GPIO1` | 1 | J5.9 | 29 | 三态 GPIO | 无替代功能。 |
-| 8 | `OMCU_TN9K_GPIO2` | 2 | J5.10 | 30 | 三态 GPIO | 无替代功能。 |
-| 9 | `OMCU_TN9K_GPIO3` | 3 | J5.11 | 33 | 三态 GPIO | 与 RGB LCD 共线；无专用替代功能。 |
-| 10 | `OMCU_TN9K_GPIO4` | 4 | J5.12 | 34 | 三态 GPIO | `PWM1 CH0`；与 RGB LCD 共线。 |
-| 11 | `OMCU_TN9K_GPIO5` | 5 | J5.13 | 40 | 三态 GPIO | `PWM1 CH1`；与 RGB LCD 共线。 |
-| 12 | `OMCU_TN9K_GPIO6` | 6 | J5.14 | 35 | 三态 GPIO | `PWM1 CH2`；与 RGB LCD 共线。 |
-| 13 | `OMCU_TN9K_GPIO7` | 7 | J5.15 | 41 | 三态 GPIO | `PWM1 CH3`；与 RGB LCD 共线。 |
-| 14 | `OMCU_TN9K_GPIO8` | 8 | J5.16 | 42 | 三态 GPIO | `TIMER1 A` 输入；与 RGB LCD 共线。 |
-| 15 | `OMCU_TN9K_GPIO9` | 9 | J5.17 | 51 | 三态 GPIO | `TIMER1 B` 输入；与 RGB LCD 共线。 |
-| 16 | `OMCU_TN9K_GPIO10` | 10 | J5.18 | 53 | 三态 GPIO | `UART1 TX`；与 RGB LCD 共线。 |
-| 17 | `OMCU_TN9K_GPIO11` | 11 | J5.19 | 54 | 三态 GPIO | `UART1 RX`；与 RGB LCD 共线。 |
+| 0 | `OMCU_TN9K_GPIO0` / `LED0` | 0 | J5.8 | 28 | 三态 GPIO；LED0 镜像 | `PULSE0` 候选输入 0；启用后 pad 输入专用。 |
+| 1 | `OMCU_TN9K_GPIO1` / `LED1` | 1 | J5.9 | 29 | 三态 GPIO；LED1 镜像 | `PULSE0` 候选输入 1；启用后 pad 输入专用。 |
+| 2 | `OMCU_TN9K_GPIO2` / `LED2` | 2 | J5.10 | 30 | 三态 GPIO；LED2 镜像 | `PULSE0` 候选输入 2；启用后 pad 输入专用。 |
+| 3 | `OMCU_TN9K_GPIO3` / `LED3` | 3 | J5.11 | 33 | 三态 GPIO；LED3 镜像 | `FAULT0` 输入；启用后 pad 输入专用；与 RGB LCD 共线。 |
+| 4 | `OMCU_TN9K_GPIO4` / `LED4` | 4 | J5.12 | 34 | 三态 GPIO；LED4 镜像 | `PWM1 CH0`；与 RGB LCD 共线。 |
+| 5 | `OMCU_TN9K_GPIO5` / `LED5` | 5 | J5.13 | 40 | 三态 GPIO；LED5 镜像 | `PWM1 CH1`；与 RGB LCD 共线。 |
+| 6 | `OMCU_TN9K_GPIO6` | 6 | J5.14 | 35 | 三态 GPIO | `PWM1 CH2`；与 RGB LCD 共线。 |
+| 7 | `OMCU_TN9K_GPIO7` | 7 | J5.15 | 41 | 三态 GPIO | `PWM1 CH3`；与 RGB LCD 共线。 |
+| 8 | `OMCU_TN9K_GPIO8` | 8 | J5.16 | 42 | 三态 GPIO | `TIMER1 A` 输入；与 RGB LCD 共线。 |
+| 9 | `OMCU_TN9K_GPIO9` | 9 | J5.17 | 51 | 三态 GPIO | `TIMER1 B` 输入；与 RGB LCD 共线。 |
+| 10 | `OMCU_TN9K_GPIO10` | 10 | J5.18 | 53 | 三态 GPIO | `UART1 TX`；与 RGB LCD 共线。 |
+| 11 | `OMCU_TN9K_GPIO11` | 11 | J5.19 | 54 | 三态 GPIO | `UART1 RX`；与 RGB LCD 共线。 |
 
 GPIO0..2 是当前档案中无 RGB LCD 共线关系的基础扩展组。GPIO3..11 都与 RGB LCD FPC 的
 DE/VS/HS/CLK/B 信号组共线：**不得**在同一网络上同时连接 RGB LCD 和外部 MCU 外设。该互斥由
@@ -243,10 +252,13 @@ DE/VS/HS/CLK/B 信号组共线：**不得**在同一网络上同时连接 RGB LC
 | 0 `UART1_ENABLE` | UART1 | J5.18 / 53 为 TX；J5.19 / 54 为 RX | TX 强制输出 UART 数据；RX 强制高阻输入，不与 GPIO `OE` 争用。 | 清零 bit0 或 `omcu_tn9k_uart1_release_pins()`。 |
 | 1 `PWM1_ENABLE` | PWM1 CH0..3 | J5.12..15 / 34,40,35,41 | 四根 pad 全部由 PWM1 输出。即使 PWM1 外设自身 disable，顶层仍保持 pad 所有权，而外设输出为确定低电平。 | 清零 bit1 或 `omcu_tn9k_pwm1_release_pins()`。 |
 | 2 `TIMER1_ENABLE` | TIMER1 A/B | J5.16/J5.17 / 42,51 | 两根 FPGA pad 驱动被强制释放，为输入专用；TIMER1 可做 capture/encoder。 | 清零 bit2 或 `omcu_tn9k_timer1_release_pins()`。 |
+| 3 `PULSE0_ENABLE` | PULSE0 | J5.8..10 / 28,29,30 | 三根 FPGA pad 全部强制高阻，PULSE0 再由 `INPUT_SELECT` 选择其中一根进行同步/滤波/计数。 | 清零 bit3 或 `omcu_tn9k_pulse0_release_pins()`。 |
+| 4 `FAULT0_ENABLE` | FAULT0 | J5.11 / 33 | FPGA pad 强制高阻，FAULT0 只在该 claim 存在时可锁存故障。 | 在故障未锁存且已停止 FAULT0 后清零 bit4，或 `omcu_tn9k_fault0_release_pin()`。 |
 
 安全切换顺序：先关闭或配置替代外设，再设置 PINMUX；归还时先停止外设，再清 PINMUX，最后按需要设置
-GPIO `OUT/OE`。SDK 的 `omcu_tn9k_uart1_init()`、`omcu_tn9k_pwm1_configure()` 和
-`omcu_tn9k_timer1_configure()` 已按此所有权模型封装。
+GPIO `OUT/OE`。SDK 的 `omcu_tn9k_uart1_init()`、`omcu_tn9k_pwm1_configure()`、
+`omcu_tn9k_timer1_configure()`、`omcu_tn9k_pulse0_configure()` 和
+`omcu_tn9k_fault0_configure()` 已按此所有权模型封装。
 
 ### 4.3 电气与接线硬边界
 
@@ -257,8 +269,9 @@ GPIO `OUT/OE`。SDK 的 `omcu_tn9k_uart1_init()`、`omcu_tn9k_pwm1_configure()` 
 3. SPI0 与 TF 信号组共享。外设 CS 的逻辑正确不等于可以同 microSD 同时占线；默认禁止并用。
 4. PWM0/PWM1 是 FPGA 逻辑级输出。电机、MOSFET、继电器、舵机和高压灯带需要审查过的外部驱动、
    限流、隔离/保护和失效安全设计，不能直接由 pad 驱动。
-5. GPIO 输入不是异步高速采样器。对长线、工业输入、跨时钟或高噪声信号，应使用外部调理和同步策略；
-   TIMER1 A/B 是本基线中唯一带两级同步和可编程稳定滤波的扩展输入路径。
+5. 所有 GPIO 输入都经过两级同步；GPIO0 的数字滤波是**整端口一致性窗口**，一根输入改变会重启该
+   窗口。PULSE0、FAULT0 和 TIMER1 也各自有同步/滤波路径，但它们都不是异步高速捕获器。对长线、
+   工业输入、跨时钟或高噪声信号，仍须使用外部调理和实体板 HIL。
 6. 本工程不提供绝对最大额定值、VIH/VIL、持续灌拉电流、ESD、EMC、温度或寿命数据。它们必须以
    Gowin 器件数据手册、Tang Nano 9K 板卡原理图及实际测试为准，不能从 `DRIVE=8` 推导。
 
@@ -268,25 +281,28 @@ GPIO `OUT/OE`。SDK 的 `omcu_tn9k_uart1_init()`、`omcu_tn9k_pwm1_configure()` 
 
 | 外设 | 基址 | 特性位 | CPU IRQ | 外部 I/O / 主要用途 | 当前不包含的能力 |
 | --- | ---: | --- | ---: | --- | --- |
-| GPIO0 | `0x4000_0000` | GPIO0、GPIO_EXPANSION | 8 | 6 LED + 12 J5 GPIO | ADC、去抖、高速采样、所有未用 IOB。 |
+| GPIO0 | `0x4000_0000` | GPIO0、GPIO_EXPANSION、GPIO_RELIABILITY | 8 | 12 J5 GPIO、LED0..5 镜像、两级同步、端口一致性滤波、边沿 IRQ/快照 | ADC、每针独立滤波计数器、高速采样、所有未用 IOB。 |
 | UART0 | `0x4000_1000` | UART0 | 9 | pad 17/18；升级/恢复/日志 | FIFO、流控、RS-485 方向控制。 |
 | TIMER0 | `0x4000_2000` | TIMER0 | 10 | 片内 32-bit 定时 | capture、encoder、PWM 互补。 |
 | SPI0 | `0x4000_3000` | SPI0 | 11 | pad 38/37/36/39 | 多 CS、FIFO、DMA、QSPI/XIP、非 mode 0。 |
 | I2C0 | `0x4000_4000` | I2C0 | 12 | pad 26/27 | 多主仲裁恢复、总线恢复、FIFO、DMA、自动超时。 |
-| WDT0 | `0x4000_5000` | WDT0 | 13 | 片内复位监控 | 窗口看门狗、独立低速时钟、硬件锁定。 |
+| WDT0 | `0x4000_5000` | WDT0、WDT_SUPERVISOR | 13 | 片内复位监控、预警、窗口、8 个软件心跳 | 独立低速时钟、不可关闭硬件锁定、认证级安全监督。 |
 | PWM0 | `0x4000_6000` | PWM0 | — | pad 25 | 死区、互补对、故障刹车、功率驱动。 |
-| IRQCTRL | `0x4000_7000` | IRQCTRL | CPU 8..15 | 中断聚合 | NVIC、嵌套优先级、DMA 触发。 |
+| IRQCTRL | `0x4000_7000` | IRQCTRL | CPU 8..18 | 中断聚合 | NVIC、嵌套优先级、DMA 触发。 |
 | UART1 | `0x4000_8000` | UART1 + PINMUX | 14 | J5.18/19 | FIFO、流控、自动 RS-485。 |
 | TIMER1 | `0x4000_9000` | TIMER1 + PINMUX | 15 | J5.16/17 | 边沿 FIFO、高速异步计数、速度计算。 |
 | PWM1 | `0x4000_A000` | PWM1 + PINMUX | — | J5.12..15 | 互补/死区、影子同步更新、故障输入。 |
-| PINMUX | `0x4000_B000` | PINMUX | — | J5 替代功能选择 | 动态电气检测或 LCD 冲突检测。 |
+| PINMUX | `0x4000_B000` | PINMUX | — | UART1/PWM1/TIMER1/PULSE0/FAULT0 的 J5 所有权 | 动态电气检测或 LCD 冲突检测。 |
+| ALARM0 | `0x4000_C000` | ALARM0 | 16 | 两路并行 16-bit 比较闹钟、周期任务 | 第三/四路已保留地址、波形发生器、DMA。 |
+| PULSE0 | `0x4000_D000` | PULSE0 + PINMUX | 17 | 从 GPIO0..2 一次选择一路，16-bit 边沿计数和周期 | 三路并行计数、高速异步计数、FIFO。 |
+| FAULT0 | `0x4000_E000` | FAULT0 + PINMUX | 18 | GPIO3 故障锁存、PWM 拉低、全部 J5 GPIO 高阻、共享快照 | 认证功能安全、异步急停、功率级驱动。 |
 | SYSCTRL | `0x4000_F000` | DIAGNOSTICS | — | 平台诊断 / 返 Bootloader | 调试器、安全启动、签名验证。 |
 
 ### 5.2 GPIO0：LED、扩展 GPIO 与边沿中断
 
-GPIO0 为 18-bit 档案。bit0..5 是板载 LED 逻辑位；bit6..17 是上文列出的扩展 GPIO0..11。`OUT` 为
-输出锁存，`OE=0` 时扩展 pad 高阻（除非被 PINMUX 接管）。输入以系统时钟观察，不能当作高速或
-无亚稳风险的采样接口。
+GPIO0 为 12-bit J5 档案。bit0..11 一一对应上文扩展 GPIO0..11；其中 bit0..5 的 `OUT/OE` 同时
+镜像板载低有效 LED0..5。`OUT` 为输出锁存，`OE=0` 时 J5 pad 高阻（除非被 PINMUX 接管）。任何
+输入先经过两级同步；随后整端口共享一个可编程一致性滤波窗口，不能当作高速或无亚稳风险的采样接口。
 
 | 偏移 | 寄存器 | 访问 | 定义 |
 | ---: | --- | --- | --- |
@@ -301,9 +317,20 @@ GPIO0 为 18-bit 档案。bit0..5 是板载 LED 逻辑位；bit6..17 是上文�
 | `0x24` | `RISE_EN` | RW | 上升沿事件使能。 |
 | `0x28` | `FALL_EN` | RW | 下降沿事件使能。 |
 | `0x2C` | `IRQ_STATUS` | RW1C | 已锁存的边沿事件；GPIO IRQ 仅在至少一个 bit 挂起时触发。 |
+| `0x30` | `FILTER_MASK` | RO | 实施范围；当前为所有 12 个 GPIO bit，写入忽略。 |
+| `0x34` | `FILTER_CYCLES` | RW | low8 `N`：整端口连续 `N+1` 个相同同步样本后接受。任一 bit 改变都会重启窗口；`0` 不增加稳定等待。 |
+| `0x38` | `SNAPSHOT_CTRL` | RW | bit0 `ENABLE`，bit1 `IRQ_ENABLE`（共享 GPIO IRQ），bit2 `OVERWRITE`。 |
+| `0x3C/0x40` | `SNAPSHOT_RISE_EN/FALL_EN` | RW | `RISE_EN/FALL_EN` 的同一组别名；改变它也改变普通 GPIO 边沿 IRQ 使能。 |
+| `0x44` | `SNAPSHOT_STATUS` | RW1C | bit0 `VALID`，bit1 `OVERFLOW`，bit2 `FORCED`（FAULT0 优先上下文）；写 1 清 bit0/1。 |
+| `0x48` | `SNAPSHOT_EVENT` | RO | 捕获时的 GPIO 边沿 bit mask。 |
+| `0x4C` | `SNAPSHOT_INPUT` | RO | 捕获时的过滤后 GPIO 输入电平。 |
+| `0x50` | `SNAPSHOT_IRQ` | RO | 捕获时 IRQCTRL active mask（CPU bit8..18）。 |
+| `0x54` | `SNAPSHOT_RESET` | RO | 捕获时保留的 reset cause。 |
+| `0x58` | `SNAPSHOT_TICKS` | RO | 捕获时 SYSCTRL `RUN_TICKS` 的低 32 位。 |
 
 GPIO 输出和替代功能的所有权以第 4.2 节为准。举例：PINMUX UART1 已接管 GPIO10/11 时，继续写
-GPIO bit16/17 不会夺回 UART1 的物理 pad。
+GPIO bit10/11 不会夺回 UART1 的物理 pad。FAULT0 发生时，即使之前已经有普通 GPIO 快照，也会强制
+覆盖上下文、置 `FORCED` 和 `OVERFLOW`，保证故障原因不会被较早的普通事件遮住。
 
 ### 5.3 UART0 与 UART1
 
@@ -380,20 +407,31 @@ I2C0 以外部上拉实现开漏 SCL/SDA，只驱动低或释放高。`CLKDIV` �
 - 不提供 FIFO、DMA、仲裁丢失恢复、总线恢复或自动超时。SDK 事务 API 的 `spin_limit` 只能避免软件无限等待，
   不能替代外设掉线策略和看门狗。
 
-### 5.7 WDT0：看门狗
+### 5.7 WDT0：增强看门狗
 
-WDT0 是 32-bit 时钟计数的普通看门狗。启用后计数到 `TIMEOUT` 时置 `EXPIRED`；若同时置
-`RESET_ENABLE`，则向顶层产生一次复位请求。重新喂狗必须精确写入魔数 `0x51F1_5EED`。
+WDT0 是 32-bit 系统时钟计数的看门狗。启用后计数到 `TIMEOUT` 时置 `EXPIRED`；若同时置
+`RESET_ENABLE`，则向顶层产生一次复位请求。重新喂狗必须精确写入魔数 `0x51F1_5EED`。ABI 0.8
+增加预警、最小喂狗窗口和最多 8 个软件任务 heartbeat，适合把“主循环还在转”升级为“关键任务都报告
+过进度”的监督策略。
 
 | 偏移 | 寄存器 | 访问 | 定义 |
 | ---: | --- | --- | --- |
-| `0x00` | `CTRL` | RW | bit0 `ENABLE`，bit1 `RESET_ENABLE`，bit2 `IRQ_ENABLE`。 |
+| `0x00` | `CTRL` | RW | bit0 `ENABLE`，bit1 `RESET_ENABLE`，bit2 `IRQ_ENABLE`，bit3 `PRETIMEOUT_IRQ_ENABLE`，bit4 `WINDOW_ENABLE`，bit5 `HEARTBEAT_ENABLE`。 |
 | `0x04` | `TIMEOUT` | RW | 32-bit 超时计数上限。 |
 | `0x08` | `FEED` | WO | 仅接受 `0x51F1_5EED`，其余写入不喂狗。 |
-| `0x0C` | `STATUS` | RW1C | bit0 `EXPIRED`；bit1 `RESET_REQUEST` 是活动脉冲观察位。 |
+| `0x0C` | `STATUS` | RW1C | bit0 `EXPIRED`，bit1 `RESET_REQUEST`（活动脉冲观察），bit2 `PRETIMEOUT`，bit3 `WINDOW_VIOLATION`，bit4 `HEARTBEAT_MISSING`，bit5 `FEED_REJECTED`。 |
+| `0x10` | `PRETIMEOUT` | RW | 非零时，当 `COUNT == PRETIMEOUT` 置预警 pending；仅接受完整 32-bit 写。 |
+| `0x14` | `WINDOW_MIN` | RW | 启用窗口时，`COUNT < WINDOW_MIN` 的喂狗属于违例；仅接受完整 32-bit 写。 |
+| `0x18` | `HEARTBEAT_REQUIRED` | RW | low8：本轮喂狗前必须见到的任务 bit；仅接受完整 32-bit 写。 |
+| `0x1C` | `HEARTBEAT_SEEN` | RO | low8：当前 epoch 已报告的任务 bit。 |
+| `0x20` | `HEARTBEAT_KICK` | WO | low8 写 1 累积该任务的 heartbeat。 |
+| `0x24` | `COUNT` | RO | 当前 32-bit 计数，用于诊断。 |
 
-IRQ 是 CPU bit13。当前不是独立低速时钟、窗口看门狗或不可关闭的生产级 supervisor；软件应在真正的
-健康检查完成后再喂狗，而不是在任意主循环中盲目写魔数。
+若过早喂狗或缺少必需 heartbeat，WDT0 会置诊断位、拒绝本次喂狗、将当前 epoch 记为 expired，并在
+`RESET_ENABLE` 下请求复位。预警不会自动复位，应用可在 IRQ bit13 中做受控收尾。`omcu_wdt0_start_supervisor()`
+提供了原子配置顺序；不要对 `PRETIMEOUT`、`WINDOW_MIN` 或 `HEARTBEAT_REQUIRED` 使用字节/半字写。
+
+它仍不是独立低速时钟、不可关闭的硬件锁、认证安全监督或外部急停；软件应只在真正健康检查完成后再喂狗。
 
 ### 5.8 PWM0：单路 PWM
 
@@ -413,7 +451,7 @@ PWM0 没有 IRQ、互补输出、死区、同步影子寄存器、过流故障�
 
 ### 5.9 IRQCTRL：外部中断聚合
 
-PicoRV32 的外部 IRQ 使用 CPU bit8..15。IRQCTRL 汇聚真实外设事件和软件强制 pending，`HIGHEST`
+PicoRV32 的外部 IRQ 使用 CPU bit8..18。IRQCTRL 汇聚真实外设事件和软件强制 pending，`HIGHEST`
 返回数值最低的有效 CPU IRQ bit（0 表示无有效 IRQ）。
 
 | 偏移 | 寄存器 | 访问 | 定义 |
@@ -435,6 +473,9 @@ PicoRV32 的外部 IRQ 使用 CPU bit8..15。IRQCTRL 汇聚真实外设事件和
 | 13 | `OMCU_IRQ_WDT0` | WDT0 expired。 |
 | 14 | `OMCU_IRQ_UART1` | UART1 RX valid。 |
 | 15 | `OMCU_IRQ_TIMER1` | TIMER1 compare、capture、encoder step/illegal。 |
+| 16 | `OMCU_IRQ_ALARM0` | 任一路 ALARM0 compare pending。 |
+| 17 | `OMCU_IRQ_PULSE0` | PULSE0 选中输入的测量事件。 |
+| 18 | `OMCU_IRQ_FAULT0` | FAULT0 首次锁存。 |
 
 ISR 中应先清除外设源状态，再清 IRQCTRL 对应位；否则电平/事件源仍有效时会立即再次进入中断。
 
@@ -492,20 +533,91 @@ J5.16 与 J5.17 输入固定先经过两级同步，再经过 `FILTER` 稳定样
 
 | 偏移 | 寄存器 | 访问 | 定义 |
 | ---: | --- | --- | --- |
-| `0x00` | `CTRL` | RW | bit0 `UART1_ENABLE`（GPIO10/11）；bit1 `PWM1_ENABLE`（GPIO4..7）；bit2 `TIMER1_ENABLE`（GPIO8/9）。清零后 pad 回到 GPIO 所有权。 |
+| `0x00` | `CTRL` | RW | bit0 `UART1_ENABLE`（GPIO10/11）；bit1 `PWM1_ENABLE`（GPIO4..7）；bit2 `TIMER1_ENABLE`（GPIO8/9）；bit3 `PULSE0_ENABLE`（GPIO0..2）；bit4 `FAULT0_ENABLE`（GPIO3）。清零后 pad 回到 GPIO 所有权。 |
 
 详细物理效果与所有权规则见第 4.2 节。不要在同一 pad 被替代功能接管时继续把 GPIO 配为推挽输出；
 虽然顶层会阻止竞争，正确的软件模型仍应是“只有一个所有者”。
 
-### 5.13 SYSCTRL：身份、诊断与返 Bootloader
+### 5.13 ALARM0：两路独立硬件比较闹钟
+
+ALARM0 不再复制一套计数器：它复用 **TIMER0** 的预分频、运行/停止与计数低 16 位，并以两个**并行**
+比较器实现独立的 compare / 周期任务。它不是轮询扫描器，因此两个通道可以在同一个 TIMER0 tick 同时
+pending，不存在扫描带来的固定抖动。TIMER0 是时基唯一所有者；ALARM0 的 `CTRL` 只开关两个比较器，
+不会启动、停止或重置 TIMER0。除 `CTRL` 外的可配置寄存器只接受完整 32-bit 写入，字节或半字写会被忽略。
+
+| 偏移 | 寄存器 | 访问 | 定义 |
+| ---: | --- | --- | --- |
+| `0x00` | `CTRL` | RW/RO | bit0 `COMPARE_ENABLE`；bit1 `TIMEBASE_RUNNING`（RO，镜像 TIMER0 ENABLE）。 |
+| `0x04` | `PRESCALE` | RO | low16：TIMER0 `PRESCALE` 镜像；写忽略。 |
+| `0x08` | `COUNT` | RO | low16：TIMER0 `COUNT` 镜像；写忽略。 |
+| `0x0C` | `CHANNEL_ENABLE` | RW | bit0/1 使能 CH0/1。 |
+| `0x10` | `IRQ_ENABLE` | RW | bit0/1 决定对应 pending 是否使 ALARM0 IRQ 有效。 |
+| `0x14` | `PERIODIC` | RW | bit0/1：事件后相应 compare 增加 `PERIODn`。 |
+| `0x18` | `PENDING` | RW1C | bit0/1 compare pending。 |
+| `0x1C` | `COMPARE0` | RW | low16：通道 0 的绝对比较值。 |
+| `0x20` | `COMPARE1` | RW | low16：通道 1 的绝对比较值。 |
+| `0x24` / `0x28` | `COMPARE2/3` | 保留 | 读 0，写忽略。 |
+| `0x2C` | `PERIOD0` | RW | low16：通道 0 周期重装步长；零值为 one-shot。 |
+| `0x30` | `PERIOD1` | RW | low16：通道 1 周期重装步长；零值为 one-shot。 |
+| `0x34` / `0x38` | `PERIOD2/3` | 保留 | 读 0，写忽略。 |
+
+`TIMER0.COUNT[15:0] == COMPAREn` 的 tick 产生事件。周期模式会把该通道 compare 加上 `PERIODn`；
+`PERIODn=0` 时只触发一次。相等比较使周期任务可正确跨越 16-bit 环绕；因此建议用 SDK 的
+`omcu_alarm0_schedule_after()` 写相对 deadline，且 delay 必须大于 MMIO 配置耗时。`omcu_alarm0_start(prescale)`
+会把 TIMER0 配为无 IRQ 的自由运行时基；若应用已自行配置并启动 TIMER0，应使用
+`omcu_alarm0_attach_timer0()`，不要让两个模块同时改写 TIMER0 配置。
+
+它不替代 RTC、带 FIFO 的高精度定时器或硬实时外部触发捕获。
+
+### 5.14 PULSE0：单选低速脉冲计数与周期测量
+
+PULSE0 在 GPIO0、GPIO1、GPIO2 中**一次只选择一路**作为测量输入。输入在 PINMUX 接管后先经过两级同步，
+再经过标量 `FILTER=N` 的 N+1 个连续样本确认；它适合按键、霍尔、流量和低速转速类输入，不适合异步高速计数、
+窄脉冲、三路同时计数或无外部前端的工业长线。
+
+| 偏移 | 寄存器 | 访问 | 定义 |
+| ---: | --- | --- | --- |
+| `0x00` | `CTRL` | RW | bit0 `ENABLE`，bit1 `IRQ_ENABLE`。 |
+| `0x04` | `INPUT_SELECT` | RW | bit1..0：0/1/2 对应 GPIO0/1/2；其他值无效。切换输入会原子清除当前测量 epoch。 |
+| `0x08` | `EDGE` | RW | bit0 `FALLING`（0 为 rising）。 |
+| `0x0C` | `FILTER` | RW | low8：新输入连续稳定样本数减 1。 |
+| `0x10` | `STATUS` | RW1C / RO | bit0 `PENDING`（W1C），bit1 过滤后输入，bit2 `PERIOD_VALID`，bit5..4 当前选择（RO）。 |
+| `0x14` | `CLEAR` | WO | bit0 清当前 measurement epoch。 |
+| `0x18` | `COUNT` | RO | low16：环绕脉冲计数。 |
+| `0x1C` | `PERIOD` | RO | low16：最近两次有效边沿间的 `RUN_TICKS` 低 16-bit 差值。 |
+| `0x20` | `LAST_TICK` | RO | low16：最近一次有效边沿的 `RUN_TICKS`。 |
+
+使用前必须置 `PINMUX.CTRL.PULSE0_ENABLE=1`，该操作会释放 GPIO0..2 的 GPIO 输出并使其成为 PULSE0 输入。
+若 GPIO0..5 同时驱动板载 LED，进入 pulse 模式时相应 LED 也只反映 GPIO 软件所有权被释放后的状态。
+
+### 5.15 FAULT0：故障锁存与保守输出门控
+
+FAULT0 固定使用 GPIO3（J5.11），由 PINMUX 接管后进行两级同步与数字滤波。检测到设定极性的有效输入时，
+硬件一次性锁存故障、向 IRQCTRL 提供 FAULT0 IRQ、触发 GPIO 共享事件快照，并可在同一周期把 PWM0、
+PWM1 拉低以及把全部 12 路公开 GPIO 释放为高阻。它是面向逻辑级系统的保守联锁，**不是**异步急停、
+冗余安全岛、故障安全认证或高压栅极驱动器。
+
+| 偏移 | 寄存器 | 访问 | 定义 |
+| ---: | --- | --- | --- |
+| `0x00` | `CTRL` | RW | bit0 `ENABLE`，bit1 `ACTIVE_HIGH`，bit2 `IRQ_ENABLE`，bit3 `GATE_PWM0`，bit4 `GATE_PWM1`，bit5 `GATE_GPIO`。 |
+| `0x04` | `FILTER` | RW | low8：输入连续稳定样本数减 1。 |
+| `0x08` | `GPIO_HIZ_MASK` | RO | 当前固定为全部已公开 GPIO 位，用于说明 `GATE_GPIO` 的范围；写入忽略。 |
+| `0x0C` | `STATUS` | RW / RO | bit0 `LATCHED`，bit1 过滤后输入，bit2 `PINMUX_CLAIMED`，bit3 `CLEAR_REJECTED`（写 1 清），bit4 当前 active。 |
+| `0x10` | `CLEAR` | WO | 仅完整 32-bit 写 `0xFA17_C1EA` 且 PINMUX 已归属、故障输入不再 active 时清锁存。 |
+| `0x14` / `0x18` / `0x1C` / `0x20` | `SNAPSHOT_TICK/GPIO/IRQ/RESET` | RO | GPIO 共享快照上下文，FAULT0 trip 时由其强制覆盖。 |
+
+软件不得把清锁存当作“立即恢复”的唯一动作：应先确认物理故障已消失、PWM/驱动器本身已进入安全状态，
+再使用 `omcu_fault0_clear()`。故障发生时 GPIO 快照寄存器的 `FORCED` 位为 1，表示该快照由 FAULT0 强制覆盖。
+
+### 5.16 SYSCTRL：身份、诊断与返 Bootloader
 
 | 偏移 | 寄存器 | 访问 | 定义 |
 | ---: | --- | --- | --- |
 | `0x00` | `CHIP_ID` | RO | `0x4F4D_4355`（ASCII `OMCU`）。 |
-| `0x04` | `ABI` | RO | `[31:16]` 主版本、`[15:0]` 次版本；本产品为 `0x0000_0006`。 |
-| `0x08` | `FEATURES` | RO | 见第 2.2 节；Tang MCU 产品模式为 `0x0000_7FFF`。 |
+| `0x04` | `ABI` | RO | `[31:16]` 主版本、`[15:0]` 次版本；本产品为 `0x0000_0008`。 |
+| `0x08` | `FEATURES` | RO | 见第 2.2 节；Tang MCU 产品模式为 `0x000F_FFFF`。 |
 | `0x0C` | `BUILD_ID` | RO | 平台构建标识。 |
-| `0x10` | `MEMORY_KIB` | RO | `[31:16]` SRAM KiB、`[15:0]` ROM KiB；产品为 44 / 8。 |
+| `0x10` | `MEMORY_KIB` | RO | `[31:16]` SRAM KiB、`[15:0]` ROM KiB；产品为 44 / 4。 |
 | `0x14` | `RESET_CAUSE` | RO | one-hot：bit0 `EXTERNAL`、bit1 `WATCHDOG`、bit2 `SOFTWARE`。 |
 | `0x18` | `RUN_TICKS_LO` | RO | 当前 SoC 运行 64-bit tick 的低字。 |
 | `0x1C` | `RUN_TICKS_HI` | RO | 当前 SoC 运行 64-bit tick 的高字。 |
@@ -515,7 +627,7 @@ J5.16 与 J5.17 输入固定先经过两级同步，再经过 `FILTER` 稳定样
 `BOOT_CTRL` 请求仅在同时有 `DIAGNOSTICS` 与 `USER_FLASH` 的产品位流有效；部分字写或其他值全部忽略。
 应用必须使用 `omcu_tn9k_request_bootloader()`，不要手写魔数。`ACK` 是 Boot ROM 内部协议，客户应用不应使用。
 
-### 5.14 User Flash：应用 A/B 存储窗口
+### 5.17 User Flash：应用 A/B 存储窗口
 
 User Flash 位于 `0x2000_0000`，总大小 77,824 B。它是 GW1NR 的独立 User Flash，不是 FPGA 配置 Flash，
 也不是通用 QSPI XIP 存储。
@@ -559,13 +671,18 @@ static bool require_product_profile(void) {
                         OMCU_FEATURE_IRQCTRL | OMCU_FEATURE_GPIO_EXPANSION |
                         OMCU_FEATURE_UART1 | OMCU_FEATURE_TIMER1 |
                         OMCU_FEATURE_PWM1 | OMCU_FEATURE_DIAGNOSTICS |
-                        OMCU_FEATURE_PINMUX | OMCU_FEATURE_USER_FLASH;
+                        OMCU_FEATURE_PINMUX | OMCU_FEATURE_USER_FLASH |
+                        OMCU_FEATURE_GPIO_RELIABILITY | OMCU_FEATURE_ALARM0 |
+                        OMCU_FEATURE_PULSE0 | OMCU_FEATURE_FAULT0 |
+                        OMCU_FEATURE_WDT_SUPERVISOR;
   return omcu_hw_has_feature(need);
 }
 ```
 
 - 不要使用 raw package pad 编号做软件寄存器位。软件只使用 `OMCU_TN9K_GPIO0..11` 和 SDK helper。
-- 启用 UART1/PWM1/TIMER1 之前检查相应特性位，且通过 Tang helper 申请 PINMUX。
+- 启用 UART1/PWM1/TIMER1/PULSE0/FAULT0 之前检查相应特性位，且通过 Tang helper 申请 PINMUX；后两者会改变 GPIO0..3 的所有权。
+- GPIO 的可靠性滤波是“整个 12-bit 端口一致性窗口”，不是每根输入各自独立的去抖器；`FILTER_CYCLES=N` 需 N+1 个连续相同的同步端口样本。
+- 用 `omcu_gpio_snapshot_arm()` 选择希望记录的普通 GPIO 边沿，用 `omcu_gpio_snapshot_read()` 读取事件、电平、运行 tick、IRQ 和复位原因；`forced=true` 表示 FAULT0 强制快照。
 - UART0 默认是 Bootloader/恢复通道。即使业务复用它，也要保留软件返 Bootloader 和外部复位恢复路径。
 - 所有阻塞式 SPI/I2C 操作必须有 timeout/错误路径；I2C 目标断线或 W5500 链路故障不能让安全关键控制无限等待。
 - 对高压、运动控制、网络暴露或攻击者可接触产品，本文档仅是 FPGA MCU 基线，不能取代功能安全、网络安全和产品认证设计。
@@ -577,11 +694,13 @@ SDK API、示例工程和寄存器封装详见[外设与 SDK](peripherals-and-sd
 
 ### 8.1 当前资源事实
 
-最后一次 ABI `0.6` MCU 产品 P&R 记录为：LUT4 `6844 / 8640`（79.21%）、DFF `2154 / 6480`、
-BSRAM `26 / 26`（100%）、ALU `1464 / 6480`、MULT36X36 `1 / 5`、IOB `15 / 276`。27 MHz 约束下
-实现频率约为 40.357 MHz，报告时序裕量约 12.258 ns。
+ABI `0.8` 的最终产品 P&R 证据已写入
+`build/tangnano9k-mcu-abi08-rv32im-release/omcu_tn9k_mcu_manifest.json`：LUT4 `6962 / 8640`
+（80.58%）、DFF `2511 / 6480`（38.75%）、BSRAM `24 / 26`（92.31%）、ALU `1336 / 6480`、
+MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束下实现 40.533 MHz，
+裕量 12.366 ns。该记录证明同一源码、约束、ROM 和目标器件可完成开源 P&R/packing，不能把它写成实板通过证据。
 
-BSRAM 已零余量，不能在本基线中承诺大 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP。后续每项 RTL
+虽有两个 BSRAM 余量，也不能在本基线中承诺大 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP。后续每项 RTL
 扩展都必须独立重新 P&R，并同时更新 ABI、SDK、引脚合同、文档与 HIL 矩阵。
 
 ### 8.2 仍需完成的实体板 HIL
@@ -590,9 +709,13 @@ BSRAM 已零余量，不能在本基线中承诺大 FIFO、缓存、DMA 缓冲�
 2. User Flash 空白/有效/损坏 A/B 镜像、完整升级、擦除/写入/校验/提交四阶段断电和重复擦写。
 3. GPIO 高/低/高阻、3.3 V 电平、RGB LCD 共线互斥；UART0/1 115200 8-N-1 的 TX/RX/overrun。
 4. PWM0/PWM1 频率、占空比、四路共同相位和 disable 后低电平；只接安全逻辑级负载或审核过的驱动级。
-5. TIMER1 真实 A/B Gray 序列、正反向、非法跳变、滤波阈值、噪声和长线条件。
-6. I2C 上拉、真实 ACK/NACK/时钟拉伸；SPI 回环、TF 互斥和每个 DS3231/AT24Cxx/TMP102/MCP3008/MCP4921/W5500 目标模块。
-7. W5500 链路、可选 GPIO IRQ、网络断开/重连；目标电压、温度、线缆和外部电源条件。
+5. GPIO 12 路输入的同步/全端口滤波阈值、边沿 IRQ、普通快照与 FAULT 强制快照；再验证按键、慢速传感器、线缆与噪声条件。
+6. ALARM0 两路同 tick、one-shot、周期重装和 IRQ；PULSE0 三个候选输入的切换、边沿、频率范围与外部前端。
+7. FAULT0 的极性、滤波、锁存/clear 拒绝、PWM0/PWM1 拉低和 GPIO 高阻门控；只能在安全逻辑级负载和人工受控故障条件下验证。
+8. WDT0 的预警、窗口、heartbeat 缺失、拒绝喂狗和复位原因；需要观察真实复位时序。
+9. TIMER1 真实 A/B Gray 序列、正反向、非法跳变、滤波阈值、噪声和长线条件。
+10. I2C 上拉、真实 ACK/NACK/时钟拉伸；SPI 回环、TF 互斥和每个 DS3231/AT24Cxx/TMP102/MCP3008/MCP4921/W5500 目标模块。
+11. W5500 链路、可选 GPIO IRQ、网络断开/重连；目标电压、温度、线缆和外部电源条件。
 
 完整命令、构建 manifest 和证据层级见[验证与发布状态](validation-and-release.md)；接线、示波器和
 实验板建议见[硬件与引脚](hardware-and-pins.md)。
@@ -601,4 +724,6 @@ BSRAM 已零余量，不能在本基线中承诺大 FIFO、缓存、DMA 缓冲�
 
 | ABI | 日期 | 规格变更 |
 | --- | --- | --- |
+| 0.8 | 2026-08-26 | 产品 CPU 固定为 `rv32im` / `ilp32`，关闭压缩指令 `C` 以释放可靠性/诊断外设资源；Boot ROM 收敛为 4 KiB；MMIO 配置/命令/W1C 统一为完整 32-bit 原子写；同一源码 P&R/packing 通过。 |
+| 0.7 | 2026-08-25 | 新增 GPIO 可靠性/快照、两路并行 ALARM0、单选 PULSE0、FAULT0 输出门控与增强 WDT；产品 GPIO 收敛为 12 路，LED0..5 成为 GPIO0..5 镜像。 |
 | 0.6 | 2026-08-25 | 完成 12 路扩展 GPIO、UART1、PWM1、TIMER1、诊断/返 Bootloader、P0 外置器件 SDK 与资源受控 RV32M 除法；本页作为外设与引脚单一主规格书。 |

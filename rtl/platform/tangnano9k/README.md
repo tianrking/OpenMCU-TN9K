@@ -23,21 +23,23 @@ UART0 更新会话。`omcu_tn9k_bringup_top` 仍保留外部复位/替换 ROM �
 
 | 逻辑资源 | Tang Nano 9K 管脚 / 说明 |
 | --- | --- |
-| GPIO0[0:5] | 六个板载低有效 LED |
+| LED0..5 | 镜像 GPIO0[0:5] 的输出/OE；没有独占 LED GPIO 位 |
 | UART0 | 封装管脚 17 / 18 |
 | SPI0 | 38 / 37 / 36 / 39，与 J5 / TF 信号组共享 |
 | I2C0 | 26 / 27，真正开漏结构，需要正确的外部上拉 |
 | PWM0 | 25 |
-| GPIO0[6:17] | 12 路三态扩展管脚 28 / 29 / 30 / 33 / 34 / 40 / 35 / 41 / 42 / 51 / 53 / 54；GPIO3..11 与 RGB LCD 共线 |
+| GPIO0[0:11] | 12 路三态 J5 扩展管脚 28 / 29 / 30 / 33 / 34 / 40 / 35 / 41 / 42 / 51 / 53 / 54；GPIO3..11 与 RGB LCD 共线 |
 | UART1（PINMUX） | GPIO10/11 → J5.18/J5.19（pad 53/54），UART0 仍保留给启动器和升级 |
 | PWM1（PINMUX） | GPIO4..7 → J5.12..15（pad 34/40/35/41），四路共享计数器 |
 | TIMER1（PINMUX） | GPIO8/9 → J5.16/J5.17（pad 42/51），输入专用的同步滤波 capture / 正交 A/B |
+| PULSE0（PINMUX） | GPIO0..2 → J5.8..10（pad 28/29/30），一次选择一路做低速同步脉冲计数/周期测量 |
+| FAULT0（PINMUX） | GPIO3 → J5.11（pad 33），同步滤波后锁存故障、可关断 PWM 和释放全部 J5 GPIO OE |
 
 物理电平、连接器编号、SPI/TF 冲突和 I2C 上拉不是 RTL 仿真可证明的事项，接线前请先阅读 [硬件与引脚](../../../docs/zh-CN/hardware-and-pins.md)。
 
 ## 构建产品 MCU 位流
 
-先构建 SDK，以获得启动器 ROM；再调用 `-McuMode`。该模式固定为 8 KiB ROM + 44 KiB SRAM，拒绝任意更改该产品内存几何，避免 SDK 链接脚本与硬件不一致。
+先构建 SDK，以获得启动器 ROM；再调用 `-McuMode`。该模式固定为 4 KiB ROM + 44 KiB SRAM，拒绝任意更改该产品内存几何，避免 SDK 链接脚本与硬件不一致。
 
 ```powershell
 .\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-

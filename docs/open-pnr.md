@@ -36,19 +36,24 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
 
 ## ROM 初始化可追溯性
 
-产品 Boot ROM 输入先被转换为固定 2,048 word、RISC-V NOP 填充的镜像，并作为 `$readmemh`
-的实际输入。构建会对四个 Boot ROM BSRAM 单元的初始化数据在综合网表和 P&R 网表中计算指纹；
+产品 Boot ROM 输入先被转换为固定 1,024 word、RISC-V NOP 填充的镜像，并作为 `$readmemh`
+的实际输入。构建会对两个 Boot ROM BSRAM 单元的初始化数据在综合网表和 P&R 网表中计算指纹；
 若两者不一致则失败。因此 manifest 能证明本次启动器确实进入了最终网表，而不是仅记录一个期望的
 输入文件名。
 
-`-RomKiB` / `-SramKiB` 仅用于受控实验。产品模式固定 8 KiB Boot ROM + 44 KiB SRAM；改变
+`-RomKiB` / `-SramKiB` 仅用于受控实验。产品模式固定 4 KiB Boot ROM + 44 KiB SRAM；改变
 几何必须同时更换 SDK 链接脚本，不能冒充标准 MCU 位流。
 
 ## 当前结果与证据边界
 
-ABI 0.6 的当前 P&R 指纹、资源和时序记录在
-[验证与发布状态](zh-CN/validation-and-release.md)。生成目录是构建产物，不纳入 Git；发布时应
-把该 manifest、报告、日志和位流 SHA-256 作为可追溯工件保存。
+ABI 0.8 的 P&R 指纹、资源和时序必须记录在同一源码构建产生的
+[验证与发布状态](zh-CN/validation-and-release.md) 和 `omcu_tn9k_mcu_manifest.json` 中。不要用 ABI 0.6 或 ABI 0.7
+历史 manifest 替代本版证据。生成目录是构建产物，不纳入 Git；发布时应把该 manifest、报告、日志和位流
+SHA-256 作为可追溯工件保存。
+
+当前可复核产品构建为 `build/tangnano9k-mcu-abi08-rv32im-release/`：4 KiB ROM、44 KiB SRAM、
+27 MHz 约束下 40.533 MHz 实现频率和 12.366 ns 裕量；资源为 LUT4 `6962/8640`、DFF `2511/6480`、
+BSRAM `24/26`。这组数字仅对应同一源码的开源 P&R/packing，不是实体板时钟、电气或 Flash HIL 结果。
 
 Yosys 目前会对顶层 I2C/GPIO 三态 Pad 报告已知的有限支持警告；P&R/packing 成功不应被描述成
 “零警告签核”。更重要的是：开源 P&R 不能证明实体板下载、USB/供电、复位、Bank 电压、UART
@@ -79,4 +84,4 @@ Yosys 目前会对顶层 I2C/GPIO 三态 Pad 报告已知的有限支持警告�
 ## 历史 bring-up 路径
 
 不带 `-McuMode` 的路径仍可把 `.hex` 作为 ROM 初始化用于 RTL、编译器和 P&R 回归。它不是客户
-更新接口，也不替代 ABI 0.6 产品模式的 P&R 与 HIL 证据。
+更新接口，也不替代 ABI 0.8 产品模式的 P&R 与 HIL 证据。

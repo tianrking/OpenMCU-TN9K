@@ -53,7 +53,7 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
   -BuildDirectory .\build\tangnano9k-mcu
 ```
 
-`-McuMode` 固定产品内存结构：8 KiB Boot ROM、44 KiB SRAM（40 KiB 应用区加 4 KiB 启动器工作区）和 76 KiB User Flash。该模式只把 `omcu_bootloader.hex` 放进 FPGA ROM；它不会把 `omcu_mcu_blink.omcu` 或客户应用混进位流。
+`-McuMode` 固定产品内存结构：4 KiB Boot ROM、44 KiB SRAM（40 KiB 应用区加 4 KiB 启动器工作区）和 76 KiB User Flash。该模式只把 `omcu_bootloader.hex` 放进 FPGA ROM；它不会把 `omcu_mcu_blink.omcu` 或客户应用混进位流。
 
 先用 SRAM 下载验证，再审阅 `omcu_tn9k_mcu_manifest.json`、位流哈希和板级功能，最后才用 `-Destination flash -ConfirmFlash` 写入持久 FPGA 配置。详细命令见 [构建与烧录](build-and-program.md)。
 
@@ -70,8 +70,9 @@ python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
 
 ## 当前 ABI 与边界
 
-- ISA / ABI：`rv32imc` / `ilp32`，PicoRV32 适配器；当前硬件 ABI `0x00000006`。PicoRV32 的内部 `cycle/instret` 计数器不属于公开 ABI，运行时间请读 SYSCTRL 64-bit tick。
-- 外设：18-bit GPIO 档案（6 LED + 12 外扩）、UART0/1、TIMER0/1、SPI0、I2C0、WDT0、PWM0/四路 PWM1、IRQCTRL、PINMUX、诊断 SYSCTRL 和 User Flash 控制器。
+- ISA / ABI：`rv32im` / `ilp32`，PicoRV32 适配器；当前硬件 ABI `0x00000008`。压缩指令 `C` 未启用，旧 `rv32imc` / ABI 0.7 镜像会被 Bootloader 拒绝；重新编译应用源代码即可迁移。固件须使用自然对齐的指令与数据访问；PicoRV32 的内部 `cycle/instret` 计数器不属于公开 ABI，运行时间请读 SYSCTRL 64-bit tick。
+- MMIO 写入：除 User Flash 明确的擦除命令外，配置、命令和 W1C 均须用完整自然对齐的 32-bit 写；字节/半字 MMIO 写会被忽略。
+- 外设：12 路 J5 GPIO（LED0..5 镜像 GPIO0..5）、UART0/1、TIMER0/1、SPI0、I2C0、增强 WDT0、PWM0/四路 PWM1、IRQCTRL、ALARM0、PULSE0、FAULT0、PINMUX、诊断 SYSCTRL 和 User Flash 控制器。
 - P0 SDK：已有 DS3231、AT24Cxx、TMP102、MCP3008、MCP4921 与 W5500 外置 SPI 网络控制器驱动；真实器件总线/电气 HIL 尚待完成。
 - 更新完整性：镜像头和载荷均使用 CRC32，支持断电前的旧槽回退；它不是签名安全启动。
 - 真实硬件：RTL、SDK 和 P&R 检查的证据与实体板电气、擦写寿命、掉电和量产验证是不同层级，不能相互替代。

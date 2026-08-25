@@ -1,6 +1,6 @@
-# OpenMCU ABI 0.6 中断约定
+# OpenMCU ABI 0.8 中断约定
 
-OpenMCU ABI 0.6 为 RV32IMC FPGA 目标保留了一条完整、可执行的外部中断路径。它覆盖外设事件捕获、软件使能与确认寄存器、CPU 投递、固定向量、完整 C ABI 保存/恢复包装器，以及 SDK 分发钩子。该约定适用于声明 <code>OMCU_FEATURE_IRQCTRL</code> 的仿真与 Tang Nano 9K 封装。
+OpenMCU ABI 0.8 为 RV32IM FPGA 目标保留了一条完整、可执行的外部中断路径。它覆盖外设事件捕获、软件使能与确认寄存器、CPU 投递、固定向量、完整 C ABI 保存/恢复包装器，以及 SDK 分发钩子。该约定适用于声明 <code>OMCU_FEATURE_IRQCTRL</code> 的仿真与 Tang Nano 9K 封装。
 
 ## 适用范围与兼容性边界
 
@@ -13,13 +13,13 @@ OpenMCU ABI 0.6 为 RV32IMC FPGA 目标保留了一条完整、可执行的外�
 ## 硬件路径与来源映射
 
 ~~~text
-GPIO / UART0/1 / TIMER0/1 / SPI / I2C / WDT 事件
+GPIO / UART0/1 / TIMER0/1 / SPI / I2C / WDT / ALARM0 / PULSE0 / FAULT0 事件
                  |
                  v
           IRQCTRL：锁存 pending + enable + force
                  |
                  v
-        PicoRV32 外部输入位 8..15
+        PicoRV32 外部输入位 8..18
                  |
                  v
 固定向量 0x10 -> SDK 包装器 -> omcu_irq_dispatch(mask)
@@ -38,8 +38,11 @@ GPIO / UART0/1 / TIMER0/1 / SPI / I2C / WDT 事件
 | 13 / <code>OMCU_IRQ_WDT0</code> | WDT0 | 执行产品策略，再清除到期状态或停止/喂狗。 |
 | 14 / <code>OMCU_IRQ_UART1</code> | UART1 | 当 <code>RX_VALID</code> 有效时读取 <code>DATA</code>。 |
 | 15 / <code>OMCU_IRQ_TIMER1</code> | TIMER1 | 先处理 compare/capture/encoder W1C 状态，再确认控制器。 |
+| 16 / <code>OMCU_IRQ_ALARM0</code> | ALARM0 | 先 W1C 对应 <code>PENDING</code> bit，再确认控制器。 |
+| 17 / <code>OMCU_IRQ_PULSE0</code> | PULSE0 | 读取测量结果，再 W1C <code>STATUS.PENDING</code>。 |
+| 18 / <code>OMCU_IRQ_FAULT0</code> | FAULT0 | 先维持外部系统安全并读取强制快照；不得为了清 IRQ 盲目 clear 故障。 |
 
-位 0 至 2 由 PicoRV32 保留给自身的定时器、非法指令和总线错误路径。位 3 至 7 及 16 至 31 在本平台配置中永久屏蔽。<code>OMCU_IRQ_EXTERNAL_MASK</code> 恰为 <code>0x0000_FF00</code>。
+位 0 至 2 由 PicoRV32 保留给自身的定时器、非法指令和总线错误路径。位 3 至 7 及 19 至 31 在本平台配置中永久屏蔽。<code>OMCU_IRQ_EXTERNAL_MASK</code> 恰为 <code>0x0007_FF00</code>。
 
 ## IRQCTRL 寄存器
 
