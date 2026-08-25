@@ -50,8 +50,8 @@ module omcu_tn9k_bringup_top_tb;
     resetn = 1'b1;
 
     repeat (90) @(negedge clk_27m);
-    check((dut.system.SYSTEM_FEATURE_BITS & 32'h0000_3500) == 32'h0000_3500,
-          "Tang wrapper must advertise UART1, PWM1, PINMUX and GPIO expansion");
+    check((dut.system.SYSTEM_FEATURE_BITS & 32'h0000_3700) == 32'h0000_3700,
+          "Tang wrapper must advertise UART1, TIMER1, PWM1, PINMUX and GPIO expansion");
     check(led_n == 6'b111110,
           "the board adapter must turn on only active-low LED0 after firmware bring-up");
 
@@ -109,6 +109,25 @@ module omcu_tn9k_bringup_top_tb;
     release dut.system.mmio.pinmux.pwm1_enable_q;
     release dut.system.mmio.gpio0.gpio_out_q[13:10];
     release dut.system.mmio.gpio0.gpio_oe_q[13:10];
+
+    // TIMER1's alternate function is input-only.  It must release both J5
+    // pads even when generic GPIO OE is stale, and raw pad levels must reach
+    // the system input synchronizers rather than being consumed as GPIO-only.
+    force dut.system.mmio.gpio0.gpio_oe_q[15:14] = 2'b11;
+    force dut.system.mmio.gpio0.gpio_out_q[15:14] = 2'b00;
+    force dut.system.mmio.pinmux.timer1_enable_q = 1'b1;
+    #1 check(gpio[8] == 1'b1 && gpio[9] == 1'b1,
+             "TIMER1 pinmux must release J5.16/J5.17 despite generic GPIO OE");
+    force gpio[8] = 1'b0;
+    force gpio[9] = 1'b0;
+    #1 check(dut.system.timer1_capture_a_i == 1'b0 &&
+             dut.system.timer1_capture_b_i == 1'b0,
+             "released TIMER1 pads must reach capture/encoder A and B inputs");
+    release gpio[9];
+    release gpio[8];
+    release dut.system.mmio.pinmux.timer1_enable_q;
+    release dut.system.mmio.gpio0.gpio_out_q[15:14];
+    release dut.system.mmio.gpio0.gpio_oe_q[15:14];
 
     $display("PASS: omcu_tn9k_bringup_top_tb");
     $finish;

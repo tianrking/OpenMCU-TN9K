@@ -91,4 +91,26 @@ static inline bool omcu_tn9k_pwm1_release_pins(void) {
   return omcu_pinmux_pwm1_enable(false);
 }
 
+/*
+ * Tang TIMER1 input A/B maps to GPIO8/9 / J5.16/17 after this call.  Pinmux
+ * releases both FPGA outputs so an encoder or external input can own the
+ * wires; GPIO reads may still observe them but must not enable their OE bits.
+ */
+static inline bool omcu_tn9k_timer1_configure(
+  uint16_t prescale,
+  uint32_t compare,
+  uint16_t filter,
+  uint32_t ctrl
+) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_TIMER1 | OMCU_FEATURE_PINMUX)) {
+    return false;
+  }
+  omcu_timer1_configure(prescale, compare, filter, ctrl);
+  return omcu_pinmux_timer1_enable(true);
+}
+
+static inline bool omcu_tn9k_timer1_release_pins(void) {
+  return omcu_pinmux_timer1_enable(false);
+}
+
 #endif  /* OMCU_TN9K_H_ */

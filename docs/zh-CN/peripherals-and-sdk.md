@@ -12,8 +12,9 @@
 | `0x4000_4000` | I2C0 | 开漏 SCL/SDA |
 | `0x4000_5000` | WDT0 | 连接 Tang 顶层复位序列器 |
 | `0x4000_6000` | PWM0 | 一路 PWM pad |
-| `0x4000_7000` | IRQCTRL | 七个外设来源的 sticky、屏蔽、强制与优先级视图 |
+| `0x4000_7000` | IRQCTRL | 八个外设来源的 sticky、屏蔽、强制与优先级视图 |
 | `0x4000_8000` | UART1 | 无 FIFO 的第二路 UART；Tang 上经 PINMUX 连接 GPIO10/11（J5.18/J5.19） |
+| `0x4000_9000` | TIMER1 | 两路同步滤波捕获、比较定时器和正交编码器；Tang 上经 PINMUX 连接 GPIO8/9（J5.16/J5.17） |
 | `0x4000_A000` | PWM1 | 四路共享计数器 PWM；Tang 上经 PINMUX 连接 GPIO4..7（J5.12..15） |
 | `0x4000_B000` | PINMUX | 显式选择已审查的扩展 pad 替代功能；复位时所有可用 pad 归 GPIO |
 | `0x4000_F000` | SYSCTRL | `OMCU` ID、ABI、功能位、内存容量 |
@@ -60,7 +61,7 @@ omcu_gpio_disable_output(OMCU_TN9K_GPIO0); /* 释放为高阻输入 */
 
 ### 中断与 IRQCTRL
 
-IRQCTRL 已把 GPIO0/UART0/TIMER0/SPI0/I2C0/WDT0/UART1 分别映射为 CPU bit 8..14；应用程序
+IRQCTRL 已把 GPIO0/UART0/TIMER0/SPI0/I2C0/WDT0/UART1/TIMER1 分别映射为 CPU bit 8..15；应用程序
 不必写 Verilog，也不应直接发射 PicoRV32 自定义指令。定义一个 strong
 `omcu_irq_dispatch(uint32_t pending)`，先清外设来源、再清 IRQCTRL：
 
@@ -201,6 +202,33 @@ PWM1 由 `OMCU_FEATURE_PWM1` 和 `OMCU_FEATURE_PINMUX` 共同声明，地址为
 若需要在运行中改 duty，直接写 `OMCU_PWM1->duty0` 到 `duty3`；硬件不会替客户实现四路
 影子寄存器的原子更新。不要将 PWM1 描述为互补、死区、故障刹车或高压栅极驱动器；它们不在
 当前合同内。首次实板必须测量每路频率、相位、占空比、disable 低电平和 RGB-LCD 共线边界。
+
+### TIMER1：滤波输入捕获与正交编码器
+
+TIMER1 由 `OMCU_FEATURE_TIMER1` 与 `OMCU_FEATURE_PINMUX` 共同声明，地址为
+`0x4000_9000`。它保留 TIMER0 的 16-bit 分频、32-bit 比较和单次/自动重装行为，同时增加 A/B
+两路输入。每路严格经过两级同步器和 `FILTER` 连续稳定样本滤波后，才会触发选定上升/下降沿的
+`CAPTURE_A` / `CAPTURE_B` 时间戳，或送入正交 Gray 解码器。`FILTER=N` 需要 `N+1` 个连续的
+不一致同步样本才接受新电平；改写该寄存器会清掉正在累积的滤波计数。
+
+```c
+const uint32_t ctrl = OMCU_TIMER1_CTRL_ENABLE |
+                      OMCU_TIMER1_CTRL_CAPTURE_A_ENABLE |
+                      OMCU_TIMER1_CTRL_CAPTURE_B_ENABLE |
+                      OMCU_TIMER1_CTRL_QUADRATURE_ENABLE;
+
+if (omcu_tn9k_timer1_configure(0u, UINT32_MAX, 4u, ctrl)) {
+  int32_t position = omcu_timer1_encoder_position();
+  omcu_timer1_clear_status(OMCU_TIMER1_STATUS_ENCODER_ILLEGAL);
+}
+```
+
+`STATUS` 的 compare、capture A、capture B、encoder step 和 illegal 位均为 W1C 事件；只有
+`CTRL.IRQ_ENABLE=1` 时任一事件才会驱动 `OMCU_IRQ_TIMER1`（CPU bit 15）。`STATUS.INPUT_A/B`
+是滤波后的观察值，`STATUS.ENCODER_DIRECTION` 表示最近一次有效步的方向。正向定义为
+`00 -> 01 -> 11 -> 10 -> 00`；`CTRL.QUADRATURE_REVERSE` 只翻转位置方向。它没有 DMA、FIFO、
+边沿排队、速度计算或异步高速计数能力；外部信号必须满足同步/滤波时序，且 GPIO8/9 与 RGB LCD
+共线。RTL 和编译固件仿真已覆盖，但真实编码器、电压、线缆与噪声 HIL 仍待完成。
 
 ## 把应用加进 SDK
 

@@ -19,6 +19,7 @@
     { "macro": "OMCU_PWM0_BASE", "address": "0x40006000" },
     { "macro": "OMCU_IRQCTRL_BASE", "address": "0x40007000" },
     { "macro": "OMCU_UART1_BASE", "address": "0x40008000" },
+    { "macro": "OMCU_TIMER1_BASE", "address": "0x40009000" },
     { "macro": "OMCU_PWM1_BASE", "address": "0x4000A000" },
     { "macro": "OMCU_PINMUX_BASE", "address": "0x4000B000" },
     { "macro": "OMCU_SYSCTRL_BASE", "address": "0x4000F000" }
@@ -158,6 +159,22 @@
       ]
     },
     {
+      "name": "timer1",
+      "ctype": "omcu_timer1_regs_t",
+      "base_macro": "OMCU_TIMER1_BASE",
+      "registers": [
+        { "name": "ctrl", "offset": "0x00", "access": "rw", "comment": "timer, capture and quadrature enable/configuration bits" },
+        { "name": "prescale", "offset": "0x04", "access": "rw", "comment": "timer clocks per count minus one" },
+        { "name": "count", "offset": "0x08", "access": "rw", "comment": "current capture timestamp counter" },
+        { "name": "compare", "offset": "0x0c", "access": "rw", "comment": "compare value for timer event" },
+        { "name": "filter", "offset": "0x10", "access": "rw", "comment": "consecutive mismatched synchronized samples required minus zero" },
+        { "name": "capture_a", "offset": "0x14", "access": "ro", "comment": "timestamp of latest configured channel A edge" },
+        { "name": "capture_b", "offset": "0x18", "access": "ro", "comment": "timestamp of latest configured channel B edge" },
+        { "name": "encoder", "offset": "0x1c", "access": "rw", "comment": "wrapping signed quadrature position accumulator" },
+        { "name": "status", "offset": "0x20", "access": "rw", "comment": "event pending W1C plus filtered input and direction observation" }
+      ]
+    },
+    {
       "name": "pinmux",
       "ctype": "omcu_pinmux_regs_t",
       "base_macro": "OMCU_PINMUX_BASE",
@@ -188,6 +205,7 @@
     { "name": "OMCU_FEATURE_PWM0", "value": "1u << 6" },
     { "name": "OMCU_FEATURE_IRQCTRL", "value": "1u << 7" },
     { "name": "OMCU_FEATURE_UART1", "value": "1u << 8" },
+    { "name": "OMCU_FEATURE_TIMER1", "value": "1u << 9" },
     { "name": "OMCU_FEATURE_PWM1", "value": "1u << 10" },
     { "name": "OMCU_FEATURE_PINMUX", "value": "1u << 12" },
     { "name": "OMCU_FEATURE_GPIO_EXPANSION", "value": "1u << 13" },
@@ -199,9 +217,11 @@
     { "name": "OMCU_IRQ_I2C0", "value": "1u << 12" },
     { "name": "OMCU_IRQ_WDT0", "value": "1u << 13" },
     { "name": "OMCU_IRQ_UART1", "value": "1u << 14" },
-    { "name": "OMCU_IRQ_EXTERNAL_MASK", "value": "UINT32_C(0x00007F00)" },
+    { "name": "OMCU_IRQ_TIMER1", "value": "1u << 15" },
+    { "name": "OMCU_IRQ_EXTERNAL_MASK", "value": "UINT32_C(0x0000FF00)" },
     { "name": "OMCU_PINMUX_CTRL_UART1_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_PINMUX_CTRL_PWM1_ENABLE", "value": "1u << 1" },
+    { "name": "OMCU_PINMUX_CTRL_TIMER1_ENABLE", "value": "1u << 2" },
     { "name": "OMCU_TIMER_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_TIMER_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_TIMER_CTRL_AUTO_RELOAD", "value": "1u << 2" },
@@ -234,6 +254,23 @@
     { "name": "OMCU_PWM1_CHANNEL_COUNT", "value": "4u" },
     { "name": "OMCU_PWM1_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_PWM1_CTRL_INVERT_SHIFT", "value": "4u" },
-    { "name": "OMCU_PWM1_CTRL_INVERT_MASK", "value": "UINT32_C(0x000000F0)" }
+    { "name": "OMCU_PWM1_CTRL_INVERT_MASK", "value": "UINT32_C(0x000000F0)" },
+    { "name": "OMCU_TIMER1_CTRL_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_TIMER1_CTRL_IRQ_ENABLE", "value": "1u << 1" },
+    { "name": "OMCU_TIMER1_CTRL_AUTO_RELOAD", "value": "1u << 2" },
+    { "name": "OMCU_TIMER1_CTRL_CAPTURE_A_ENABLE", "value": "1u << 3" },
+    { "name": "OMCU_TIMER1_CTRL_CAPTURE_B_ENABLE", "value": "1u << 4" },
+    { "name": "OMCU_TIMER1_CTRL_CAPTURE_A_FALLING", "value": "1u << 5" },
+    { "name": "OMCU_TIMER1_CTRL_CAPTURE_B_FALLING", "value": "1u << 6" },
+    { "name": "OMCU_TIMER1_CTRL_QUADRATURE_ENABLE", "value": "1u << 7" },
+    { "name": "OMCU_TIMER1_CTRL_QUADRATURE_REVERSE", "value": "1u << 8" },
+    { "name": "OMCU_TIMER1_STATUS_COMPARE", "value": "1u << 0" },
+    { "name": "OMCU_TIMER1_STATUS_CAPTURE_A", "value": "1u << 1" },
+    { "name": "OMCU_TIMER1_STATUS_CAPTURE_B", "value": "1u << 2" },
+    { "name": "OMCU_TIMER1_STATUS_ENCODER_STEP", "value": "1u << 3" },
+    { "name": "OMCU_TIMER1_STATUS_ENCODER_ILLEGAL", "value": "1u << 4" },
+    { "name": "OMCU_TIMER1_STATUS_INPUT_A", "value": "1u << 5" },
+    { "name": "OMCU_TIMER1_STATUS_INPUT_B", "value": "1u << 6" },
+    { "name": "OMCU_TIMER1_STATUS_ENCODER_DIRECTION", "value": "1u << 7" }
   ]
 }

@@ -27,6 +27,8 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test pwm
 .\scripts\run-rtl-smoke.ps1 -Test pwm1
 .\scripts\run-rtl-smoke.ps1 -Test pwm1-fabric
+.\scripts\run-rtl-smoke.ps1 -Test timer1
+.\scripts\run-rtl-smoke.ps1 -Test timer1-fabric
 .\scripts\run-rtl-smoke.ps1 -Test irqctrl
 .\scripts\run-rtl-smoke.ps1 -Test sysctrl
 .\scripts\run-rtl-smoke.ps1 -Test user-flash
@@ -35,6 +37,7 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-wdt
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-peripherals
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-pwm1
+.\scripts\run-rtl-smoke.ps1 -Test tn9k-timer1
 .\scripts\run-rtl-smoke.ps1 -Test tn9k
 .\scripts\run-rtl-smoke.ps1 -Test mcu-top
 ```
@@ -44,11 +47,15 @@ flowchart LR
   位时序本身复用 `uart` 单元回归。
 - `pwm1` / `pwm1-fabric`：四路共享相位波形、disable 低电平、反相位，以及 PWM1/PINMUX
   页的真实 fabric 解码检查。
+- `timer1` / `timer1-fabric`：两级同步后的连续样本滤波、上升/下降沿时间戳、Gray 正反向
+  解码、非法双边沿和 TIMER1/PINMUX/IRQCTRL bit 15 的真实 fabric 解码检查。
 - `system`：小型 RV32I 程序经过 PicoRV32、真实 MMIO 和 GPIO 的首个 CPU/总线/外设集成门。
 - `system-uart`：经 CPU/MMIO 配置 UART0 后验证真实串行字节。
 - `tn9k-wdt` / `tn9k-peripherals` / `tn9k`：经过 Tang 顶层的复位释放、看门狗、SPI/PWM/GPIO/I2C Pad 连通性和低有效 LED 逻辑检查；不等同于实际 Gowin 板。
 - `tn9k-pwm1`：已编译 PWM1 固件经 PicoRV32/MMIO/PINMUX 到 J5.12..15 四个最终 pad 的
   高低波形检查；不验证实际 RGB-LCD 共线、电压或功率级。
+- `tn9k-timer1`：已编译 TIMER1 固件经 PicoRV32/MMIO/PINMUX 到 J5.16/J5.17 最终 pad 的
+  四步 Gray 序列计数检查；不验证真实编码器、电压、线缆噪声或 RGB-LCD 共线。
 - `mcu-top`：使用仅仿真的 `FLASH608K` 端口桩件编译产品顶层，运行已提交 Boot ROM 的空 User Flash 扫描，检查产品封装确实走向物理 Flash 分支；它不模拟真实 Gowin 擦写行为。
 
 每个可公开外设还应覆盖：复位值、字节写掩码、保留位、读写副作用、中断时序、随机/边界值以及编译后 SDK 集成。
@@ -107,7 +114,7 @@ python -m unittest `
 | 正常升级 | 有旧应用时按复位进入窗口，完成 A/B 切换并运行新应用。 |
 | 断电恢复 | 擦除、DATA、END 前和最终提交后分别断电；提交前保持旧槽可启动。 |
 | 串口异常 | 丢包、重复帧、错误 CRC、错误长度、错误 ABI 均被安全拒绝或幂等处理。 |
-| 外设与引脚 | UART、LED、GPIO、I2C、SPI/TF 冲突、PWM、WDT 在真实电平和外设上通过。 |
+| 外设与引脚 | UART、LED、GPIO、I2C、SPI/TF 冲突、PWM、TIMER1 捕获/编码器、WDT 在真实电平和外设上通过。 |
 | 重复升级 | 覆盖预期的擦写/更新次数，记录失败、回退与恢复结果。 |
 
 只有这些 HIL 项目、供电/温度边界和产品安全策略完成后，才可把平台从工程预览提升为客户可交付版本。

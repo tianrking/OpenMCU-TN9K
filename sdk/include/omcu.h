@@ -206,6 +206,23 @@ static inline bool omcu_pinmux_pwm1_enable(bool enable) {
   return true;
 }
 
+/* Claim or release the reviewed TIMER1 capture/encoder input pad pair. */
+static inline bool omcu_pinmux_timer1_enable(bool enable) {
+  uint32_t ctrl;
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_TIMER1 | OMCU_FEATURE_PINMUX)) {
+    return false;
+  }
+  ctrl = OMCU_PINMUX->ctrl;
+  if (enable) {
+    ctrl |= OMCU_PINMUX_CTRL_TIMER1_ENABLE;
+  } else {
+    ctrl &= ~OMCU_PINMUX_CTRL_TIMER1_ENABLE;
+  }
+  OMCU_PINMUX->ctrl = ctrl;
+  return true;
+}
+
 static inline void omcu_timer_start_periodic(
   uint16_t prescale,
   uint32_t compare
@@ -218,6 +235,49 @@ static inline void omcu_timer_start_periodic(
   OMCU_TIMER0->ctrl = OMCU_TIMER_CTRL_ENABLE |
                       OMCU_TIMER_CTRL_IRQ_ENABLE |
                       OMCU_TIMER_CTRL_AUTO_RELOAD;
+}
+
+/*
+ * Configure TIMER1's timestamp counter, filtered capture channels and/or
+ * quadrature decoder. FILTER=N accepts an input state only after N+1
+ * consecutive synchronized samples disagree with the previous filtered state.
+ * This is a digital glitch filter, not a substitute for an external front end
+ * for signals faster than the 27 MHz system clock.
+ */
+static inline void omcu_timer1_configure(
+  uint16_t prescale,
+  uint32_t compare,
+  uint16_t filter,
+  uint32_t ctrl
+) {
+  OMCU_TIMER1->ctrl = 0u;
+  OMCU_TIMER1->prescale = prescale;
+  OMCU_TIMER1->count = 0u;
+  OMCU_TIMER1->compare = compare;
+  OMCU_TIMER1->filter = filter;
+  OMCU_TIMER1->status = OMCU_TIMER1_STATUS_COMPARE |
+                        OMCU_TIMER1_STATUS_CAPTURE_A |
+                        OMCU_TIMER1_STATUS_CAPTURE_B |
+                        OMCU_TIMER1_STATUS_ENCODER_STEP |
+                        OMCU_TIMER1_STATUS_ENCODER_ILLEGAL;
+  OMCU_TIMER1->ctrl = ctrl;
+}
+
+static inline void omcu_timer1_clear_status(uint32_t mask) {
+  OMCU_TIMER1->status = mask &
+    (OMCU_TIMER1_STATUS_COMPARE |
+     OMCU_TIMER1_STATUS_CAPTURE_A |
+     OMCU_TIMER1_STATUS_CAPTURE_B |
+     OMCU_TIMER1_STATUS_ENCODER_STEP |
+     OMCU_TIMER1_STATUS_ENCODER_ILLEGAL);
+}
+
+static inline int32_t omcu_timer1_encoder_position(void) {
+  return (int32_t)OMCU_TIMER1->encoder;
+}
+
+static inline void omcu_timer1_set_encoder_position(int32_t position) {
+  OMCU_TIMER1->encoder = (uint32_t)position;
 }
 
 static inline void omcu_spi0_init(uint16_t clkdiv, bool enable_done_irq) {

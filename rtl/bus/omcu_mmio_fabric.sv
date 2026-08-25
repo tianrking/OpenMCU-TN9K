@@ -11,6 +11,7 @@ module omcu_mmio_fabric #(
   parameter logic [31:0] FEATURE_BITS = 32'h0000_00ff,
   parameter integer UART1_PRESENT = 0,
   parameter integer PWM1_PRESENT = 0,
+  parameter integer TIMER1_PRESENT = 0,
   parameter integer PINMUX_PRESENT = 0
 ) (
   input  logic                  clk_i,
@@ -36,6 +37,9 @@ module omcu_mmio_fabric #(
   output logic                  uart1_tx_o,
   output logic                  uart1_irq_o,
   output logic                  timer_irq_o,
+  input  logic                  timer1_capture_a_i,
+  input  logic                  timer1_capture_b_i,
+  output logic                  timer1_irq_o,
 
   input  logic                  spi_miso_i,
   output logic                  spi_mosi_o,
@@ -66,15 +70,20 @@ module omcu_mmio_fabric #(
   localparam logic [19:0] PWM0_PAGE   = 20'h40006;
   localparam logic [19:0] IRQCTRL_PAGE = 20'h40007;
   localparam logic [19:0] UART1_PAGE  = 20'h40008;
+  localparam logic [19:0] TIMER1_PAGE = 20'h40009;
   localparam logic [19:0] PWM1_PAGE   = 20'h4000a;
   localparam logic [19:0] PINMUX_PAGE = 20'h4000b;
   localparam logic [19:0] SYSCTRL_PAGE = 20'h4000f;
-  localparam integer IRQ_SOURCE_COUNT = (UART1_PRESENT != 0) ? 7 : 6;
+  // Timer1 remains CPU IRQ 15 even when a smaller generic configuration omits
+  // UART1.  The unused bit-14 source stays inactive in that unusual shape.
+  localparam integer IRQ_SOURCE_COUNT = (TIMER1_PRESENT != 0) ? 8 :
+                                         ((UART1_PRESENT != 0) ? 7 : 6);
 
   logic gpio_select;
   logic uart_select;
   logic uart1_select;
   logic timer_select;
+  logic timer1_select;
   logic spi_select;
   logic i2c_select;
   logic wdt_select;
@@ -87,6 +96,7 @@ module omcu_mmio_fabric #(
   logic uart_ready;
   logic uart1_ready;
   logic timer_ready;
+  logic timer1_ready;
   logic spi_ready;
   logic i2c_ready;
   logic wdt_ready;
@@ -99,6 +109,7 @@ module omcu_mmio_fabric #(
   logic [31:0] uart_read_data;
   logic [31:0] uart1_read_data;
   logic [31:0] timer_read_data;
+  logic [31:0] timer1_read_data;
   logic [31:0] spi_read_data;
   logic [31:0] i2c_read_data;
   logic [31:0] wdt_read_data;
@@ -114,6 +125,8 @@ module omcu_mmio_fabric #(
   assign uart1_select = (UART1_PRESENT != 0) && req_i &&
                         (addr_i[31:12] == UART1_PAGE);
   assign timer_select = req_i && (addr_i[31:12] == TIMER0_PAGE);
+  assign timer1_select = (TIMER1_PRESENT != 0) && req_i &&
+                         (addr_i[31:12] == TIMER1_PAGE);
   assign spi_select = req_i && (addr_i[31:12] == SPI0_PAGE);
   assign i2c_select = req_i && (addr_i[31:12] == I2C0_PAGE);
   assign wdt_select = req_i && (addr_i[31:12] == WDT0_PAGE);
@@ -134,8 +147,8 @@ module omcu_mmio_fabric #(
   assign irq_sources[3] = spi_irq_o;
   assign irq_sources[4] = i2c_irq_o;
   assign irq_sources[5] = wdt_irq_o;
-  assign irq_sources[6] = uart1_irq_o;
-  assign irq_sources[7] = 1'b0;
+  assign irq_sources[6] = (UART1_PRESENT != 0) ? uart1_irq_o : 1'b0;
+  assign irq_sources[7] = (TIMER1_PRESENT != 0) ? timer1_irq_o : 1'b0;
 
   omcu_gpio #(
     .GPIO_COUNT(GPIO_COUNT)
@@ -200,6 +213,22 @@ module omcu_mmio_fabric #(
     .read_data_o(timer_read_data),
     .error_o(),
     .irq_o(timer_irq_o)
+  );
+
+  omcu_timer1 timer1 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(timer1_select),
+    .write_i(write_i),
+    .addr_i(addr_i),
+    .write_data_i(write_data_i),
+    .write_strobe_i(write_strobe_i),
+    .ready_o(timer1_ready),
+    .read_data_o(timer1_read_data),
+    .error_o(),
+    .capture_a_i(timer1_capture_a_i),
+    .capture_b_i(timer1_capture_b_i),
+    .irq_o(timer1_irq_o)
   );
 
   omcu_spi spi0 (
@@ -346,6 +375,9 @@ module omcu_mmio_fabric #(
     end else if (timer_select) begin
       ready_o = timer_ready;
       read_data_o = timer_read_data;
+    end else if (timer1_select) begin
+      ready_o = timer1_ready;
+      read_data_o = timer1_read_data;
     end else if (spi_select) begin
       ready_o = spi_ready;
       read_data_o = spi_read_data;

@@ -22,6 +22,7 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 | I2C0 SCL/SDA | `i2c0_scl_io` / `i2c0_sda_io` | 26 / 27 | 真正开漏；外部必须提供合适的 3.3 V 上拉。 |
 | PWM0 | `pwm0_o` | 25 | 单路边沿对齐 PWM。 |
 | PWM1 CH0..3（复用） | GPIO4..7 / `gpio_io[4:7]` | 34 / 40 / 35 / 41 | 默认仍是 GPIO；`PINMUX.CTRL.PWM1_ENABLE=1` 后为四路共享计数器 PWM，对应 J5.12..15。 |
+| TIMER1 A/B 输入（复用） | GPIO8/9 / `gpio_io[8:9]` | 42 / 51 | 默认仍是 GPIO；`PINMUX.CTRL.TIMER1_ENABLE=1` 后两根 pad 被释放为输入，对应 J5.16/J5.17，可作同步滤波捕获或正交编码器 A/B。 |
 | 扩展 GPIO 档案 | GPIO0[6..17] / `gpio_io[0..11]` | 28,29,30,33,34,40,35,41,42,51,53,54 | 12 路可输入、输出或高阻；`gpio_io[3..11]` 与 RGB LCD 共线。 |
 | UART1 TX/RX（复用） | GPIO10/11 / `gpio_io[10:11]` | 53 / 54 | 默认仍是 GPIO；`PINMUX.CTRL.UART1_ENABLE=1` 后为 UART1 TX/RX，对应 J5.18/J5.19。 |
 
@@ -38,7 +39,7 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 该档案已经具有 RTL 顶层、CST 和数字仿真覆盖，但尚未完成实体板电压、线缆、显示复用和
 目标外设 HIL。它不包含 J6 的 1.8 V 信号、HDMI 对、JTAG/MODE/DONE 或“所有未用 IOB”。
 
-## UART1 与显式 pinmux
+## UART1、PWM1、TIMER1 与显式 pinmux
 
 UART0 始终保留给 Bootloader、下载和默认日志。需要第二路设备串口时，ABI 0.6 在 J5 的
 两个已约束 3.3 V pad 上提供无 FIFO 的 UART1：TX 为 GPIO10 / J5.18 / package pad 53，RX
@@ -74,6 +75,30 @@ GPIO4..7 调用 `omcu_tn9k_pwm1_release_pins()`。这四根线也与 RGB LCD 共
 3.3 V、电流和故障策略审查的逻辑输入、LED 缓冲器或外部隔离/栅极驱动级；**不得**直接接电机、
 MOSFET gate、继电器或高压负载。RTL 和数字仿真不等于功率级安全验证。
 
+TIMER1 的 A/B 输入使用 GPIO8/9 / J5.16/J5.17（package pad 42/51）。调用
+`omcu_tn9k_timer1_configure()` 后，`PINMUX.CTRL.TIMER1_ENABLE` 强制释放两根 FPGA pad；即使
+通用 GPIO 曾经打开 `OE`，也不会和外部编码器争用。输入先经过两级同步，再经过连续稳定样本
+滤波，最后才进入时间戳捕获和 Gray 正交解码器。`FILTER=0` 表示同步后立即接受变化；
+`FILTER=N` 表示同一变化必须连续观察到 `N+1` 次。27 MHz 下这不是机械去抖时间承诺：例如
+`FILTER=4` 仅约为 5 个时钟周期（约 185 ns，另有同步延迟），机械开关通常需要更大的值和实测。
+
+```c
+const uint32_t ctrl = OMCU_TIMER1_CTRL_ENABLE |
+                      OMCU_TIMER1_CTRL_CAPTURE_A_ENABLE |
+                      OMCU_TIMER1_CTRL_CAPTURE_B_ENABLE |
+                      OMCU_TIMER1_CTRL_QUADRATURE_ENABLE;
+
+if (!omcu_tn9k_timer1_configure(0u, UINT32_MAX, 4u, ctrl)) {
+  /* TIMER1/PINMUX 不存在时保持 GPIO 所有权。 */
+}
+```
+
+正向状态约定为 `00 -> 01 -> 11 -> 10 -> 00`；可用 `CTRL.QUADRATURE_REVERSE` 翻转方向，
+`ENCODER` 是可读写、二补码解释的 32-bit 环绕位置。两个信号同时跳变或非 Gray 转换会置
+`STATUS.ENCODER_ILLEGAL`，软件应记录原因并 W1C 清除。它不是异步高速计数器，也不把原始
+pad 当普通 GPIO 输入使用；高速、跨时钟、长线或抗扰要求高的编码器需要专用前端和实体板 HIL。
+两根线同样与 RGB LCD 共线，不能与显示器同时启用。
+
 ## 电气安全规则
 
 1. 不要向这些 I/O 注入 5 V。CST 将上述端口配置为 `LVCMOS33`；在连接任意模块前先
@@ -94,6 +119,8 @@ MOSFET gate、继电器或高压负载。RTL 和数字仿真不等于功率级�
   UART0 作为救砖/下载通道，并在 J5.18/J5.19 使用另一只 3.3 V TTL 串口。
 - PWM：示波器或 LED+限流电阻接 PWM0；默认约 1 kHz、50% 占空比。PWM1 测试时使用
   J5.12..15、逻辑级负载或经过审查的驱动板，并记录四路相位/占空比与 disable 后低电平。
+- TIMER1：先确认未连接 RGB LCD，再向 J5.16/J5.17 输入已知低压 A/B Gray 序列；记录滤波值、
+  正反向计数、捕获时间戳、非法跳变和噪声下的误计数。
 - GPIO：LED/逻辑分析仪接 GPIO0..11；先从 GPIO0..2 开始，再确认未连接 RGB LCD 后使用 GPIO3..11。
 - SPI：MOSI 和 MISO 用短跳线回环，CS/SCK 接逻辑分析仪；用 SDK `SPI0` 传输 API。
 - I2C：接一个有已知地址的 3.3 V I2C 目标和外部上拉；先用逻辑分析仪检查 START、
@@ -106,7 +133,7 @@ MOSFET gate、继电器或高压负载。RTL 和数字仿真不等于功率级�
 - [ ] USB 上电、冷启动和按键复位各 1000 次；
 - [ ] 六个 LED 极性、UART0 与 UART1 TX/RX、27 MHz 时钟的实测；
 - [ ] SRAM 下载、断电消失、Flash 下载、断电后重启四种行为；
-- [ ] GPIO 高/低/高阻、PWM0/PWM1 周期/占空比/disable 低电平、SPI 回环；
+- [ ] GPIO 高/低/高阻、PWM0/PWM1 周期/占空比/disable 低电平、TIMER1 捕获/正交方向、SPI 回环；
 - [ ] I2C 真正目标的 ACK/NACK、时钟拉伸和断线恢复；
 - [ ] 连接外设时电压、地、温升和信号完整性检查。
 

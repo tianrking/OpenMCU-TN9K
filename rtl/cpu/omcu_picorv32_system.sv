@@ -28,6 +28,7 @@ module omcu_picorv32_system #(
   parameter integer GPIO_EXPANSION_PRESENT = 0,
   parameter integer UART1_PRESENT = 0,
   parameter integer PWM1_PRESENT = 0,
+  parameter integer TIMER1_PRESENT = 0,
   parameter integer PINMUX_PRESENT = 0,
   // In product-loader mode applications execute from SRAM, so PicoRV32 must
   // enter external interrupts at the application's fixed SRAM vector.
@@ -52,6 +53,9 @@ module omcu_picorv32_system #(
   output logic                  uart1_tx_o,
   output logic                  uart1_irq_o,
   output logic                  timer_irq_o,
+  input  logic                  timer1_capture_a_i,
+  input  logic                  timer1_capture_b_i,
+  output logic                  timer1_irq_o,
   input  logic                  spi_miso_i,
   output logic                  spi_mosi_o,
   output logic                  spi_sck_o,
@@ -84,11 +88,13 @@ module omcu_picorv32_system #(
   localparam logic [31:0] SYSTEM_FEATURE_BITS = FEATURE_BITS |
     ((GPIO_EXPANSION_PRESENT != 0) ? 32'h0000_2000 : 32'h0000_0000) |
     ((UART1_PRESENT != 0) ? 32'h0000_0100 : 32'h0000_0000) |
+    ((TIMER1_PRESENT != 0) ? 32'h0000_0200 : 32'h0000_0000) |
     ((PWM1_PRESENT != 0) ? 32'h0000_0400 : 32'h0000_0000) |
     ((PINMUX_PRESENT != 0) ? 32'h0000_1000 : 32'h0000_0000) |
     ((USER_FLASH_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
   localparam logic [31:0] CPU_EXTERNAL_IRQ_BITS = 32'h0000_3f00 |
-    ((UART1_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000);
+    ((UART1_PRESENT != 0) ? 32'h0000_4000 : 32'h0000_0000) |
+    ((TIMER1_PRESENT != 0) ? 32'h0000_8000 : 32'h0000_0000);
   localparam logic [31:0] STACK_ADDRESS = SRAM_BASE + SRAM_BYTES - 4;
   localparam integer ROM_ADDR_BITS = $clog2(ROM_WORDS);
   localparam integer SRAM_WORDS = SRAM_BYTES / 4;
@@ -189,6 +195,7 @@ module omcu_picorv32_system #(
     .FEATURE_BITS(SYSTEM_FEATURE_BITS),
     .UART1_PRESENT(UART1_PRESENT),
     .PWM1_PRESENT(PWM1_PRESENT),
+    .TIMER1_PRESENT(TIMER1_PRESENT),
     .PINMUX_PRESENT(PINMUX_PRESENT)
   ) mmio (
     .clk_i(clk_i),
@@ -212,6 +219,9 @@ module omcu_picorv32_system #(
     .uart1_tx_o(uart1_tx_o),
     .uart1_irq_o(uart1_irq_o),
     .timer_irq_o(timer_irq_o),
+    .timer1_capture_a_i(timer1_capture_a_i),
+    .timer1_capture_b_i(timer1_capture_b_i),
+    .timer1_irq_o(timer1_irq_o),
     .spi_miso_i(spi_miso_i),
     .spi_mosi_o(spi_mosi_o),
     .spi_sck_o(spi_sck_o),

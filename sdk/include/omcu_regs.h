@@ -21,6 +21,7 @@
 #define OMCU_PWM0_BASE           UINT32_C(0x40006000)
 #define OMCU_IRQCTRL_BASE        UINT32_C(0x40007000)
 #define OMCU_UART1_BASE          UINT32_C(0x40008000)
+#define OMCU_TIMER1_BASE         UINT32_C(0x40009000)
 #define OMCU_PWM1_BASE           UINT32_C(0x4000A000)
 #define OMCU_PINMUX_BASE         UINT32_C(0x4000B000)
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
@@ -122,6 +123,18 @@ typedef struct {
 } omcu_pwm1_regs_t;
 
 typedef struct {
+  volatile uint32_t ctrl; /* +0x00: timer, capture and quadrature enable/configuration bits */
+  volatile uint32_t prescale; /* +0x04: timer clocks per count minus one */
+  volatile uint32_t count; /* +0x08: current capture timestamp counter */
+  volatile uint32_t compare; /* +0x0c: compare value for timer event */
+  volatile uint32_t filter; /* +0x10: consecutive mismatched synchronized samples required minus zero */
+  volatile const uint32_t capture_a; /* +0x14: timestamp of latest configured channel A edge */
+  volatile const uint32_t capture_b; /* +0x18: timestamp of latest configured channel B edge */
+  volatile uint32_t encoder; /* +0x1c: wrapping signed quadrature position accumulator */
+  volatile uint32_t status; /* +0x20: event pending W1C plus filtered input and direction observation */
+} omcu_timer1_regs_t;
+
+typedef struct {
   volatile uint32_t ctrl; /* +0x00: alternate-function ownership; disabled functions leave pads under GPIO control */
 } omcu_pinmux_regs_t;
 
@@ -143,6 +156,7 @@ typedef struct {
 #define OMCU_PWM0                ((omcu_pwm_regs_t *)(uintptr_t)OMCU_PWM0_BASE)
 #define OMCU_IRQCTRL             ((omcu_irqctrl_regs_t *)(uintptr_t)OMCU_IRQCTRL_BASE)
 #define OMCU_PWM1                ((omcu_pwm1_regs_t *)(uintptr_t)OMCU_PWM1_BASE)
+#define OMCU_TIMER1              ((omcu_timer1_regs_t *)(uintptr_t)OMCU_TIMER1_BASE)
 #define OMCU_PINMUX              ((omcu_pinmux_regs_t *)(uintptr_t)OMCU_PINMUX_BASE)
 #define OMCU_SYSCTRL             ((omcu_sysctrl_regs_t *)(uintptr_t)OMCU_SYSCTRL_BASE)
 
@@ -156,6 +170,7 @@ enum {
   OMCU_FEATURE_PWM0                = 1u << 6,
   OMCU_FEATURE_IRQCTRL             = 1u << 7,
   OMCU_FEATURE_UART1               = 1u << 8,
+  OMCU_FEATURE_TIMER1              = 1u << 9,
   OMCU_FEATURE_PWM1                = 1u << 10,
   OMCU_FEATURE_PINMUX              = 1u << 12,
   OMCU_FEATURE_GPIO_EXPANSION      = 1u << 13,
@@ -167,9 +182,11 @@ enum {
   OMCU_IRQ_I2C0                    = 1u << 12,
   OMCU_IRQ_WDT0                    = 1u << 13,
   OMCU_IRQ_UART1                   = 1u << 14,
-  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x00007F00),
+  OMCU_IRQ_TIMER1                  = 1u << 15,
+  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x0000FF00),
   OMCU_PINMUX_CTRL_UART1_ENABLE    = 1u << 0,
   OMCU_PINMUX_CTRL_PWM1_ENABLE     = 1u << 1,
+  OMCU_PINMUX_CTRL_TIMER1_ENABLE   = 1u << 2,
   OMCU_TIMER_CTRL_ENABLE           = 1u << 0,
   OMCU_TIMER_CTRL_IRQ_ENABLE       = 1u << 1,
   OMCU_TIMER_CTRL_AUTO_RELOAD      = 1u << 2,
@@ -203,6 +220,23 @@ enum {
   OMCU_PWM1_CTRL_ENABLE            = 1u << 0,
   OMCU_PWM1_CTRL_INVERT_SHIFT      = 4u,
   OMCU_PWM1_CTRL_INVERT_MASK       = UINT32_C(0x000000F0),
+  OMCU_TIMER1_CTRL_ENABLE          = 1u << 0,
+  OMCU_TIMER1_CTRL_IRQ_ENABLE      = 1u << 1,
+  OMCU_TIMER1_CTRL_AUTO_RELOAD     = 1u << 2,
+  OMCU_TIMER1_CTRL_CAPTURE_A_ENABLE = 1u << 3,
+  OMCU_TIMER1_CTRL_CAPTURE_B_ENABLE = 1u << 4,
+  OMCU_TIMER1_CTRL_CAPTURE_A_FALLING = 1u << 5,
+  OMCU_TIMER1_CTRL_CAPTURE_B_FALLING = 1u << 6,
+  OMCU_TIMER1_CTRL_QUADRATURE_ENABLE = 1u << 7,
+  OMCU_TIMER1_CTRL_QUADRATURE_REVERSE = 1u << 8,
+  OMCU_TIMER1_STATUS_COMPARE       = 1u << 0,
+  OMCU_TIMER1_STATUS_CAPTURE_A     = 1u << 1,
+  OMCU_TIMER1_STATUS_CAPTURE_B     = 1u << 2,
+  OMCU_TIMER1_STATUS_ENCODER_STEP  = 1u << 3,
+  OMCU_TIMER1_STATUS_ENCODER_ILLEGAL = 1u << 4,
+  OMCU_TIMER1_STATUS_INPUT_A       = 1u << 5,
+  OMCU_TIMER1_STATUS_INPUT_B       = 1u << 6,
+  OMCU_TIMER1_STATUS_ENCODER_DIRECTION = 1u << 7,
 };
 
 #endif  /* OMCU_REGS_H_ */

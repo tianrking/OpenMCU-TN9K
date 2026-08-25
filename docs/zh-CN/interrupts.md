@@ -18,13 +18,13 @@ OpenMCU ABI 0.6 为 RV32IMC FPGA 目标保留了一条真正可执行的外部�
 ## 中断如何从外设走到 C 函数
 
 ```text
-GPIO / UART0 / TIMER / SPI / I2C / WDT / UART1 事件
+GPIO / UART0 / TIMER0 / SPI / I2C / WDT / UART1 / TIMER1 事件
                     |
                     v
         IRQCTRL：sticky pending + enable + force
                     |
                     v
-         PicoRV32 外部输入 bit 8 到 bit 14
+         PicoRV32 外部输入 bit 8 到 bit 15
                     |
                     v
  固定向量 0x10 -> SDK 包装器 -> omcu_irq_dispatch(mask)
@@ -42,11 +42,12 @@ GPIO / UART0 / TIMER / SPI / I2C / WDT / UART1 事件
 | 12 / `OMCU_IRQ_I2C0` | I2C0 | 完成本字节事务，再 W1C 终态状态位。 |
 | 13 / `OMCU_IRQ_WDT0` | WDT0 | 执行产品级策略，再清除 expiry 或停止/喂狗。 |
 | 14 / `OMCU_IRQ_UART1` | UART1 | 在 `RX_VALID` 为一时读取 `DATA`，再确认 IRQCTRL。 |
+| 15 / `OMCU_IRQ_TIMER1` | TIMER1 | 读取/处理 capture 或 encoder 状态，再 W1C `STATUS`。 |
 
 PicoRV32 的 bit 0 到 bit 2 保留给它自己的 timer、非法指令与总线错误路径。bit 3 到
-bit 7、bit 15 到 bit 31 在当前平台被硬件永久屏蔽。`OMCU_IRQ_EXTERNAL_MASK` 精确等于
-`0x0000_7F00`。UART1 是可选功能：仅在 `SYSCTRL.FEATURES` 报告
-`OMCU_FEATURE_UART1` 时 bit 14 才是有效来源。
+bit 7、bit 16 到 bit 31 在当前平台被硬件永久屏蔽。`OMCU_IRQ_EXTERNAL_MASK` 精确等于
+`0x0000_FF00`。UART1 与 TIMER1 都是可选功能：仅在 `SYSCTRL.FEATURES` 分别报告
+`OMCU_FEATURE_UART1` / `OMCU_FEATURE_TIMER1` 时 bit 14 / bit 15 才是有效来源。
 
 ## IRQCTRL 寄存器
 

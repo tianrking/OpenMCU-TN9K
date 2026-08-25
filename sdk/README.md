@@ -84,6 +84,7 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 | `omcu_mcu_blink` | 独立 `.omcu` 形式的 LED 闪烁示例。 |
 | `omcu_uart1_loopback` | 独立 `.omcu` 的 UART1 回显/HIL 示例；UART0 保持给升级器。 |
 | `omcu_pwm1_demo` | 独立 `.omcu` 的四路共享计数器 PWM/HIL 示例。 |
+| `omcu_timer1_encoder_demo` | 独立 `.omcu` 的 TIMER1 捕获/正交编码器模板；GPIO8/9 经输入 pinmux 使用。 |
 | `omcu_blink` | 旧式 ROM LED 回归。 |
 | `omcu_uart_hello` | UART0 启动文字。 |
 | `omcu_isa_smoke` | 编译器、RV32IMC 指令和启动代码集成检查。 |
@@ -134,3 +135,16 @@ UART1 没有 FIFO；主循环必须及时读取 `DATA`，否则下一字节会�
 
 测试时 UART0 保留给下载器，先以示波器或逻辑分析仪验证 J5.12..15 的频率、四路占空比和
 `CTRL.ENABLE=0` 后低电平。该组与 RGB LCD 共线，HIL 完成前不能声称板级或功率级已支持。
+
+## TIMER1 捕获与正交编码器
+
+`omcu_timer1_encoder_demo` 是独立应用镜像。它检查 `OMCU_FEATURE_TIMER1 |
+OMCU_FEATURE_PINMUX`，配置两级同步、`FILTER=4` 的稳定样本滤波、A/B 捕获和 Gray 正交解码，
+然后将 GPIO8/J5.16、GPIO9/J5.17 归 TIMER1 输入所有。正向约定是
+`00 -> 01 -> 11 -> 10 -> 00`；位置由 `omcu_timer1_encoder_position()` 以有符号 32-bit 环绕值
+返回，`STATUS.ENCODER_ILLEGAL` 可用于发现非 Gray/同时双边沿变化。
+
+`FILTER=N` 需要 `N+1` 个连续同步样本，并不是固定毫秒去抖器，也没有 DMA、FIFO、高速异步
+计数或速度计算。J5.16/J5.17 与 RGB LCD 共线；先保留 UART0 下载通道，再用 3.3 V、共地的
+低速已知 Gray 序列和逻辑分析仪完成实板 HIL。当前已通过 RTL、MMIO、编译固件到最终 pad 的
+数字仿真，不应把它表述为真实编码器、电压或抗噪 HIL。

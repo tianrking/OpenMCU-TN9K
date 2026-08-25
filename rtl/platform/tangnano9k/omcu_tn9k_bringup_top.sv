@@ -95,6 +95,7 @@ module omcu_tn9k_bringup_top #(
     .GPIO_EXPANSION_PRESENT(1),
     .UART1_PRESENT(1),
     .PWM1_PRESENT(1),
+    .TIMER1_PRESENT(1),
     .PINMUX_PRESENT(1),
     .ROM_WORDS(ROM_WORDS),
     .SRAM_BYTES(SRAM_BYTES),
@@ -117,6 +118,9 @@ module omcu_tn9k_bringup_top #(
     .uart1_tx_o(uart1_tx),
     .uart1_irq_o(),
     .timer_irq_o(),
+    .timer1_capture_a_i(gpio_io[8]),
+    .timer1_capture_b_i(gpio_io[9]),
+    .timer1_irq_o(),
     .spi_miso_i(spi0_miso_i),
     .spi_mosi_o(spi0_mosi_o),
     .spi_sck_o(spi0_sck_o),
@@ -167,6 +171,13 @@ module omcu_tn9k_bringup_top #(
       gpio_pad_oe[5] = 1'b1;
       gpio_pad_oe[6] = 1'b1;
       gpio_pad_oe[7] = 1'b1;
+    end
+    if (pinmux_timer1_enable) begin
+      // TIMER1 capture/encoder pins A/B use GPIO8/9 / J5.16/17.  The
+      // alternate function is input-only, so it always releases the FPGA
+      // drivers before an external encoder or industrial input can drive it.
+      gpio_pad_oe[8] = 1'b0;
+      gpio_pad_oe[9] = 1'b0;
     end
   end
 
