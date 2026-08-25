@@ -11,6 +11,9 @@
         <File path="../../../peripherals/omcu_uart.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_timer.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_timer1.sv" type="file.verilog" enable="1"/>
+        <File path="../../../peripherals/omcu_alarm.sv" type="file.verilog" enable="1"/>
+        <File path="../../../peripherals/omcu_pulse.sv" type="file.verilog" enable="1"/>
+        <File path="../../../peripherals/omcu_fault.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_spi.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_i2c.sv" type="file.verilog" enable="1"/>
         <File path="../../../peripherals/omcu_wdt.sv" type="file.verilog" enable="1"/>
