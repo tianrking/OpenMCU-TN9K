@@ -74,4 +74,4 @@ python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
 - 真实硬件：RTL、SDK 和 P&R 检查的证据与实体板电气、擦写寿命、掉电和量产验证是不同层级，不能相互替代。
 - 旧 `.hex → .fs` 路径：仅为 RTL / FPGA bring-up 回归保留；客户交付一律使用 `.omcu → UART → User Flash`。
 
-英文文档会在中文内容与流程稳定后统一翻译；当前仓库自有 README 以中文为准。
+仓库自有文档现以中文为默认版本；为保持上游可追溯性与法律效力，第三方原始文档和许可证文本仍保留原文。

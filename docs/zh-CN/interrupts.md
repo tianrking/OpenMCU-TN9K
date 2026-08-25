@@ -48,8 +48,8 @@ bit 7、bit 14 到 bit 31 在本平台被硬件永久屏蔽。`OMCU_IRQ_EXTERNAL
 
 ## IRQCTRL 寄存器
 
-IRQCTRL 基址为 `0x4000_7000`；字段总表见英文
-[registers.md](../registers.md)。
+IRQCTRL 基址为 `0x4000_7000`；字段总表见中文
+[寄存器参考](../registers.md)。
 
 | 偏移 | 寄存器 | 作用 |
 | --- | --- | --- |

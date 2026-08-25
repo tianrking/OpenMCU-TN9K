@@ -1,84 +1,71 @@
-# OpenMCU ABI 0.5 interrupt contract
+# OpenMCU ABI 0.5 中断约定
 
-OpenMCU ABI 0.5 retains a complete, executable external-interrupt path for the
-RV32IMC FPGA target. It covers peripheral event capture, software enable and
-acknowledge registers, CPU delivery, a fixed vector, a full C-ABI save/restore
-wrapper, and an SDK dispatch hook. The contract applies to the simulation and
-Tang Nano 9K wrappers that advertise `OMCU_FEATURE_IRQCTRL`.
+OpenMCU ABI 0.5 为 RV32IMC FPGA 目标保留了一条完整、可执行的外部中断路径。它覆盖外设事件捕获、软件使能与确认寄存器、CPU 投递、固定向量、完整 C ABI 保存/恢复包装器，以及 SDK 分发钩子。该约定适用于声明 <code>OMCU_FEATURE_IRQCTRL</code> 的仿真与 Tang Nano 9K 封装。
 
-## Scope and compatibility boundary
+## 适用范围与兼容性边界
 
-This is a documented **PicoRV32 custom-IRQ ABI**, not the RISC-V privileged
-architecture. In particular, it does not provide `mtvec`, `mstatus`, `mie`,
-`mip`, a PLIC, CLINT, standard debug transport, or nested machine interrupts.
-Portable OpenMCU applications must use the C functions in `omcu.h`; they must
-not emit PicoRV32 custom opcodes or rely on q-register contents.
+这是已文档化的 **PicoRV32 自定义 IRQ ABI**，不是 RISC-V 特权架构。特别地，它不提供 <code>mtvec</code>、<code>mstatus</code>、<code>mie</code>、<code>mip</code>、PLIC、CLINT、标准调试传输或嵌套的机器态中断。
 
-The register map and source-to-bit mapping are part of ABI major version 0.
-New source types may be appended only with a new ABI minor and feature bit.
+可移植 OpenMCU 应用必须使用 <code>omcu.h</code> 中的 C 函数；不得自行发出 PicoRV32 自定义指令码，也不得依赖 q 寄存器内容。
 
-## Hardware path and source map
+寄存器映射及“来源到 CPU 位”的映射属于 ABI 主版本 0 的一部分。新的来源类型只能通过新的 ABI 次版本和特性位追加。
 
-```text
-GPIO / UART / TIMER / SPI / I2C / WDT event
-                    |
-                    v
-          IRQCTRL: sticky pending + enable + force
-                    |
-                    v
-          PicoRV32 external inputs 8 through 13
-                    |
-                    v
-    fixed vector 0x10 -> SDK wrapper -> omcu_irq_dispatch(mask)
-                    |
-                    v
-                  RETIRQ
-```
+## 硬件路径与来源映射
 
-| CPU bit / SDK constant | Source | Peripheral condition to service first |
+~~~text
+GPIO / UART / TIMER / SPI / I2C / WDT 事件
+                 |
+                 v
+          IRQCTRL：锁存 pending + enable + force
+                 |
+                 v
+        PicoRV32 外部输入位 8..13
+                 |
+                 v
+固定向量 0x10 -> SDK 包装器 -> omcu_irq_dispatch(mask)
+                 |
+                 v
+               RETIRQ
+~~~
+
+| CPU 位 / SDK 常量 | 来源 | 必须优先处理的外设条件 |
 | --- | --- | --- |
-| 8 / `OMCU_IRQ_GPIO0` | GPIO0 | Read/handle the edge, then W1C `IRQ_STATUS`. |
-| 9 / `OMCU_IRQ_UART0` | UART0 | Consume `DATA` while `RX_VALID` is asserted. |
-| 10 / `OMCU_IRQ_TIMER0` | TIMER0 | Stop/rearm as appropriate, then W1C `STATUS.PENDING`. |
-| 11 / `OMCU_IRQ_SPI0` | SPI0 | Read result if needed, then W1C `STATUS.DONE`. |
-| 12 / `OMCU_IRQ_I2C0` | I2C0 | Finish the byte operation, then W1C terminal status bits. |
-| 13 / `OMCU_IRQ_WDT0` | WDT0 | Apply the product policy, then clear expiry or stop/feed the watchdog. |
+| 8 / <code>OMCU_IRQ_GPIO0</code> | GPIO0 | 读取/处理边沿，再对 <code>IRQ_STATUS</code> 执行 W1C。 |
+| 9 / <code>OMCU_IRQ_UART0</code> | UART0 | 当 <code>RX_VALID</code> 有效时读取 <code>DATA</code>。 |
+| 10 / <code>OMCU_IRQ_TIMER0</code> | TIMER0 | 根据策略停止/重装，再对 <code>STATUS.PENDING</code> 执行 W1C。 |
+| 11 / <code>OMCU_IRQ_SPI0</code> | SPI0 | 需要时读取结果，再对 <code>STATUS.DONE</code> 执行 W1C。 |
+| 12 / <code>OMCU_IRQ_I2C0</code> | I2C0 | 完成字节操作，再清除终止状态位。 |
+| 13 / <code>OMCU_IRQ_WDT0</code> | WDT0 | 执行产品策略，再清除到期状态或停止/喂狗。 |
 
-Bits 0 through 2 are reserved by PicoRV32 for its timer, illegal-instruction
-and bus-error paths. Bits 3 through 7 and 14 through 31 are permanently
-masked in this platform profile. `OMCU_IRQ_EXTERNAL_MASK` is exactly
-`0x0000_3F00`.
+位 0 至 2 由 PicoRV32 保留给自身的定时器、非法指令和总线错误路径。位 3 至 7 及 14 至 31 在本平台配置中永久屏蔽。<code>OMCU_IRQ_EXTERNAL_MASK</code> 恰为 <code>0x0000_3F00</code>。
 
-## IRQCTRL registers
+## IRQCTRL 寄存器
 
-IRQCTRL is at `0x4000_7000`; its detailed fields are in
-[`registers.md`](registers.md).
+IRQCTRL 位于 <code>0x4000_7000</code>，字段细节见 <a href="registers.md">寄存器参考</a>。
 
-| Offset | Register | Meaning |
+| 偏移 | 寄存器 | 含义 |
 | --- | --- | --- |
-| `0x00` | `PENDING` | RO sticky/current source bits in the CPU-bit positions. |
-| `0x04` | `ENABLE` | RW source enable mask in the same bit positions. |
-| `0x08` | `CLEAR` | WO W1C sticky and software-forced bits. A live source wins a coincident clear. |
-| `0x0C` | `FORCE` | WO W1S software interrupt source; useful for diagnostics. |
-| `0x10` | `ACTIVE` | RO `PENDING & ENABLE`, which is sent to the CPU. |
-| `0x14` | `HIGHEST` | RO lowest numbered active CPU bit, or zero when none is active. |
+| <code>0x00</code> | <code>PENDING</code> | RO：处于 CPU 位位置的锁存/当前来源位。 |
+| <code>0x04</code> | <code>ENABLE</code> | RW：相同 CPU 位位置的来源投递使能掩码。 |
+| <code>0x08</code> | <code>CLEAR</code> | WO：W1C 清除锁存和软件强制位；仍有效的来源在同时清除时优先。 |
+| <code>0x0C</code> | <code>FORCE</code> | WO：W1S 产生软件中断源，适合诊断。 |
+| <code>0x10</code> | <code>ACTIVE</code> | RO：<code>PENDING &amp; ENABLE</code>，将被送往 CPU。 |
+| <code>0x14</code> | <code>HIGHEST</code> | RO：编号最小的活动 CPU 位；无活动源时为零。 |
 
-`PENDING` captures short peripheral pulses even while disabled. `ENABLE` only
-controls delivery, not capture. `FORCE` uses the same public bit masks as
-hardware sources and is cleared through `CLEAR`.
+<code>PENDING</code> 即使在来源被禁用时也会捕获短外设脉冲。<code>ENABLE</code> 只控制投递，不控制捕获。<code>FORCE</code> 使用与硬件来源相同的公开位掩码，并通过 <code>CLEAR</code> 清除。
 
-## SDK initialization and handler contract
+## SDK 初始化与处理函数约定
 
-Enable an interrupt only after clearing stale peripheral and controller state:
+只有清除了陈旧的外设和控制器状态后，才可以使能中断：
 
-```c
+~~~c
 #include "omcu.h"
 
 void omcu_irq_dispatch(uint32_t pending) {
   if ((pending & OMCU_IRQ_TIMER0) != 0u) {
-    OMCU_TIMER0->ctrl = 0u;                         /* quiesce/rearm policy */
-    OMCU_TIMER0->status = OMCU_TIMER_STATUS_PENDING; /* clear at the source */
-    omcu_irqctrl_ack(OMCU_IRQ_TIMER0);              /* then clear controller */
+    OMCU_TIMER0->ctrl = 0u;                         /* 停止或重装策略 */
+    OMCU_TIMER0->status = OMCU_TIMER_STATUS_PENDING; /* 先在源端清除 */
+    omcu_irqctrl_ack(OMCU_IRQ_TIMER0);              /* 再清除控制器 */
   }
 }
 
@@ -89,51 +76,32 @@ static void enable_timer_irq(void) {
   omcu_irqctrl_set_enable(OMCU_IRQ_TIMER0);
   (void)omcu_irq_global_enable();
 }
-```
+~~~
 
-`omcu_irq_dispatch()` is a weak SDK function. An application supplies one
-strong definition, which receives every simultaneously active CPU bit in
-`pending`. It must service all bits it enables, or disable and acknowledge an
-unhandled source before returning. The safe acknowledgement order is always:
+<code>omcu_irq_dispatch()</code> 是 SDK 提供的弱函数。应用应提供一个强定义，它会收到 <code>pending</code> 中所有同时活动的 CPU 位。应用必须服务其启用的所有位，或者在返回前禁用并确认未处理源。安全的确认顺序始终为：
 
-1. Consume, clear, disable, or rearm the originating peripheral condition.
-2. Write the matching bit to `IRQCTRL.CLEAR` through `omcu_irqctrl_ack()`.
-3. Return from the C hook; the wrapper restores the interrupted application.
+1. 消费、清除、禁用或重装产生条件的外设。
+2. 通过 <code>omcu_irqctrl_ack()</code> 向 <code>IRQCTRL.CLEAR</code> 写入对应位。
+3. 从 C 钩子返回；包装器恢复被中断的应用。
 
-Clearing IRQCTRL first while a level-style source remains asserted creates a
-new sticky event by design. This is not a lost-interrupt bug; it makes the
-required peripheral-first ordering explicit.
+若电平式来源仍然有效时先清 IRQCTRL，硬件会按设计产生新的锁存事件。这不是丢失中断错误；它明确要求“先外设、后控制器”的顺序。
 
-`omcu_irq_global_enable()`, `omcu_irq_global_disable()` and
-`omcu_irq_restore()` manipulate the CPU's documented custom IRQ mask. The
-enable/disable calls return the previous mask, so a critical section should
-save it and restore it rather than assuming the prior global state.
+<code>omcu_irq_global_enable()</code>、<code>omcu_irq_global_disable()</code> 与 <code>omcu_irq_restore()</code> 操作 CPU 已文档化的自定义 IRQ 掩码。使能/禁用函数返回先前掩码；临界区应保存后恢复它，而不能假设此前的全局状态。
 
-## Vector and execution rules
+## 向量与执行规则
 
-Reset begins at `0x0000_0000`; the linker reserves `0x00` through `0x0F` for
-four uncompressed reset-vector words. PicoRV32 enters an external interrupt at
-`0x0000_0010`, where the SDK wrapper:
+复位从 <code>0x0000_0000</code> 开始；链接脚本将 <code>0x00</code> 至 <code>0x0F</code> 留给四个非压缩复位向量字。PicoRV32 在 <code>0x0000_0010</code> 进入外部中断，SDK 包装器将：
 
-1. protects the interrupted `ra`/`sp` using PicoRV32's documented q2/q3
-   scratch registers;
-2. saves x1 through x31 into a dedicated 128-byte frame;
-3. switches to a dedicated 512-byte IRQ stack;
-4. receives PicoRV32 q1 as the `pending` argument and calls the C hook;
-5. restores the complete integer-register context and executes `RETIRQ`.
+1. 使用 PicoRV32 已文档化的 q2/q3 暂存寄存器保护被中断的 <code>ra</code>/<code>sp</code>；
+2. 将 x1 至 x31 保存到专用的 128 字节帧；
+3. 切换至专用 512 字节 IRQ 栈；
+4. 以 PicoRV32 q1 作为 <code>pending</code> 参数，调用 C 钩子；
+5. 恢复完整整数寄存器上下文，并执行 <code>RETIRQ</code>。
 
-PicoRV32 blocks a second entry while an interrupt is active. Keep handlers
-short, avoid blocking bus loops, and defer heavy work to the main loop. The
-wrapper owns q0 through q3 and the custom opcodes; applications use only the
-public C API.
+PicoRV32 在一个中断活动期间阻止第二次进入。处理函数应保持简短，避免阻塞式总线循环，并把重工作下放到主循环。包装器独占 q0 至 q3 及自定义指令；应用只能使用公开 C API。
 
-## Executable regression
+## 可执行回归
 
-`omcu_irq_smoke` compiles from C, programs TIMER0, enables IRQCTRL bit 10 and
-uses a strong C hook. `omcu_irq_sdk_tb` executes that exact ROM in the real
-PicoRV32/MMIO RTL and requires the handler to run, `RETIRQ` to return to main,
-and no trap or invalid MMIO transaction to occur. `omcu_irq_ctrl_tb` separately
-checks latching, masking, priority, software force and clear semantics.
+<code>omcu_irq_smoke</code> 从 C 编译，配置 TIMER0、使能 IRQCTRL 位 10，并使用一个强 C 钩子。<code>omcu_irq_sdk_tb</code> 在真实 PicoRV32/MMIO RTL 中执行该精确 ROM，并要求处理器运行、<code>RETIRQ</code> 返回主循环，且不发生 Trap 或非法 MMIO 事务。<code>omcu_irq_ctrl_tb</code> 另外检查锁存、屏蔽、优先级、软件强制和清除语义。
 
-These are digital simulation proofs. Physical Tang Nano 9K download and
-electrical peripheral validation remain separate release gates.
+这些是数字仿真证据；实体 Tang Nano 9K 下载和外设电气验证仍是独立的发布门禁。

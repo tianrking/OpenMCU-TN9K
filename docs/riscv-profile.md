@@ -1,50 +1,35 @@
-# OpenMCU-TN9K RISC-V v1 profile
+# OpenMCU-TN9K RISC-V v1 配置
 
-## Frozen compiler target
+## 固定的编译器目标
 
-The Tang Nano 9K v1 hardware and SDK target **`rv32imc` with the `ilp32` ABI**.
-That is a deliberately small MCU-class profile of the current ratified
-unprivileged RISC-V ISA, not a claim to implement every RISC-V extension.
+Tang Nano 9K v1 硬件与 SDK 固定使用 **<code>rv32imc</code> 与 <code>ilp32</code> ABI**。这是一个有意保持紧凑的 MCU 级、已批准的非特权 RISC-V ISA 配置；它不表示实现了所有 RISC-V 扩展。
 
-| Component | OpenMCU-TN9K v1 promise |
+| 组成 | OpenMCU-TN9K v1 的承诺 |
 | --- | --- |
-| Base integer ISA | RV32I, 32 general-purpose 32-bit registers |
-| Multiply/divide | `M`, implemented with PicoRV32 fast multiply and divide PCPI units |
-| Code density | `C`, enabled in the instruction fetch/decode path |
-| Compiler ABI | `ilp32`, little-endian, freestanding bare metal |
-| Synchronization | `FENCE` is accepted by the CPU adapter; the v1 bus has one master and ordered MMIO |
-| Build string | `-march=rv32imc -mabi=ilp32` |
+| 基础整数 ISA | RV32I，32 个通用 32 位寄存器 |
+| 乘除法 | <code>M</code>，由 PicoRV32 的快速乘法与除法 PCPI 单元实现 |
+| 代码密度 | <code>C</code>，在取指和译码路径中启用 |
+| 编译器 ABI | <code>ilp32</code>、小端、无操作系统裸机环境 |
+| 同步 | CPU 适配器接受 <code>FENCE</code>；v1 总线仅有一个主设备，MMIO 保持顺序 |
+| 构建参数 | <code>-march=rv32imc -mabi=ilp32</code> |
 
-`RV32IMC` is canonical RISC-V ISA naming. The implementation source is the
-pinned PicoRV32 revision recorded in `LICENSES.md`; its own documentation
-states that it can be configured as an RV32IMC core.
+<code>RV32IMC</code> 是规范的 RISC-V ISA 命名。实现来源是 <a href="../LICENSES.md">LICENSES.md</a> 中固定的 PicoRV32 修订版；其上游文档说明该内核可配置为 RV32IMC。
 
-## Explicit exclusions
+## 明确不包含的能力
 
-Third-party code must not assume any of the following in v1:
+第三方代码在 v1 中不得假定具备以下任一能力：
 
-- `A`, `F`, `D`, `Q`, `B`, vector, hypervisor, supervisor, or user-mode ISA;
-- generic `Zicsr` CSR reads/writes, machine-mode trap CSRs, PMP, or standard
-  RISC-V debug transport;
-- a standard RISC-V interrupt controller, PLIC/CLINT, privileged interrupt
-  CSRs, or direct application use of PicoRV32 custom IRQ opcodes;
-- misaligned memory accesses, cache coherency, DMA, or Linux support.
+- <code>A</code>、<code>F</code>、<code>D</code>、<code>Q</code>、<code>B</code>、向量、Hypervisor、Supervisor 或 User-mode ISA；
+- 通用 <code>Zicsr</code> CSR 读写、机器态异常 CSR、PMP 或标准 RISC-V 调试传输；
+- 标准 RISC-V 中断控制器、PLIC/CLINT、特权中断 CSR，或应用直接使用 PicoRV32 自定义 IRQ 指令码；
+- 非对齐访问、缓存一致性、DMA 或 Linux 支持。
 
-The CPU can read its internal cycle/instruction counters through PicoRV32's
-supported counter encodings, but this is not advertised as the full `Zicsr`
-extension. ABI 0.5 does expose a deliberately narrow, documented PicoRV32
-custom-IRQ path through `omcu.h`: six external sources use bits 8 through 13,
-the SDK owns vector `0x10`, and applications provide the C dispatch hook. It
-does not make the core a privileged RISC-V implementation. A later
-standards-complete trap/interrupt core adapter is a new hardware capability and
-must change the SYSCTRL feature bitmap and SDK support at the same time. See
-[`interrupts.md`](interrupts.md).
+CPU 可以通过 PicoRV32 支持的计数器编码读取内部周期/指令计数器，但这不构成完整 <code>Zicsr</code> 扩展承诺。ABI 0.5 通过 <code>omcu.h</code> 提供了一条刻意收窄、已经文档化的 PicoRV32 自定义 IRQ 路径：六个外部源使用位 8 至 13，SDK 独占 <code>0x10</code> 向量，应用提供 C 语言分发钩子。这不会使内核成为特权 RISC-V 实现。
 
-## Why this is the 9K default
+今后若接入标准完整的异常/中断内核适配器，属于新的硬件能力，必须同步更新 SYSCTRL 特性位和 SDK 支持。具体的非标准边界见 <a href="interrupts.md">中断约定</a>。
 
-The 9K FPGA should be used for a product-quality microcontroller envelope:
-full 32-register ABI, compact code, hardware multiply/divide and a barrel
-shifter. Floating point, atomics and vectors would spend scarce LUT/BRAM on
-capabilities that common GPIO, sensor, display and control firmware does not
-need. The build and place-and-route report, rather than a prose estimate, is
-the authority for the final resource/timing envelope.
+## 为什么它是 9K 的默认配置
+
+9K FPGA 应服务于产品级微控制器外形：完整 32 寄存器 ABI、紧凑代码、硬件乘除法和桶形移位器。浮点、原子操作和向量会占用宝贵的 LUT/BRAM，却不是常见 GPIO、传感器、显示和控制固件的刚需。
+
+最终资源与时序边界必须以实际构建和布局布线报告为准，不能以文字估算代替。

@@ -1,118 +1,86 @@
-# OpenMCU v0 architecture contract
+# OpenMCU v0 架构约定
 
-## Product boundary
+## 产品边界
 
-OpenMCU is a small, conventional, software-friendly RISC-V MCU. It is not an
-FPGA demo protocol, a Linux-capable computer, or a custom ISA experiment.
+OpenMCU 是一个小型、常规、便于软件开发的 RISC-V MCU。它不是 FPGA 演示协议、可运行 Linux 的计算机，也不是自定义 ISA 实验。
 
-The initial CPU adapter must implement a standards-conformant 32-bit RISC-V
-bare-metal target. A compact PicoRV32-based adapter is acceptable for Tang
-bring-up; an Ibex-based adapter is the leading candidate for the longer-term
-SystemVerilog product route. Either choice is behind a CPU adapter and cannot
-change the public peripheral ABI.
+首个 CPU 适配器必须实现符合标准的 32 位 RISC-V 裸机目标。Tang Nano 9K 的可执行产品适配器采用紧凑的 PicoRV32；较长期的 SystemVerilog 产品路线可评估 Ibex 适配器。无论 CPU 内核如何替换，都必须放在 CPU 适配层之后，且不得改变公开外设 ABI。
 
-## Stable v0 memory map
+## 稳定的 v0 内存映射
 
-| Address range | Block | Notes |
+| 地址范围 | 模块 | 说明 |
 | --- | --- | --- |
-| `0x0000_0000-0x0000_FFFF` | boot ROM aperture | Immutable reset vector and product Bootloader |
-| `0x1000_0000-0x1000_FFFF` | main SRAM aperture | Platform wrapper selects FPGA BRAM or ASIC SRAM macro |
-| `0x2000_0000-0x20FF_FFFF` | User Flash aperture | Tang Nano 9K product uses 76 KiB of GW1NR User Flash; legacy QSPI macro is only an alias, not XIP |
-| `0x4000_0000-0x4000_0FFF` | GPIO0 | v0 portable GPIO peripheral |
-| `0x4000_1000-0x4000_1FFF` | UART0 | Console, loader and diagnostics |
-| `0x4000_2000-0x4000_2FFF` | TIMER0 | v0 portable timer peripheral |
-| `0x4000_3000-0x4000_3FFF` | SPI0 | External devices / QSPI control boundary |
-| `0x4000_4000-0x4000_4FFF` | I2C0 | Standard sensor bus |
-| `0x4000_5000-0x4000_5FFF` | WDT0 | Independent watchdog |
-| `0x4000_6000-0x4000_6FFF` | PWM0 | Edge-aligned PWM generator |
-| `0x4000_7000-0x4000_7FFF` | IRQCTRL | Sticky external-event capture, masking, force and priority view |
-| `0x4000_F000-0x4000_FFFF` | SYSCTRL | Chip ID, ABI, feature bits, build ID and actual ROM/SRAM KiB |
+| <code>0x0000_0000–0x0000_FFFF</code> | Boot ROM 窗口 | 不可变复位向量和产品启动器 |
+| <code>0x1000_0000–0x1000_FFFF</code> | 主 SRAM 窗口 | 平台封装选择 FPGA BRAM 或 ASIC SRAM 宏 |
+| <code>0x2000_0000–0x20FF_FFFF</code> | User Flash 窗口 | Tang Nano 9K 产品模式使用 76 KiB GW1NR User Flash；旧 QSPI 宏仅为别名，不是 XIP |
+| <code>0x4000_0000–0x4000_0FFF</code> | GPIO0 | v0 可移植 GPIO 外设 |
+| <code>0x4000_1000–0x4000_1FFF</code> | UART0 | 控制台、下载器与诊断 |
+| <code>0x4000_2000–0x4000_2FFF</code> | TIMER0 | v0 可移植定时器 |
+| <code>0x4000_3000–0x4000_3FFF</code> | SPI0 | 外部设备 / QSPI 控制边界 |
+| <code>0x4000_4000–0x4000_4FFF</code> | I2C0 | 标准传感器总线 |
+| <code>0x4000_5000–0x4000_5FFF</code> | WDT0 | 独立看门狗 |
+| <code>0x4000_6000–0x4000_6FFF</code> | PWM0 | 边沿对齐 PWM 发生器 |
+| <code>0x4000_7000–0x4000_7FFF</code> | IRQCTRL | 外部事件锁存、屏蔽、软件触发与优先级视图 |
+| <code>0x4000_F000–0x4000_FFFF</code> | SYSCTRL | 芯片 ID、ABI、特性位、构建 ID、实际 ROM/SRAM KiB |
 
-No compatible release may move an existing block. New functions receive a new
-range; an incompatible behavior requires a new major device revision.
+兼容发布不得移动既有模块。新增能力必须使用新的地址范围；不兼容行为必须对应新的主设备版本。
 
-The listed ROM and SRAM regions are reserved address apertures, not a promise
-that every platform implements 64 KiB of each. The Tang Nano 9K production
-wrapper defaults to 8 KiB of boot ROM and 44 KiB of SRAM, an intentionally
-all-BSRAM configuration verified by the open P&R flow as 26/26 BSRAMs. The
-portable system remains parameterized for other platforms, and `SYSCTRL`
-exposes the exact usable capacities and feature bitmap before third-party
-firmware can rely on them.
+表中 ROM 和 SRAM 区域是保留地址窗口，并不承诺每个平台都实现 64 KiB。Tang Nano 9K 产品封装默认使用 8 KiB Boot ROM 与 44 KiB SRAM；这是经开源 P&R 流验证的全 BSRAM 配置（26/26 BSRAM）。可移植系统仍为其他平台保留参数化能力，SYSCTRL 在第三方固件依赖前公开精确可用容量与特性位图。
 
-## Portable MMIO transaction
+## 可移植 MMIO 事务
 
-The first internal bus is intentionally small. CPU adapters translate their
-native bus to these signals:
+第一代内部总线有意保持简洁。CPU 适配器将原生总线转换为以下信号：
 
-```text
+~~~text
 req, write, address[31:0], write_data[31:0], write_strobe[3:0]
                                 -> ready, read_data[31:0], error
-```
+~~~
 
-This avoids exposing PicoRV32, Ibex, LiteX, Wishbone, APB, Gowin or ASIC
-implementation details to peripherals. The v0 peripheral bus is single-master,
-single-cycle-ready for simple blocks; a future interconnect may pipeline the
-transaction but must preserve visible ordering and register semantics.
+这避免将 PicoRV32、Ibex、LiteX、Wishbone、APB、Gowin 或 ASIC 的实现细节暴露给外设。v0 外设总线为单主设备；简单模块可单周期就绪。未来的互连可以流水化事务，但必须保持可见的访问顺序和寄存器语义。
 
-## v0 executable CPU adapter
+## v0 可执行 CPU 适配器
 
-`rtl/cpu/omcu_picorv32_system.sv` turns the portable blocks into an executable
-RV32IMC system. It keeps PicoRV32 behind the memory-map adapter and connects:
+<code>rtl/cpu/omcu_picorv32_system.sv</code> 将可移植模块组成一个可执行的 RV32IMC 系统。它把 PicoRV32 置于内存映射适配器之后，并连接：
 
-```text
+~~~text
 PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric
                                       -> GPIO0 + UART0 + TIMER0 + SPI0 + I2C0 + WDT0 + PWM0
-                                      -> IRQCTRL -> PicoRV32 IRQ bits 8..13
-```
+                                      -> IRQCTRL -> PicoRV32 IRQ 位 8..13
+~~~
 
-The adapter enables the ratified `M` and `C` instruction extensions and a
-barrel shifter. It intentionally does **not** claim `Zicsr`, privileged machine
-mode, standard RISC-V trap CSRs, PLIC/CLINT, debug support, atomics or floating
-point. It does implement the separately versioned PicoRV32 custom-IRQ ABI:
-IRQCTRL maps the portable peripheral sources to CPU bits 8 through 13, and the
-SDK owns the fixed `0x10` vector plus full C-ABI context preservation. See
-[`interrupts.md`](interrupts.md) for the exact non-standard boundary and
-acknowledgement sequence. Invalid or ROM-write transactions are acknowledged
-and surfaced as a simulation/bring-up diagnostic; the minimal adapter does not
-yet turn them into a RISC-V access fault.
+该适配器启用已批准的 <code>M</code>、<code>C</code> 指令扩展和桶形移位器。它刻意不承诺 <code>Zicsr</code>、特权机器态、标准 RISC-V Trap CSR、PLIC/CLINT、调试支持、原子操作或浮点。
 
-The ROM initialization file is a simulation/FPGA-bring-up mechanism, not the
-customer update solution. The Tang Nano 9K product boot path is: immutable
-loader -> verified GW1NR User Flash A/B image -> SRAM execution. The customer
-application is not compiled into the FPGA configuration.
+它实现了单独版本化的 PicoRV32 自定义 IRQ ABI：IRQCTRL 将可移植外设源映射到 CPU 位 8 至 13，SDK 独占固定 <code>0x10</code> 向量并完整保存 C ABI 上下文。精确的非标准边界与确认顺序见 <a href="interrupts.md">中断约定</a>。非法事务或写 ROM 事务会被应答并作为仿真/bring-up 诊断呈现；这个最小适配器暂不把它们转换为 RISC-V 访问异常。
 
-## Reset and clock contract
+ROM 初始化文件只是仿真/FPGA bring-up 机制，不是客户更新方案。Tang Nano 9K 产品启动路径为：
 
-- `clk_i` is the synchronous system clock after a platform-specific PLL/clock
-  wrapper. No generic RTL may instantiate a Gowin PLL.
-- `rst_ni` is an active-low reset that is asserted asynchronously by the
-  platform and released synchronously only after clock lock is valid.
-- All public peripheral registers reset to documented values.
-- ASIC A0 uses an external clock input and external reset supervisor. Internal
-  RC oscillators, brown-out detector and low-power clocks are later revisions.
+~~~text
+不可变启动器 -> 已验证的 GW1NR User Flash A/B 应用镜像 -> SRAM 执行
+~~~
 
-## Hardware/software version handshake
+客户应用不会被编译进 FPGA 配置。
 
-The implemented v0 `SYSCTRL` block exposes the `OMCU` chip identifier, ABI
-major/minor, feature bitmap, build identifier and actual ROM/SRAM KiB. Firmware
-must reject a device whose major ABI version is unsupported instead of
-accidentally writing incompatible registers. Reset reason and a full build
-digest remain later additions. See [`registers.md`](registers.md).
+## 复位与时钟约定
 
-## Platform split
+- <code>clk_i</code> 是经过平台专用 PLL/时钟封装后的同步系统时钟；通用 RTL 不得实例化 Gowin PLL。
+- <code>rst_ni</code> 为低有效复位，由平台异步置位，只能在时钟锁定有效后同步释放。
+- 所有公开外设寄存器均复位为已文档化的值。
+- ASIC A0 使用外部时钟输入与外部复位监控器；内部 RC 振荡器、欠压检测和低功耗时钟属于后续版本。
 
-```text
-             common RTL and register specification
-   +---------------------------------------------------+
-   | CPU adapter -> MMIO fabric -> portable peripherals |
-   +---------------------------------------------------+
-          |                    |                 |
-       sim wrapper       Tang Nano wrapper     ASIC wrapper
-          |                    |                 |
-      RAM model        Gowin RAM/PLL/I/O    SRAM/pads/DFT/clock
-```
+## 硬件/软件版本握手
 
-The FPGA board is a hardware model of the ASIC function, not a claim that its
-clock, SRAM, flash, I/O timing, power or reset circuits equal the final chip.
-[`asic/README.md`](../asic/README.md) is the required handoff gate before an
-MPW/foundry implementation begins.
+已实现的 v0 SYSCTRL 模块公开 <code>OMCU</code> 芯片标识、ABI 主/次版本、特性位图、构建标识和实际 ROM/SRAM KiB。固件必须拒绝 ABI 主版本不受支持的设备，不能意外写入不兼容寄存器。复位原因和完整构建摘要仍是后续扩展。详见 <a href="registers.md">寄存器参考</a>。
+
+## 平台拆分
+
+~~~text
+             共用 RTL 与寄存器规范
+
+   | CPU 适配器 -> MMIO Fabric -> 可移植外设 |
+
+       仿真封装         Tang Nano 封装          ASIC 封装
+
+      RAM 模型       Gowin RAM/PLL/I/O      SRAM/Pad/DFT/时钟
+~~~
+
+FPGA 开发板是 ASIC 功能的硬件模型，并不表示时钟、SRAM、Flash、I/O 时序、供电或复位电路等同于最终芯片。在启动 MPW/代工厂实现之前，必须通过 <a href="../asic/README.md">ASIC 交接边界</a> 的交付门禁。

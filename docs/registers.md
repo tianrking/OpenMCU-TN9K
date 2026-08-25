@@ -1,174 +1,133 @@
-# OpenMCU ABI 0.5 register reference
+# OpenMCU ABI 0.5 寄存器参考
 
-All v0 MMIO registers are 32-bit little-endian and word-aligned. Addresses are
-stable within ABI major version 0. ABI minor 5 retains IRQCTRL and the
-documented PicoRV32 custom-IRQ SDK path, and adds the User Flash feature bit
-for the Tang Nano 9K product mode. The reviewed machine-readable register source is
-[`spec/omcu-v0.json`](../spec/omcu-v0.json); the C register header is generated
-from that source. The current complete Chinese product specification, including
-User Flash, reset values and pin bindings, is [`zh-CN/datasheet.md`](zh-CN/datasheet.md).
+所有 v0 MMIO 寄存器均为 32 位、小端、按字对齐；地址在 ABI 主版本 0 内保持稳定。ABI 次版本 5 保留 IRQCTRL 和已文档化的 PicoRV32 自定义 IRQ SDK 路径，并为 Tang Nano 9K 产品模式加入 User Flash 特性位。已审阅的机器可读寄存器来源是 <a href="../spec/omcu-v0.json">spec/omcu-v0.json</a>，C 寄存器头文件从该来源生成。包含 User Flash、复位值和引脚绑定的完整中文产品规范见 <a href="zh-CN/datasheet.md">工程数据手册</a>。
 
-## GPIO0 — `0x4000_0000`
+## GPIO0 — <code>0x4000_0000</code>
 
-All GPIO bit fields apply to the implemented GPIO width. The current Tang Nano
-9K target uses bits `0:5` for active-low LEDs and exposes bits `6:8` as three
-real expansion GPIO pads. See [`zh-CN/hardware-and-pins.md`](zh-CN/hardware-and-pins.md)
-for the reviewed constraint mapping and electrical restrictions.
+所有 GPIO 位字段均作用于已实现的 GPIO 宽度。当前 Tang Nano 9K 目标使用位 <code>0:5</code> 驱动低有效 LED，位 <code>6:8</code> 暴露为三个真实的扩展 GPIO Pad。已审阅的约束映射和电气限制见 <a href="zh-CN/hardware-and-pins.md">硬件与引脚</a>。
 
-| Offset | Register | Access | Meaning |
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `OUT` | RW | Output latch |
-| `0x04` | `OUT_SET` | WO | Set output bits written as one |
-| `0x08` | `OUT_CLR` | WO | Clear output bits written as one |
-| `0x0C` | `OUT_XOR` | WO | Toggle output bits written as one |
-| `0x10` | `OE` | RW | Output-enable latch |
-| `0x14` | `OE_SET` | WO | Enable output bits written as one |
-| `0x18` | `OE_CLR` | WO | Disable output bits written as one |
-| `0x20` | `IN` | RO | Input sample; external asynchronous inputs need a platform synchronizer |
-| `0x24` | `RISE_EN` | RW | Rising-edge interrupt enable bits |
-| `0x28` | `FALL_EN` | RW | Falling-edge interrupt enable bits |
-| `0x2C` | `IRQ_STATUS` | RW1C | Latched edge flags; write one to clear |
+| <code>0x00</code> | <code>OUT</code> | RW | 输出锁存器 |
+| <code>0x04</code> | <code>OUT_SET</code> | WO | 写 1 置位对应输出位 |
+| <code>0x08</code> | <code>OUT_CLR</code> | WO | 写 1 清除对应输出位 |
+| <code>0x0C</code> | <code>OUT_XOR</code> | WO | 写 1 翻转对应输出位 |
+| <code>0x10</code> | <code>OE</code> | RW | 输出使能锁存器 |
+| <code>0x14</code> | <code>OE_SET</code> | WO | 写 1 使能对应输出位 |
+| <code>0x18</code> | <code>OE_CLR</code> | WO | 写 1 禁用对应输出位 |
+| <code>0x20</code> | <code>IN</code> | RO | 输入采样；外部异步输入需要平台同步器 |
+| <code>0x24</code> | <code>RISE_EN</code> | RW | 上升沿中断使能位 |
+| <code>0x28</code> | <code>FALL_EN</code> | RW | 下降沿中断使能位 |
+| <code>0x2C</code> | <code>IRQ_STATUS</code> | RW1C | 锁存的边沿标志；写 1 清除 |
 
-## UART0 — `0x4000_1000`
+## UART0 — <code>0x4000_1000</code>
 
-UART0 is 8-N-1. `BAUDDIV` is system-clock cycles per bit minus one; use `233`
-for approximately 115200 baud with a 27 MHz system clock.
+UART0 使用 8-N-1。<code>BAUDDIV</code> 的值是每位的系统时钟周期数减 1；27 MHz 系统时钟下使用 <code>233</code> 可得到约 115200 baud。
 
-| Offset | Register | Access | Meaning |
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `DATA` | RW | Bits `7:0`: TX byte on write; RX byte on read. Reading consumes `RX_VALID`. |
-| `0x04` | `STATUS` | RW | Bit 0 `TX_READY`, bit 1 `RX_VALID`, bit 2 `RX_OVERRUN` (W1C), bit 3 `RX_FRAMING_ERROR` (W1C), bit 4 `TX_BUSY`. |
-| `0x08` | `BAUDDIV` | RW | Bits `15:0`: cycles per bit minus one; reset `233`. |
-| `0x0C` | `CTRL` | RW | Bit 0 `TX_ENABLE`, bit 1 `RX_ENABLE`, bit 2 `RX_IRQ_ENABLE`. |
+| <code>0x00</code> | <code>DATA</code> | RW | 位 <code>7:0</code>：写入时为 TX 字节，读取时为 RX 字节；读取会消费 <code>RX_VALID</code>。 |
+| <code>0x04</code> | <code>STATUS</code> | RW | 位 0 <code>TX_READY</code>，位 1 <code>RX_VALID</code>，位 2 <code>RX_OVERRUN</code>（W1C），位 3 <code>RX_FRAMING_ERROR</code>（W1C），位 4 <code>TX_BUSY</code>。 |
+| <code>0x08</code> | <code>BAUDDIV</code> | RW | 位 <code>15:0</code>：每位周期数减 1；复位值 <code>233</code>。 |
+| <code>0x0C</code> | <code>CTRL</code> | RW | 位 0 <code>TX_ENABLE</code>，位 1 <code>RX_ENABLE</code>，位 2 <code>RX_IRQ_ENABLE</code>。 |
 
-`irq_o` is asserted while `RX_VALID` and `RX_IRQ_ENABLE` are both one. For an
-interrupt-driven UART reader, consume `DATA` first and then acknowledge
-`OMCU_IRQ_UART0` through IRQCTRL; see [`interrupts.md`](interrupts.md).
+当 <code>RX_VALID</code> 和 <code>RX_IRQ_ENABLE</code> 均为 1 时，<code>irq_o</code> 有效。中断式 UART 接收器应先读取 <code>DATA</code>，再通过 IRQCTRL 确认 <code>OMCU_IRQ_UART0</code>；详见 <a href="interrupts.md">中断约定</a>。
 
-## TIMER0 — `0x4000_2000`
+## TIMER0 — <code>0x4000_2000</code>
 
-| Offset | Register | Access | Meaning |
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `CTRL` | RW | Bit 0 `ENABLE`, bit 1 `IRQ_ENABLE`, bit 2 `AUTO_RELOAD`. |
-| `0x04` | `PRESCALE` | RW | Bits `15:0`: timer clocks per count minus one. |
-| `0x08` | `COUNT` | RW | Current count. |
-| `0x0C` | `COMPARE` | RW | Compare count. |
-| `0x10` | `STATUS` | RW1C | Bit 0 `PENDING`; write one to clear. |
+| <code>0x00</code> | <code>CTRL</code> | RW | 位 0 <code>ENABLE</code>，位 1 <code>IRQ_ENABLE</code>，位 2 <code>AUTO_RELOAD</code>。 |
+| <code>0x04</code> | <code>PRESCALE</code> | RW | 位 <code>15:0</code>：每个计数所含时钟数减 1。 |
+| <code>0x08</code> | <code>COUNT</code> | RW | 当前计数值。 |
+| <code>0x0C</code> | <code>COMPARE</code> | RW | 比较计数值。 |
+| <code>0x10</code> | <code>STATUS</code> | RW1C | 位 0 <code>PENDING</code>；写 1 清除。 |
 
-A non-reloading timer stops at its compare. An auto-reloading timer returns to
-zero and continues.
+非自动重装定时器到达比较值时停止；自动重装定时器回到零并继续计数。
 
-## SPI0 — `0x4000_3000`
+## SPI0 — <code>0x4000_3000</code>
 
-SPI0 is a compact 8-bit, MSB-first, CPOL=0/CPHA=0 (mode-0) master. A `START`
-operation automatically asserts one active-low chip select for exactly one byte
-transfer. A future QSPI/XIP or DMA controller would require a new, separately
-documented ABI block.
+SPI0 是紧凑的 8 位、MSB 优先、CPOL=0/CPHA=0（mode 0）主机。一次 <code>START</code> 操作会自动拉低一个低有效片选，并恰好完成一个字节传输。未来的 QSPI/XIP 或 DMA 控制器必须作为新 ABI 模块单独文档化。
 
-| Offset | Register | Access | Meaning |
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `DATA` | RW | Write the next TX byte; read the completed RX byte. |
-| `0x04` | `STATUS` | RW1C | Bit 0 `BUSY`; bit 1 `DONE`, write one to clear. |
-| `0x08` | `CLKDIV` | RW | Bits `15:0`: system clocks per SCK half-period minus one. |
-| `0x0C` | `CTRL` | RW | Bit 0 `ENABLE`; bit 1 `DONE_IRQ_ENABLE`. |
-| `0x10` | `START` | WO | Bit 0 starts a transfer if `ENABLE=1` and `BUSY=0`. |
+| <code>0x00</code> | <code>DATA</code> | RW | 写入下一个 TX 字节；读取完成的 RX 字节。 |
+| <code>0x04</code> | <code>STATUS</code> | RW1C | 位 0 <code>BUSY</code>；位 1 <code>DONE</code>，写 1 清除。 |
+| <code>0x08</code> | <code>CLKDIV</code> | RW | 位 <code>15:0</code>：每个 SCK 半周期的系统时钟数减 1。 |
+| <code>0x0C</code> | <code>CTRL</code> | RW | 位 0 <code>ENABLE</code>；位 1 <code>DONE_IRQ_ENABLE</code>。 |
+| <code>0x10</code> | <code>START</code> | WO | 位 0 在 <code>ENABLE=1</code> 且 <code>BUSY=0</code> 时启动传输。 |
 
-## I2C0 — `0x4000_4000`
+## I2C0 — <code>0x4000_4000</code>
 
-I2C0 is an open-drain, single-master byte engine. `SCL` and `SDA` outputs tell
-the platform when to drive a line low; the platform must provide pull-ups,
-open-drain pads and synchronized line inputs. Each `CMD` write issues exactly
-one operation, allowing software to compose address/write/repeated-START/read
-transactions explicitly. The engine honours target clock stretching whenever
-it releases SCL. It intentionally has no FIFO, DMA, arbitration-loss handling,
-bus-recovery sequencer or automatic timeout; a product application should use
-its watchdog/outer timeout policy if a target holds the bus forever.
+I2C0 是开漏、单主机、按字节工作的引擎。<code>SCL</code> 与 <code>SDA</code> 输出通知平台何时应把线路拉低；平台必须提供上拉、开漏 Pad 和同步后的线路输入。每次 <code>CMD</code> 写入只发起一个操作，软件可显式组合地址、写、重复 START 和读事务。控制器在释放 SCL 时遵守目标时钟拉伸。
 
-| Offset | Register | Access | Meaning |
+它刻意没有 FIFO、DMA、仲裁丢失处理、总线恢复序列或自动超时；如果目标永久占用总线，产品应用应通过看门狗或外层超时策略处理。
+
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `DATA` | RW | Write the next TX byte; read the completed RX byte. |
-| `0x04` | `STATUS` | RW1C | Bit 0 `BUSY`; bit 1 `DONE` (W1C); bit 2 `ACK_ERROR` (W1C, target NACK after `WRITE`); bit 3 `COMMAND_ERROR` (W1C); bit 4 `BUS_ACTIVE` (RO). |
-| `0x08` | `CLKDIV` | RW | Bits `15:0`: SCL low/high phase in system clocks minus one; reset `134` produces approximately 100 kHz at 27 MHz without stretching. |
-| `0x0C` | `CTRL` | RW | Bit 0 `ENABLE`; bit 1 `DONE_IRQ_ENABLE`. Disabling releases both lines and abandons an active transaction. |
-| `0x10` | `CMD` | WO | Write exactly one of bit 0 `START`, 1 `STOP`, 2 `WRITE`, 3 `READ_ACK`, 4 `READ_NACK`. `WRITE`/`READ_*`/`STOP` require a preceding START; a second `START` is a repeated START. |
+| <code>0x00</code> | <code>DATA</code> | RW | 写入下一个 TX 字节；读取完成的 RX 字节。 |
+| <code>0x04</code> | <code>STATUS</code> | RW1C | 位 0 <code>BUSY</code>；位 1 <code>DONE</code>（W1C）；位 2 <code>ACK_ERROR</code>（W1C，<code>WRITE</code> 后目标 NACK）；位 3 <code>COMMAND_ERROR</code>（W1C）；位 4 <code>BUS_ACTIVE</code>（RO）。 |
+| <code>0x08</code> | <code>CLKDIV</code> | RW | 位 <code>15:0</code>：SCL 高/低相位的系统时钟数减 1；复位值 <code>134</code>，27 MHz 且无拉伸时约为 100 kHz。 |
+| <code>0x0C</code> | <code>CTRL</code> | RW | 位 0 <code>ENABLE</code>；位 1 <code>DONE_IRQ_ENABLE</code>。禁用会释放两根线并放弃活动事务。 |
+| <code>0x10</code> | <code>CMD</code> | WO | 只能写位 0 <code>START</code>、1 <code>STOP</code>、2 <code>WRITE</code>、3 <code>READ_ACK</code>、4 <code>READ_NACK</code> 之一。<code>WRITE</code>/<code>READ_*</code>/<code>STOP</code> 需要此前的 START；第二次 START 是重复 START。 |
 
-`DONE` is set when a command reaches a terminal result, including an immediate
-rejected command. `COMMAND_ERROR` is set for an invalid or out-of-sequence
-command; `ACK_ERROR` is set when the target leaves SDA high on a byte-write ACK
-clock. While `BUS_ACTIVE` is one the controller holds SCL low between commands,
-so software cannot accidentally generate a STOP while it is preparing the next
-byte.
+命令达到终止结果时会置 <code>DONE</code>，包括立即被拒绝的命令。非法或越序命令置 <code>COMMAND_ERROR</code>；字节写 ACK 时目标保持 SDA 高会置 <code>ACK_ERROR</code>。<code>BUS_ACTIVE</code> 为 1 时，控制器在命令之间保持 SCL 低，避免软件准备下一字节时意外产生 STOP。
 
-## WDT0 — `0x4000_5000`
+## WDT0 — <code>0x4000_5000</code>
 
-The watchdog runs from the SoC clock. On expiry it latches `EXPIRED`, can assert
-an IRQ, and can emit a one-cycle reset request to the platform reset sequencer.
-The Tang bring-up wrapper stretches that request into a normal MCU reset;
-software should feed with the documented magic value, not by writing the count.
+看门狗以 SoC 时钟运行。到期时锁存 <code>EXPIRED</code>，可产生 IRQ，也可向平台复位序列器发出一个周期的复位请求。Tang bring-up 封装会把该请求拉伸为标准 MCU 复位；软件应写入已文档化的魔数喂狗，而不是写计数器。
 
-| Offset | Register | Access | Meaning |
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `CTRL` | RW | Bit 0 `ENABLE`, bit 1 `RESET_ENABLE`, bit 2 `IRQ_ENABLE`. |
-| `0x04` | `TIMEOUT` | RW | Expire when the running count reaches this value. |
-| `0x08` | `FEED` | WO | Write `0x51F15EED` to restart the count. |
-| `0x0C` | `STATUS` | RW1C | Bit 0 `EXPIRED`; bit 1 is an active `RESET_REQUEST` pulse. |
+| <code>0x00</code> | <code>CTRL</code> | RW | 位 0 <code>ENABLE</code>，位 1 <code>RESET_ENABLE</code>，位 2 <code>IRQ_ENABLE</code>。 |
+| <code>0x04</code> | <code>TIMEOUT</code> | RW | 运行计数到达此值时到期。 |
+| <code>0x08</code> | <code>FEED</code> | WO | 写入 <code>0x51F15EED</code> 重新开始计数。 |
+| <code>0x0C</code> | <code>STATUS</code> | RW1C | 位 0 <code>EXPIRED</code>；位 1 是有效的 <code>RESET_REQUEST</code> 脉冲。 |
 
-## PWM0 — `0x4000_6000`
+## PWM0 — <code>0x4000_6000</code>
 
-PWM0 is one edge-aligned output. It is high while `COUNT < DUTY`; `PERIOD` is
-an inclusive top value, so the full cycle contains `PERIOD + 1` counter ticks.
-The Tang Nano 9K wrapper binds it to a reviewed package pad; other platforms
-must make their own explicit pad binding.
+PWM0 提供一路边沿对齐输出。<code>COUNT &lt; DUTY</code> 时输出高电平；<code>PERIOD</code> 是包含式顶值，所以一个完整周期包含 <code>PERIOD + 1</code> 个计数 tick。Tang Nano 9K 封装将其绑定到一个已审阅的封装 Pad；其他平台必须显式完成自己的 Pad 绑定。
 
-| Offset | Register | Access | Meaning |
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `CTRL` | RW | Bit 0 `ENABLE`; bit 1 `INVERT`. |
-| `0x04` | `PRESCALE` | RW | Bits `15:0`: system clocks per PWM tick minus one. |
-| `0x08` | `PERIOD` | RW | Inclusive counter top. |
-| `0x0C` | `DUTY` | RW | Active-high count limit. |
-| `0x10` | `COUNT` | RO | Current PWM counter. |
+| <code>0x00</code> | <code>CTRL</code> | RW | 位 0 <code>ENABLE</code>；位 1 <code>INVERT</code>。 |
+| <code>0x04</code> | <code>PRESCALE</code> | RW | 位 <code>15:0</code>：每个 PWM tick 的系统时钟数减 1。 |
+| <code>0x08</code> | <code>PERIOD</code> | RW | 包含式计数顶值。 |
+| <code>0x0C</code> | <code>DUTY</code> | RW | 高电平计数上限。 |
+| <code>0x10</code> | <code>COUNT</code> | RO | 当前 PWM 计数器。 |
 
-## IRQCTRL — `0x4000_7000`
+## IRQCTRL — <code>0x4000_7000</code>
 
-IRQCTRL converts the portable peripheral event lines into six stable CPU bit
-positions, captures short events while software is masked, and provides the
-software delivery policy. It is not a standard RISC-V PLIC. The C handler,
-fixed vector and custom CPU-mask interface are documented in
-[`interrupts.md`](interrupts.md).
+IRQCTRL 将可移植外设事件线转换为六个稳定 CPU 位位置，在软件屏蔽时仍捕获短事件，并提供软件投递策略。它不是标准 RISC-V PLIC。C 处理器、固定向量和自定义 CPU 掩码接口见 <a href="interrupts.md">中断约定</a>。
 
-| Offset | Register | Access | Meaning |
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `PENDING` | RO | Sticky/current source mask in CPU IRQ positions. |
-| `0x04` | `ENABLE` | RW | Per-source delivery enable mask in CPU IRQ positions. |
-| `0x08` | `CLEAR` | WO | Write-one-to-clear sticky and forced source bits. A current source wins a coincident clear. |
-| `0x0C` | `FORCE` | WO | Write-one-to-set a software-pending source bit. |
-| `0x10` | `ACTIVE` | RO | `PENDING & ENABLE`, delivered to the CPU. |
-| `0x14` | `HIGHEST` | RO | Lowest numbered active CPU IRQ bit; zero if no source is active. |
+| <code>0x00</code> | <code>PENDING</code> | RO | 处于 CPU IRQ 位位置的锁存/当前源掩码。 |
+| <code>0x04</code> | <code>ENABLE</code> | RW | 处于 CPU IRQ 位位置的逐源投递使能掩码。 |
+| <code>0x08</code> | <code>CLEAR</code> | WO | 写 1 清除锁存和软件强制源位；若当前源与清除同时发生，当前源优先。 |
+| <code>0x0C</code> | <code>FORCE</code> | WO | 写 1 置位一个软件待处理中断源。 |
+| <code>0x10</code> | <code>ACTIVE</code> | RO | <code>PENDING &amp; ENABLE</code>，会投递到 CPU。 |
+| <code>0x14</code> | <code>HIGHEST</code> | RO | 编号最小的活动 CPU IRQ 位；无活动源时为零。 |
 
-| CPU bit | SDK constant | Source |
+| CPU 位 | SDK 常量 | 来源 |
 | --- | --- | --- |
-| 8 | `OMCU_IRQ_GPIO0` | GPIO0 edge-status event |
-| 9 | `OMCU_IRQ_UART0` | UART0 RX valid |
-| 10 | `OMCU_IRQ_TIMER0` | TIMER0 pending |
-| 11 | `OMCU_IRQ_SPI0` | SPI0 done |
-| 12 | `OMCU_IRQ_I2C0` | I2C0 terminal command result |
-| 13 | `OMCU_IRQ_WDT0` | WDT0 expiry |
+| 8 | <code>OMCU_IRQ_GPIO0</code> | GPIO0 边沿状态事件 |
+| 9 | <code>OMCU_IRQ_UART0</code> | UART0 RX 有效 |
+| 10 | <code>OMCU_IRQ_TIMER0</code> | TIMER0 待处理 |
+| 11 | <code>OMCU_IRQ_SPI0</code> | SPI0 完成 |
+| 12 | <code>OMCU_IRQ_I2C0</code> | I2C0 终止命令结果 |
+| 13 | <code>OMCU_IRQ_WDT0</code> | WDT0 到期 |
 
-`PENDING` and `ENABLE` use CPU-bit positions, not compact source indices.
-`OMCU_IRQ_EXTERNAL_MASK` is `0x0000_3F00`. Software must clear the originating
-peripheral condition before writing the matching bit to `CLEAR`, otherwise a
-live level-style source is intentionally captured again.
+<code>PENDING</code> 与 <code>ENABLE</code> 使用 CPU 位位置而不是紧凑源索引。<code>OMCU_IRQ_EXTERNAL_MASK</code> 为 <code>0x0000_3F00</code>。软件必须先清除外设的起始条件，再向 <code>CLEAR</code> 写入对应位，否则仍有效的电平式源会按设计再次被捕获。
 
-## SYSCTRL — `0x4000_F000`
+## SYSCTRL — <code>0x4000_F000</code>
 
-| Offset | Register | Access | Meaning |
+| 偏移 | 寄存器 | 访问 | 含义 |
 | --- | --- | --- | --- |
-| `0x00` | `CHIP_ID` | RO | `0x4F4D4355` (`OMCU`) |
-| `0x04` | `ABI` | RO | ABI major in bits `31:16`, minor in bits `15:0` (`0.5`) |
-| `0x08` | `FEATURES` | RO | Bits 0..7: GPIO0/UART0/TIMER0/SPI0/I2C0/WDT0/PWM0/IRQCTRL; bit 14: User Flash |
-| `0x0C` | `BUILD_ID` | RO | Platform build identifier |
-| `0x10` | `MEMORY_KIB` | RO | SRAM KiB in bits `31:16`, ROM KiB in bits `15:0` |
+| <code>0x00</code> | <code>CHIP_ID</code> | RO | <code>0x4F4D4355</code>（<code>OMCU</code>） |
+| <code>0x04</code> | <code>ABI</code> | RO | 位 <code>31:16</code> 为 ABI 主版本，位 <code>15:0</code> 为次版本（<code>0.5</code>） |
+| <code>0x08</code> | <code>FEATURES</code> | RO | 位 0..7：GPIO0/UART0/TIMER0/SPI0/I2C0/WDT0/PWM0/IRQCTRL；位 14：User Flash |
+| <code>0x0C</code> | <code>BUILD_ID</code> | RO | 平台构建标识 |
+| <code>0x10</code> | <code>MEMORY_KIB</code> | RO | 位 <code>31:16</code> 为 SRAM KiB，位 <code>15:0</code> 为 ROM KiB |
 
-Applications should check `CHIP_ID`, ABI major and required feature bits before
-using optional hardware. `omcu_hw_abi_is_compatible()` provides the first C
-helper for that check.
+应用在使用可选硬件前，应检查 <code>CHIP_ID</code>、ABI 主版本和所需特性位。<code>omcu_hw_abi_is_compatible()</code> 提供了完成该检查的首个 C 辅助函数。
