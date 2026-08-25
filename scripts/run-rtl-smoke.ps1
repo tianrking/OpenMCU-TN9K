@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('timer', 'timer1', 'timer1-fabric', 'gpio', 'uart', 'uart1', 'spi', 'i2c', 'wdt', 'pwm', 'pwm1', 'pwm1-fabric', 'irqctrl', 'sysctrl', 'pinmux', 'user-flash', 'pcpi-div', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', 'tn9k-pwm1', 'tn9k-timer1', 'tn9k-boot-request', 'tn9k', 'mcu-top')]
+    [ValidateSet('timer', 'timer1', 'timer1-fabric', 'alarm', 'pulse', 'alarm-pulse-fabric', 'gpio', 'uart', 'uart1', 'spi', 'i2c', 'wdt', 'pwm', 'pwm1', 'pwm1-fabric', 'irqctrl', 'sysctrl', 'pinmux', 'user-flash', 'pcpi-div', 'system', 'system-uart', 'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt', 'tn9k-peripherals', 'tn9k-pwm1', 'tn9k-timer1', 'tn9k-boot-request', 'tn9k', 'mcu-top')]
     [string]$Test = 'timer'
 )
 
@@ -153,6 +153,56 @@ switch ($Test) {
         & $vvpPath $output
         if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
     }
+    'alarm' {
+        $output = Join-Path $buildDir 'omcu_alarm_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_alarm_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_alarm_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
+    'pulse' {
+        $output = Join-Path $buildDir 'omcu_pulse_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_pulse_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_pulse_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
+    'alarm-pulse-fabric' {
+        $output = Join-Path $buildDir 'omcu_alarm_pulse_fabric_tb.vvp'
+        $sources = @(
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_pkg.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_gpio.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pwm1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_irq_ctrl.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pinmux.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_sysctrl.sv'),
+            (Join-Path $projectRoot 'rtl\bus\omcu_mmio_fabric.sv'),
+            (Join-Path $projectRoot 'tests\rtl\omcu_alarm_pulse_fabric_tb.sv')
+        )
+        & $iverilogPath -g2012 -s omcu_alarm_pulse_fabric_tb -o $output @sources
+        if ($LASTEXITCODE -ne 0) { throw "iverilog failed with exit code $LASTEXITCODE" }
+        & $vvpPath $output
+        if ($LASTEXITCODE -ne 0) { throw "vvp failed with exit code $LASTEXITCODE" }
+    }
     'timer1-fabric' {
         $output = Join-Path $buildDir 'omcu_timer1_fabric_tb.vvp'
         $sources = @(
@@ -161,6 +211,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -197,6 +249,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -221,6 +275,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -280,6 +336,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -312,6 +370,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -348,6 +408,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -384,6 +446,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -420,6 +484,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -456,6 +522,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -492,6 +560,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -529,6 +599,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -566,6 +638,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -603,6 +677,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -640,6 +716,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -673,6 +751,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),
@@ -708,6 +788,8 @@ switch ($Test) {
             (Join-Path $projectRoot 'rtl\peripherals\omcu_uart.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_timer1.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_alarm.sv'),
+            (Join-Path $projectRoot 'rtl\peripherals\omcu_pulse.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_spi.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_i2c.sv'),
             (Join-Path $projectRoot 'rtl\peripherals\omcu_wdt.sv'),

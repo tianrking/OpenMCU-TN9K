@@ -80,6 +80,7 @@ module omcu_tn9k_bringup_top #(
   logic       pinmux_uart1_enable;
   logic       pinmux_pwm1_enable;
   logic       pinmux_timer1_enable;
+  logic       pinmux_pulse0_enable;
   logic [11:0] gpio_pad_out;
   logic [11:0] gpio_pad_oe;
 
@@ -123,6 +124,8 @@ module omcu_tn9k_bringup_top #(
     .UART1_PRESENT(1),
     .PWM1_PRESENT(1),
     .TIMER1_PRESENT(1),
+    .ALARM0_PRESENT(1),
+    .PULSE0_PRESENT(1),
     .PINMUX_PRESENT(1),
     .DIAGNOSTICS_PRESENT(1),
     .ROM_WORDS(ROM_WORDS),
@@ -154,6 +157,9 @@ module omcu_tn9k_bringup_top #(
     .timer1_capture_a_i(gpio_io[8]),
     .timer1_capture_b_i(gpio_io[9]),
     .timer1_irq_o(),
+    .pulse0_i(gpio_io[2:0]),
+    .alarm_irq_o(),
+    .pulse0_irq_o(),
     .spi_miso_i(spi0_miso_i),
     .spi_mosi_o(spi0_mosi_o),
     .spi_sck_o(spi0_sck_o),
@@ -171,6 +177,7 @@ module omcu_tn9k_bringup_top #(
     .pinmux_uart1_enable_o(pinmux_uart1_enable),
     .pinmux_pwm1_enable_o(pinmux_pwm1_enable),
     .pinmux_timer1_enable_o(pinmux_timer1_enable),
+    .pinmux_pulse0_enable_o(pinmux_pulse0_enable),
     .cpu_trap_o(cpu_trap),
     .bus_error_o(bus_error)
   );
@@ -211,6 +218,14 @@ module omcu_tn9k_bringup_top #(
       // drivers before an external encoder or industrial input can drive it.
       gpio_pad_oe[8] = 1'b0;
       gpio_pad_oe[9] = 1'b0;
+    end
+    if (pinmux_pulse0_enable) begin
+      // PULSE0 channel 0..2 owns GPIO0..2 / J5.8..10 as input-only paths.
+      // Releasing every FPGA driver is mandatory before an external Hall,
+      // flow or pulse sensor can safely drive the reviewed pad.
+      gpio_pad_oe[0] = 1'b0;
+      gpio_pad_oe[1] = 1'b0;
+      gpio_pad_oe[2] = 1'b0;
     end
   end
 

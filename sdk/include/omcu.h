@@ -363,6 +363,23 @@ static inline bool omcu_pinmux_timer1_enable(bool enable) {
   return true;
 }
 
+/* Claim or release the reviewed PULSE0 low-rate input triplet. */
+static inline bool omcu_pinmux_pulse0_enable(bool enable) {
+  uint32_t ctrl;
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_PULSE0 | OMCU_FEATURE_PINMUX)) {
+    return false;
+  }
+  ctrl = OMCU_PINMUX->ctrl;
+  if (enable) {
+    ctrl |= OMCU_PINMUX_CTRL_PULSE0_ENABLE;
+  } else {
+    ctrl &= ~OMCU_PINMUX_CTRL_PULSE0_ENABLE;
+  }
+  OMCU_PINMUX->ctrl = ctrl;
+  return true;
+}
+
 static inline void omcu_timer_start_periodic(
   uint16_t prescale,
   uint32_t compare
@@ -375,6 +392,113 @@ static inline void omcu_timer_start_periodic(
   OMCU_TIMER0->ctrl = OMCU_TIMER_CTRL_ENABLE |
                       OMCU_TIMER_CTRL_IRQ_ENABLE |
                       OMCU_TIMER_CTRL_AUTO_RELOAD;
+}
+
+/*
+ * ALARM0 is a shared 32-bit timebase with four independent absolute compare
+ * channels. Start it once, then arm each channel against its own deadline.
+ * A periodic channel advances its compare value by period rather than resetting
+ * the shared counter, so the other channels retain their phase.
+ */
+static inline bool omcu_alarm0_start(uint16_t prescale) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_ALARM0)) {
+    return false;
+  }
+  OMCU_ALARM0->ctrl = 0u;
+  OMCU_ALARM0->prescale = prescale;
+  OMCU_ALARM0->count = 0u;
+  OMCU_ALARM0->pending = OMCU_ALARM_CHANNEL_MASK;
+  OMCU_ALARM0->ctrl = OMCU_ALARM_CTRL_ENABLE;
+  return true;
+}
+
+static inline bool omcu_alarm0_schedule(
+  uint8_t channel,
+  uint32_t absolute_compare,
+  uint32_t period,
+  bool periodic,
+  bool enable_irq
+) {
+  uint32_t bit;
+  volatile uint32_t *compare;
+  volatile uint32_t *period_register;
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_ALARM0) ||
+      channel >= OMCU_ALARM_CHANNEL_COUNT || (periodic && period == 0u)) {
+    return false;
+  }
+  bit = UINT32_C(1) << channel;
+  compare = &OMCU_ALARM0->compare0;
+  period_register = &OMCU_ALARM0->period0;
+  OMCU_ALARM0->channel_enable &= ~bit;
+  OMCU_ALARM0->pending = bit;
+  compare[channel] = absolute_compare;
+  period_register[channel] = period;
+  if (periodic) {
+    OMCU_ALARM0->periodic |= bit;
+  } else {
+    OMCU_ALARM0->periodic &= ~bit;
+  }
+  if (enable_irq) {
+    OMCU_ALARM0->irq_enable |= bit;
+  } else {
+    OMCU_ALARM0->irq_enable &= ~bit;
+  }
+  OMCU_ALARM0->channel_enable |= bit;
+  return true;
+}
+
+static inline void omcu_alarm0_clear_pending(uint32_t channel_mask) {
+  OMCU_ALARM0->pending = channel_mask & OMCU_ALARM_CHANNEL_MASK;
+}
+
+/*
+ * PULSE0 reports a wrapping edge count and, after its second selected edge,
+ * a period in SYSCTRL run-tick units. Each input is synchronized and filtered;
+ * FILTER=N requires N+1 mismatched synchronized samples before a transition.
+ */
+static inline bool omcu_pulse0_configure(
+  uint8_t channel_enable,
+  uint8_t falling_mask,
+  uint8_t filter,
+  bool enable_irq
+) {
+  uint32_t channels = (uint32_t)channel_enable & OMCU_PULSE_CHANNEL_MASK;
+
+  if (!omcu_hw_has_feature(OMCU_FEATURE_PULSE0)) {
+    return false;
+  }
+  OMCU_PULSE0->ctrl = 0u;
+  OMCU_PULSE0->filter = (uint32_t)filter;
+  OMCU_PULSE0->falling = (uint32_t)falling_mask & OMCU_PULSE_CHANNEL_MASK;
+  OMCU_PULSE0->clear = channels;
+  OMCU_PULSE0->channel_enable = channels;
+  OMCU_PULSE0->status = OMCU_PULSE_STATUS_PENDING_MASK;
+  OMCU_PULSE0->ctrl = OMCU_PULSE_CTRL_ENABLE |
+                      (enable_irq ? OMCU_PULSE_CTRL_IRQ_ENABLE : 0u);
+  return true;
+}
+
+static inline void omcu_pulse0_clear(uint8_t channel_mask) {
+  OMCU_PULSE0->clear = (uint32_t)channel_mask & OMCU_PULSE_CHANNEL_MASK;
+}
+
+static inline uint32_t omcu_pulse0_count(uint8_t channel) {
+  volatile const uint32_t *count = &OMCU_PULSE0->count0;
+
+  return (channel < OMCU_PULSE_CHANNEL_COUNT) ? count[channel] : 0u;
+}
+
+static inline uint32_t omcu_pulse0_period_ticks(uint8_t channel) {
+  volatile const uint32_t *period = &OMCU_PULSE0->period0;
+
+  return (channel < OMCU_PULSE_CHANNEL_COUNT) ? period[channel] : 0u;
+}
+
+static inline bool omcu_pulse0_period_valid(uint8_t channel) {
+  return channel < OMCU_PULSE_CHANNEL_COUNT &&
+         (OMCU_PULSE0->status &
+          (UINT32_C(1) << (OMCU_PULSE_STATUS_VALID_SHIFT + channel))) != 0u;
 }
 
 /*

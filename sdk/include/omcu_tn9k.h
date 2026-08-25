@@ -114,6 +114,29 @@ static inline bool omcu_tn9k_timer1_release_pins(void) {
 }
 
 /*
+ * PULSE0 channel 0..2 maps to GPIO0..2 / J5.8..10. The route is input-only:
+ * its pinmux claim releases all three FPGA output drivers before an external
+ * Hall, flow or low-rate pulse sensor is connected. It is not a high-speed
+ * asynchronous counter or an electrical input-protection circuit.
+ */
+static inline bool omcu_tn9k_pulse0_configure(
+  uint8_t channel_enable,
+  uint8_t falling_mask,
+  uint8_t filter,
+  bool enable_irq
+) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_PULSE0 | OMCU_FEATURE_PINMUX) ||
+      !omcu_pulse0_configure(channel_enable, falling_mask, filter, enable_irq)) {
+    return false;
+  }
+  return omcu_pinmux_pulse0_enable(true);
+}
+
+static inline bool omcu_tn9k_pulse0_release_pins(void) {
+  return omcu_pinmux_pulse0_enable(false);
+}
+
+/*
  * Request the product MCU's UART0 Bootloader without rebuilding the FPGA
  * configuration.  This is unavailable on a bring-up-only bitstream: it needs
  * both the retained diagnostics/reset sequencer and the User Flash product

@@ -133,6 +133,21 @@ module omcu_tn9k_bringup_top_tb;
     release dut.system.mmio.gpio0.gpio_out_q[15:14];
     release dut.system.mmio.gpio0.gpio_oe_q[15:14];
 
+    // PULSE0 is a reviewed three-input function on GPIO0..2 / J5.8..10. Its
+    // pinmux claim is input-only and must win even if generic GPIO OE is stale.
+    force dut.system.mmio.gpio0.gpio_oe_q[8:6] = 3'b111;
+    force dut.system.mmio.gpio0.gpio_out_q[8:6] = 3'b000;
+    force dut.system.mmio.pinmux.pulse0_enable_q = 1'b1;
+    #1 check(gpio[2:0] == 3'b111,
+             "PULSE0 pinmux must release J5.8..10 despite generic GPIO output-enable");
+    force gpio[0] = 1'b0;
+    #1 check(dut.system.pulse0_i[0] == 1'b0,
+             "released PULSE0 channel 0 pad must reach the system input synchronizer");
+    release gpio[0];
+    release dut.system.mmio.pinmux.pulse0_enable_q;
+    release dut.system.mmio.gpio0.gpio_out_q[8:6];
+    release dut.system.mmio.gpio0.gpio_oe_q[8:6];
+
     $display("PASS: omcu_tn9k_bringup_top_tb");
     $finish;
   end

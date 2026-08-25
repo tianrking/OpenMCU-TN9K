@@ -24,6 +24,8 @@
 #define OMCU_TIMER1_BASE         UINT32_C(0x40009000)
 #define OMCU_PWM1_BASE           UINT32_C(0x4000A000)
 #define OMCU_PINMUX_BASE         UINT32_C(0x4000B000)
+#define OMCU_ALARM0_BASE         UINT32_C(0x4000C000)
+#define OMCU_PULSE0_BASE         UINT32_C(0x4000D000)
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
@@ -150,6 +152,42 @@ typedef struct {
 } omcu_pinmux_regs_t;
 
 typedef struct {
+  volatile uint32_t ctrl; /* +0x00: shared counter enable */
+  volatile uint32_t prescale; /* +0x04: low 16 bits: shared clocks per count minus one */
+  volatile uint32_t count; /* +0x08: shared wrapping 32-bit timebase */
+  volatile uint32_t channel_enable; /* +0x0c: bits 0..3 arm independent compare channels */
+  volatile uint32_t irq_enable; /* +0x10: bits 0..3 select pending channels that assert ALARM0 IRQ */
+  volatile uint32_t periodic; /* +0x14: bits 0..3 advance compare by PERIODn after an event */
+  volatile uint32_t pending; /* +0x18: bits 0..3 compare pending, write-one-to-clear */
+  volatile uint32_t compare0; /* +0x1c: absolute shared-count deadline for channel 0 */
+  volatile uint32_t compare1; /* +0x20: absolute shared-count deadline for channel 1 */
+  volatile uint32_t compare2; /* +0x24: absolute shared-count deadline for channel 2 */
+  volatile uint32_t compare3; /* +0x28: absolute shared-count deadline for channel 3 */
+  volatile uint32_t period0; /* +0x2c: periodic compare increment for channel 0; zero is one-shot-safe */
+  volatile uint32_t period1; /* +0x30: periodic compare increment for channel 1; zero is one-shot-safe */
+  volatile uint32_t period2; /* +0x34: periodic compare increment for channel 2; zero is one-shot-safe */
+  volatile uint32_t period3; /* +0x38: periodic compare increment for channel 3; zero is one-shot-safe */
+} omcu_alarm_regs_t;
+
+typedef struct {
+  volatile uint32_t ctrl; /* +0x00: capture engine enable and aggregate IRQ enable */
+  volatile uint32_t channel_enable; /* +0x04: bits 0..2 enable reviewed pulse inputs */
+  volatile uint32_t falling; /* +0x08: bits 0..2 select falling instead of rising edge */
+  volatile uint32_t filter; /* +0x0c: low 8 bits: consecutive mismatched synchronized samples required minus zero */
+  volatile uint32_t status; /* +0x10: pending W1C bits 0..2, filtered inputs bits 8..10, period-valid bits 16..18 */
+  volatile uint32_t clear; /* +0x14: write-one-to-clear a channel count, period, last tick, valid and pending epoch */
+  volatile const uint32_t count0; /* +0x18: wrapping selected-edge count for channel 0 */
+  volatile const uint32_t count1; /* +0x1c: wrapping selected-edge count for channel 1 */
+  volatile const uint32_t count2; /* +0x20: wrapping selected-edge count for channel 2 */
+  volatile const uint32_t period0; /* +0x24: run-tick distance between most recent two channel 0 edges */
+  volatile const uint32_t period1; /* +0x28: run-tick distance between most recent two channel 1 edges */
+  volatile const uint32_t period2; /* +0x2c: run-tick distance between most recent two channel 2 edges */
+  volatile const uint32_t last_tick0; /* +0x30: run-tick timestamp of most recent channel 0 edge */
+  volatile const uint32_t last_tick1; /* +0x34: run-tick timestamp of most recent channel 1 edge */
+  volatile const uint32_t last_tick2; /* +0x38: run-tick timestamp of most recent channel 2 edge */
+} omcu_pulse_regs_t;
+
+typedef struct {
   volatile const uint32_t chip_id; /* +0x00: OpenMCU chip identifier */
   volatile const uint32_t abi; /* +0x04: major in bits 31:16, minor in bits 15:0 */
   volatile const uint32_t features; /* +0x08: implemented peripheral feature bits */
@@ -174,6 +212,8 @@ typedef struct {
 #define OMCU_PWM1                ((omcu_pwm1_regs_t *)(uintptr_t)OMCU_PWM1_BASE)
 #define OMCU_TIMER1              ((omcu_timer1_regs_t *)(uintptr_t)OMCU_TIMER1_BASE)
 #define OMCU_PINMUX              ((omcu_pinmux_regs_t *)(uintptr_t)OMCU_PINMUX_BASE)
+#define OMCU_ALARM0              ((omcu_alarm_regs_t *)(uintptr_t)OMCU_ALARM0_BASE)
+#define OMCU_PULSE0              ((omcu_pulse_regs_t *)(uintptr_t)OMCU_PULSE0_BASE)
 #define OMCU_SYSCTRL             ((omcu_sysctrl_regs_t *)(uintptr_t)OMCU_SYSCTRL_BASE)
 
 enum {
@@ -193,6 +233,8 @@ enum {
   OMCU_FEATURE_GPIO_EXPANSION      = 1u << 13,
   OMCU_FEATURE_USER_FLASH          = 1u << 14,
   OMCU_FEATURE_GPIO_RELIABILITY    = 1u << 15,
+  OMCU_FEATURE_ALARM0              = 1u << 16,
+  OMCU_FEATURE_PULSE0              = 1u << 17,
   OMCU_RESET_CAUSE_EXTERNAL        = 1u << 0,
   OMCU_RESET_CAUSE_WATCHDOG        = 1u << 1,
   OMCU_RESET_CAUSE_SOFTWARE        = 1u << 2,
@@ -208,10 +250,13 @@ enum {
   OMCU_IRQ_WDT0                    = 1u << 13,
   OMCU_IRQ_UART1                   = 1u << 14,
   OMCU_IRQ_TIMER1                  = 1u << 15,
-  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x0000FF00),
+  OMCU_IRQ_ALARM0                  = 1u << 16,
+  OMCU_IRQ_PULSE0                  = 1u << 17,
+  OMCU_IRQ_EXTERNAL_MASK           = UINT32_C(0x0003FF00),
   OMCU_PINMUX_CTRL_UART1_ENABLE    = 1u << 0,
   OMCU_PINMUX_CTRL_PWM1_ENABLE     = 1u << 1,
   OMCU_PINMUX_CTRL_TIMER1_ENABLE   = 1u << 2,
+  OMCU_PINMUX_CTRL_PULSE0_ENABLE   = 1u << 3,
   OMCU_GPIO_FILTER_CYCLES_MASK     = UINT32_C(0x000000FF),
   OMCU_GPIO_SNAPSHOT_CTRL_ENABLE   = 1u << 0,
   OMCU_GPIO_SNAPSHOT_CTRL_IRQ_ENABLE = 1u << 1,
@@ -222,6 +267,16 @@ enum {
   OMCU_TIMER_CTRL_IRQ_ENABLE       = 1u << 1,
   OMCU_TIMER_CTRL_AUTO_RELOAD      = 1u << 2,
   OMCU_TIMER_STATUS_PENDING        = 1u << 0,
+  OMCU_ALARM_CHANNEL_COUNT         = 4u,
+  OMCU_ALARM_CHANNEL_MASK          = UINT32_C(0x0000000F),
+  OMCU_ALARM_CTRL_ENABLE           = 1u << 0,
+  OMCU_PULSE_CHANNEL_COUNT         = 3u,
+  OMCU_PULSE_CHANNEL_MASK          = UINT32_C(0x00000007),
+  OMCU_PULSE_CTRL_ENABLE           = 1u << 0,
+  OMCU_PULSE_CTRL_IRQ_ENABLE       = 1u << 1,
+  OMCU_PULSE_STATUS_PENDING_MASK   = UINT32_C(0x00000007),
+  OMCU_PULSE_STATUS_INPUT_SHIFT    = 8u,
+  OMCU_PULSE_STATUS_VALID_SHIFT    = 16u,
   OMCU_SPI_CTRL_ENABLE             = 1u << 0,
   OMCU_SPI_CTRL_IRQ_ENABLE         = 1u << 1,
   OMCU_SPI_CTRL_CS_HOLD            = 1u << 2,
