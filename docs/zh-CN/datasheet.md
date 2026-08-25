@@ -1,9 +1,9 @@
 # OpenMCU-TN9K 工程数据手册
 
-> 文档编号：OMCU-TN9K-DS-ZH  
-> 版本：ABI <code>0x00000005</code>（主版本 0、次版本 5）  
-> 目标：Tang Nano 9K，<code>GW1NR-LV9QN88PC6/I5</code> / <code>GW1N-9C</code>  
-> 文档状态：工程规格，预硬件在环（pre-HIL）  
+> 文档编号：OMCU-TN9K-DS-ZH<br>
+> 版本：ABI <code>0x00000005</code>（主版本 0、次版本 5）<br>
+> 目标：Tang Nano 9K，<code>GW1NR-LV9QN88PC6/I5</code> / <code>GW1N-9C</code><br>
+> 文档状态：工程规格，预硬件在环（pre-HIL）<br>
 > 更新日期：2026-08-25
 
 本文件是 OpenMCU-TN9K 的中文规格入口。寄存器数值的事实来源是
