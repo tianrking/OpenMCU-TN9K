@@ -311,7 +311,7 @@ pending 并持续保持 UART0 更新会话，直到主机完成常规 `BOOT` 命
    omcu_add_application(omcu_<name> examples/<name>/main.c)
    ```
 
-3. 在 Windows 执行 `scripts/build-sdk.ps1`，或在 Linux/macOS 执行 `sh scripts/build-sdk.sh`，检查 `.elf`、`.map`、`.bin`、`.omcu`。
+3. 在 Windows 执行 `scripts/build-sdk.ps1`，或在 Ubuntu/Linux/macOS 执行 `sh scripts/build-sdk.sh`，检查 `.elf`、`.map`、`.bin`、`.omcu`；三种主机的环境安装见[跨平台 FPGA / MCU 开发环境](cross-platform-fpga-development.md)。
 4. 使用 `tools/omcu_image.py validate` 核对 `.omcu`，再通过 `tools/omcu_flash.py` 写入已经固化的产品 FPGA。
 5. 为新外设事务补充 RTL testbench、串口更新回归和实体板清单，再发布。
 

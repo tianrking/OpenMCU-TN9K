@@ -84,7 +84,7 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
 ## B. 客户编译 MCU 应用
 
 客户应用从[《从零开发与烧录 OpenMCU 应用》](mcu-application-development.md)开始。该指南包含
-Windows/Linux 环境、`omcu_mcu_hello`、代码编辑、串口日志和排错；本节只说明固定的镜像合同。
+Windows、Ubuntu/macOS 环境、`omcu_mcu_hello`、代码编辑、串口日志和排错；本节只说明固定的镜像合同。
 
 SDK 的 `omcu_add_application()` 目标使用 `sdk/linker/omcu_application.ld`，自动执行：
 

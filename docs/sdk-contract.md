@@ -27,6 +27,6 @@ ABI 0.9 SDK 包括设备/特性发现、12-bit GPIO 档案（LED0..5 镜像 GPIO
 
 <code>omcu_tn9k.h</code> 公开 27 MHz 板级定义、逻辑 LED/GPIO 掩码和受控的 UART1/PWM1/TIMER1/PULSE0/FAULT0 pinmux helper，不把 FPGA 封装引脚号泄漏给应用。P1 资源边界是 SDK 合同的一部分：PWM1/TIMER1/ALARM0/PULSE0 的相关数据路径为 16-bit，GPIO/PULSE/FAULT/TIMER1 的滤波语义必须按各自文档理解。I2C 辅助函数在硬件未启用、命令顺序非法或目标 NACK 时返回 <code>false</code>；它们不会暗中伪造事务超时，应用须自行选择外层超时策略。硬件特性位图是唯一权威：SDK 不能只因某个基址被保留，就假定可选外设存在。
 
-受检构建入口是 Windows 的 <code>scripts/build-sdk.ps1</code> 和 Linux/macOS 的 <code>scripts/build-sdk.sh</code>。两者均要求显式 GNU 工具链前缀，并驱动同一份 CMake 工具链文件、链接脚本和生成的寄存器头文件。支持主机的 CI 矩阵会在 Windows、Linux 与 macOS 构建所有 SDK 目标；其通过仍不能替代实板测试。
+受检构建入口是 Windows 的 <code>scripts/build-sdk.ps1</code> 和 Ubuntu/Linux/macOS 的 <code>scripts/build-sdk.sh</code>。两者均要求显式 GNU 工具链前缀，并驱动同一份 CMake 工具链文件、链接脚本和生成的寄存器头文件。支持主机的 CI 矩阵会在 Windows、Ubuntu 与 macOS 构建所有 SDK 目标；其通过仍不能替代实板测试。三种主机的完整安装和命令见[《Windows、Ubuntu 与 macOS 的 FPGA / MCU 开发环境》](zh-CN/cross-platform-fpga-development.md)。
 
 SDK 还包含 Tang Nano 9K User Flash A/B 路径的独立应用镜像打包器与 UART 串口下载工具，以及外置 DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 驱动。W5500 是外置 SPI 网络控制器，不是 FPGA MAC/PHY。板卡信息 CLI、标准 QSPI/XIP 路径和符合标准特权 RISC-V 的异常/中断内核仍属未来能力，不应被误认为 ABI 已承诺的属性。

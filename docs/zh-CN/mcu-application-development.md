@@ -39,6 +39,9 @@ Windows 归档地址和 SHA-256 由仓库的
 [工具链锁定文件](../../toolchains/riscv-none-elf-gcc-15.2.0-1.lock.json)固定。安装后必须能找到
 `riscv-none-elf-gcc` 与 `riscv-none-elf-objcopy`。
 
+若还需要构建或固化 FPGA 平台，或希望从零安装 Windows、Ubuntu 和 macOS 的完整锁定工具链，请先读
+[《Windows、Ubuntu 与 macOS 的 FPGA / MCU 开发环境》](cross-platform-fpga-development.md)。本页只保留客户 MCU 应用开发所需步骤。
+
 ### Windows
 
 以下命令以 PowerShell 为例。把 `$toolBin` 改为实际包含两个 `.exe` 文件的目录：
@@ -61,7 +64,7 @@ riscv-none-elf-objcopy --version
 若 CMake 或 Ninja 不在 `PATH`，可向脚本额外传入 `-Cmake <绝对路径>`、`-Ninja <绝对路径>`。
 `-Fresh` 只清理指定 SDK 构建目录，要求 CMake 3.24 或更新版本。
 
-### Linux
+### Ubuntu / Linux
 
 以 Debian/Ubuntu 为例，先安装主机工具，再将同版本 xPack 工具链的 `bin` 加入 `PATH`：
 
@@ -82,6 +85,25 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 串口设备通常为 `/dev/ttyUSB0` 或 `/dev/ttyACM0`。若出现权限错误，Debian/Ubuntu 通常需要执行
 `sudo usermod -aG dialout "$USER"`，然后注销并重新登录；其他发行版的串口用户组名称可能不同。
 
+### macOS
+
+macOS 使用与 Linux 相同的 SDK 构建脚本。先安装 Homebrew、Git、CMake、Ninja、Python、Node.js 和
+`riscv-none-elf-` 工具链；锁定版 xpm 工具链和完整安装命令见[跨平台开发环境](cross-platform-fpga-development.md)。
+
+```sh
+cd ~/OpenMCU-TN9K
+git submodule update --init --recursive
+
+export PATH="/实际/xpack-riscv-none-elf/bin:$PATH"
+riscv-none-elf-gcc --version
+riscv-none-elf-objcopy --version
+
+sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
+```
+
+应用 UART 端口通常形如 `/dev/cu.usbserial-XXXX`。先用 `ls /dev/cu.*` 查到实际端口；不要使用同一设备的
+`/dev/tty.*` 名称替代 `cu.*`，也不要让串口终端与下载器同时占用端口。
+
 ## 3. 先构建并烧录官方 Hello World
 
 仓库自带一个独立 MCU 应用：[`omcu_mcu_hello`](../../sdk/examples/mcu_hello/main.c)。它每隔一段时间在
@@ -99,6 +121,15 @@ python .\tools\omcu_image.py inspect `
 ```
 
 Linux：
+
+```sh
+sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
+
+python3 ./tools/omcu_image.py validate \
+  --image ./build/sdk/omcu_mcu_hello.omcu
+```
+
+macOS：
 
 ```sh
 sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
@@ -136,7 +167,7 @@ ELF 到 BIN 转换及 `.omcu` 的 CRC 封装。应用开发者不应手写镜像
 cmake --build .\build\sdk --target my_product_app --parallel
 ```
 
-或在 Linux 上：
+或在 Ubuntu/Linux/macOS 上：
 
 ```sh
 cmake --build ./build/sdk --target my_product_app --parallel
@@ -165,7 +196,19 @@ python ./tools/omcu_flash.py \
   --image ./build/sdk/my_product_app.omcu
 ```
 
-将 `COM5` 或 `/dev/ttyUSB0` 换为系统实际串口。下载器默认在 8 秒内反复发送 `HELLO`；运行命令后，
+macOS 同样建议放入虚拟环境：
+
+```sh
+mkdir -p ~/.venvs
+python3 -m venv ~/.venvs/openmcu-host
+. ~/.venvs/openmcu-host/bin/activate
+python -m pip install pyserial
+python ./tools/omcu_flash.py \
+  --port /dev/cu.usbserial-XXXX \
+  --image ./build/sdk/my_product_app.omcu
+```
+
+将 `COM5`、`/dev/ttyUSB0` 或 `/dev/cu.usbserial-XXXX` 换为系统实际串口。下载器默认在 8 秒内反复发送 `HELLO`；运行命令后，
 如果板子正在运行应用，按一次外部复位键。它会擦除非当前槽、传输、回读 CRC、原子提交并默认启动新应用。
 
 如果只想写入但暂不启动，增加 `--no-boot`；之后外部复位会按正常规则启动最新已提交镜像。
@@ -178,6 +221,10 @@ python -m serial.tools.miniterm COM5 115200
 
 ```sh
 python -m serial.tools.miniterm /dev/ttyUSB0 115200
+```
+
+```sh
+python -m serial.tools.miniterm /dev/cu.usbserial-XXXX 115200
 ```
 
 打开终端后按复位键，应持续看到 `Hello, OpenMCU-TN9K!`。若没有输出，先确认板级 UART0 连接、

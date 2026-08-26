@@ -13,11 +13,13 @@ C 源码 -> RV32IM ELF -> BIN -> .omcu -> UART0 -> User Flash A/B -> SRAM 执行
 
 请先阅读[《从零开发与烧录 OpenMCU 应用》](../docs/zh-CN/mcu-application-development.md)。它包含：
 
-- Windows 与 Linux 的工具链、环境变量和构建命令；
+- Windows、Ubuntu/Linux 与 macOS 的工具链、环境变量和构建命令；
 - 可直接烧录的 `omcu_mcu_hello` Hello World；
 - 新建产品应用目标的 CMake 写法；
 - `.omcu` 校验、UART0 烧录、串口日志和 A/B 恢复；
 - UART0 电气要求、内存上限与实板 HIL 边界。
+
+若你还负责 FPGA 平台的 RTL、P&R 或配置 Flash 固化，另读[《Windows、Ubuntu 与 macOS 的 FPGA / MCU 开发环境》](../docs/zh-CN/cross-platform-fpga-development.md)。它把 FPGA 平台链和客户 `.omcu` 升级链明确分开，并说明三种主机的下载器、USB 权限与 HIL 边界。
 
 当前构建链经过验证的语言是 C 与启动汇编；C++ 运行库、异常、RTTI 和动态分配不属于已交付 SDK
 能力，应用请按裸机 C 约束设计。
@@ -66,6 +68,13 @@ python .\tools\omcu_image.py validate --image .\build\sdk\my_product_app.omcu
 ```
 
 Linux：
+
+```sh
+sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
+python3 ./tools/omcu_image.py validate --image ./build/sdk/my_product_app.omcu
+```
+
+macOS：
 
 ```sh
 sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
@@ -131,6 +140,7 @@ if (omcu_tn9k_request_bootloader()) {
 ## 继续阅读
 
 - [从零开发与烧录 OpenMCU 应用](../docs/zh-CN/mcu-application-development.md)
+- [Windows、Ubuntu 与 macOS 的 FPGA / MCU 开发环境](../docs/zh-CN/cross-platform-fpga-development.md)
 - [外设与 SDK](../docs/zh-CN/peripherals-and-sdk.md)
 - [硬件与引脚](../docs/zh-CN/hardware-and-pins.md)
 - [中断开发约定](../docs/zh-CN/interrupts.md)

@@ -67,11 +67,16 @@ sequenceDiagram
 从安装工具链、编译 Hello World 到 UART0 烧录、日志和恢复的完整客户流程见
 [从零开发与烧录 OpenMCU 应用](docs/zh-CN/mcu-application-development.md)。
 
+Windows、Ubuntu 与 macOS 的 FPGA 平台链和 MCU 应用链环境安装、构建、下载命令见
+[跨平台 FPGA / MCU 开发环境](docs/zh-CN/cross-platform-fpga-development.md)。
+
 ## 快速开始
 
 ### 1. 首次构建并固化产品 FPGA
 
 > 这一步属于平台交付，不是客户每次写应用时的步骤。
+> 以下是 Windows PowerShell 快速示例；Windows、Ubuntu 与 macOS 的完整可复制环境配置见
+> [跨平台 FPGA / MCU 开发环境](docs/zh-CN/cross-platform-fpga-development.md)。
 
 ```powershell
 git submodule update --init --recursive
@@ -108,7 +113,7 @@ python .\tools\omcu_flash.py --port COM5 `
 
 若业务应用复用了 UART0，应用先结束关键写入并调用 `omcu_tn9k_request_bootloader()`；平台会记录软件原因、复位进入 Bootloader，并保持 UART0 更新会话，无需抢启动窗口。该机制仍需要本板实机 HIL；外部复位始终保留为独立恢复路径。
 
-复制 Hello World 为自己的 C 应用、声明 `omcu_add_application()` 目标、Windows/Linux 环境和排错步骤，
+复制 Hello World 为自己的 C 应用、声明 `omcu_add_application()` 目标、Windows、Ubuntu 与 macOS 环境和排错步骤，
 统一见[客户应用开发指南](docs/zh-CN/mcu-application-development.md)。
 
 ## 产品级应用存储模型
@@ -149,6 +154,7 @@ arm/                         ARM 后端授权边界（不含 ARM IP）
 - [工程数据手册总览（中文）](docs/zh-CN/datasheet.md)
 - [资源与外设扩展路线图（中文）](docs/zh-CN/resource-expansion-roadmap.md)
 - [中文开发总览](docs/zh-CN/README.md)
+- [Windows / Ubuntu / macOS 跨平台 FPGA 与 MCU 开发环境](docs/zh-CN/cross-platform-fpga-development.md)
 - [从零开发与烧录 OpenMCU 应用](docs/zh-CN/mcu-application-development.md)
 - [独立 MCU 固件开发与升级](docs/zh-CN/mcu-firmware-update.md)
 - [构建与烧录](docs/zh-CN/build-and-program.md)

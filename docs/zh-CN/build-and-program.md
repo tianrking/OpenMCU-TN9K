@@ -11,6 +11,8 @@
 
 SDK 使用 GNU bare-metal RISC-V 工具链，推荐 `riscv-none-elf-` 前缀。开放 FPGA 流的锁定版本记录在 [`toolchains/yowasp-gowin.lock.json`](../../toolchains/yowasp-gowin.lock.json)。Windows 建议使用 64 位 Python 3.10 或更新版本安装 YoWASP/Apycula。
 
+Windows、Ubuntu 与 macOS 的完整基础工具、PowerShell 7、YoWASP、xpm 工具链与 openFPGALoader 安装步骤见[《跨平台 FPGA / MCU 开发环境》](cross-platform-fpga-development.md)。本节保留构建合同和 Windows 快速命令。
+
 ```powershell
 git submodule update --init --recursive
 
@@ -25,7 +27,7 @@ python -m venv .venv\yowasp-gowin
   apycula==0.32
 ```
 
-Linux/macOS 使用相同 CMake 工程与链接脚本：
+Ubuntu/macOS 的 SDK 使用相同 CMake 工程与链接脚本：
 
 ```sh
 git submodule update --init --recursive
@@ -93,7 +95,8 @@ $fs = '.\build\tangnano9k-mcu\omcu_tn9k_mcu.fs'
 ## 4. 客户构建并烧录 MCU 应用
 
 客户应用必须通过 `omcu_add_application()` 生成 `.omcu`。从环境安装、Hello World、自己的应用目标到
-串口恢复的完整步骤见[《从零开发与烧录 OpenMCU 应用》](mcu-application-development.md)；构建后的
+串口恢复的完整步骤见[《从零开发与烧录 OpenMCU 应用》](mcu-application-development.md)，三平台的
+FPGA / MCU 环境和端口差异见[《跨平台 FPGA / MCU 开发环境》](cross-platform-fpga-development.md)；构建后的
 日常升级不再调用 FPGA 构建工具：
 
 ```powershell
