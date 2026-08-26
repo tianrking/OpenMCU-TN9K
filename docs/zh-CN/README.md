@@ -26,15 +26,16 @@ flowchart LR
 
 ## 推荐阅读顺序
 
-1. [外设与引脚完整规格书](peripheral-pin-specification.md)：**单一主规格书**；CPU、存储、全部外设、寄存器、29 个约束 pad、J5 映射、PINMUX、电气边界和 HIL 状态。
-2. [工程数据手册总览](datasheet.md)：产品定位、固件模型、资源和版本记录。
-3. [独立 MCU 固件开发与升级](mcu-firmware-update.md)：产品流程、A/B 槽、UART 协议、恢复和安全边界。
-4. [硬件与引脚实验指南](hardware-and-pins.md)：Tang Nano 9K 的电压、接线、示波器/逻辑分析仪实验和 HIL 清单。
-5. [构建与烧录](build-and-program.md)：可重复 SDK / FPGA 构建，SRAM 试运行和配置 Flash 固化。
-6. [外设与 SDK](peripherals-and-sdk.md)：C API、寄存器和示例边界。
-7. [中断开发约定](interrupts.md)：PicoRV32 自定义 IRQ ABI、固定向量和 ISR 规则。
-8. [验证与发布状态](validation-and-release.md)：证据层级与对外发布门槛。
-9. [资源与外设扩展路线图](resource-expansion-roadmap.md)：LUT/BSRAM/IOB 约束、可扩展外设、优先级与每项功能的放行门槛。
+1. [MCU 快速规格书](mcu-quick-specification.md)：CPU、存储、时钟、全部外设、中断、I/O、SDK 和资源边界的一页式摘要。
+2. [外设与引脚完整规格书](peripheral-pin-specification.md)：**单一主规格书**；CPU、存储、全部外设、寄存器、29 个约束 pad、J5 映射、PINMUX、电气边界和 HIL 状态。
+3. [工程数据手册总览](datasheet.md)：产品定位、固件模型、资源和版本记录。
+4. [独立 MCU 固件开发与升级](mcu-firmware-update.md)：产品流程、A/B 槽、UART 协议、恢复和安全边界。
+5. [硬件与引脚实验指南](hardware-and-pins.md)：Tang Nano 9K 的电压、接线、示波器/逻辑分析仪实验和 HIL 清单。
+6. [构建与烧录](build-and-program.md)：可重复 SDK / FPGA 构建，SRAM 试运行和配置 Flash 固化。
+7. [外设与 SDK](peripherals-and-sdk.md)：C API、寄存器和示例边界。
+8. [中断开发约定](interrupts.md)：PicoRV32 自定义 IRQ ABI、固定向量和 ISR 规则。
+9. [验证与发布状态](validation-and-release.md)：证据层级与对外发布门槛。
+10. [资源与外设扩展路线图](resource-expansion-roadmap.md)：LUT/BSRAM/IOB 约束、可扩展外设、优先级与每项功能的放行门槛。
 
 ## 平台首次构建：FPGA 工程
 

@@ -82,6 +82,17 @@ manifest：`build/tangnano9k-mcu-abi09-independent-history-filter-packed/omcu_tn
 
 Yosys 会对顶层 I2C/GPIO 三态 Pad 发出有限三态支持警告；P&R/packing 成功不能描述为“零警告签核”。
 
+### 3.1 DFF 5k 探索的否决记录
+
+为验证“将 DFF 利用率拉到 5k”是否仍能作为产品功能交付，完整 ABI 0.9 顶层曾加入一个 12-bit GPIO
+流式记录器。200 / 184 / 128 / 64 / 32 样本候选的综合资源分别为
+7,521 / 5,207、7,484 / 5,015、7,497 / 4,343、7,509 / 3,575、7,523 / 3,191（LUT4 / DFF）；
+所有候选均未通过精确目标器件的布局布线，128 样本还额外尝试了 placer-heap-beta=1.00 与不同 seed。
+
+这是一项失败的资源实验，不是 ABI 或发布工件：未生成可发布 .fs、未改变 SDK/寄存器，也不应用于 HIL。
+结论是当前约束下可 P&R 的基线仍是第 3 节记录的 7,184 LUT4 / 2,610 DFF / 24 BSRAM，而非“5k DFF”
+的名义目标。详细推导见[资源扩展路线图](resource-expansion-roadmap.md)。
+
 ## 4. 必须完成的实体板 HIL
 
 1. 先 SRAM 下载 `.fs`，检查 27 MHz、LED、UART0 和外部复位；核对 manifest 后再固化配置 Flash，至少做 10 次冷启动。

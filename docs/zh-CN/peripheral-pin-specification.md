@@ -713,6 +713,11 @@ MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束�
 不能在本基线中承诺大 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP。后续每项 RTL 扩展都必须独立重新 P&R，
 并同时更新 ABI、SDK、引脚合同、文档与 HIL 矩阵。
 
+DFF 也不是可独立兑换的片上 RAM。完整产品的 12-bit GPIO 流式记录器曾分别尝试 200、184、128、64 和
+32 样本；虽然 184 样本综合报告已达到 5,015 个 DFF，但所有候选都因 LUT、扇出和局部路由无法完成合法
+P&R。故 ABI 0.9 不发布该记录器，也不加入没有可见产品价值的 dummy DFF；完整数据见
+[资源扩展路线图](resource-expansion-roadmap.md)。
+
 ### 8.2 仍需完成的实体板 HIL
 
 1. SRAM 下载、27 MHz、6 LED、UART0、外部复位；再固化配置 Flash 并至少重复 10 次冷启动。
