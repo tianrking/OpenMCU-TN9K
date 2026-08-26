@@ -1,9 +1,9 @@
 # OpenMCU-TN9K 外设与引脚完整规格书
 
-> **文档编号：** OMCU-TN9K-PS-0.8<br>
-> **适用工程：** `omcu_tn9k_mcu_top`，OpenMCU 硬件 ABI `0.8`<br>
+> **文档编号：** OMCU-TN9K-PS-0.9<br>
+> **适用工程：** `omcu_tn9k_mcu_top`，OpenMCU 硬件 ABI `0.9`<br>
 > **目标器件：** Tang Nano 9K，`GW1NR-LV9QN88PC6/I5`（`GW1N-9C`）<br>
-> **文档状态：** RTL、SDK、寄存器生成规范、Tang 顶层约束与 ABI 0.8 的目标器件 P&R/packing 已对齐；实体板 HIL、绝对最大额定值、长期可靠性和量产资格尚未完成。
+> **文档状态：** RTL、SDK、寄存器生成规范、Tang 顶层约束与 ABI 0.9 的目标器件 P&R/packing 已对齐；实体板 HIL、绝对最大额定值、长期可靠性和量产资格尚未完成。
 
 这是面向硬件、嵌入式软件和测试人员的**单一主规格书**。它集中描述当前 MCU 产品位流的 CPU、存储、
 全部可用外设、完整已约束顶层引脚、J5 扩展映射、PINMUX 所有权、电气边界和升级路径。应用开发者只需
@@ -11,7 +11,7 @@
 
 机器可读寄存器规范仍以 [`spec/omcu-v0.json`](../../spec/omcu-v0.json) 为唯一生成源，
 [`sdk/include/omcu_regs.h`](../../sdk/include/omcu_regs.h) 由它生成。本页面向人的说明与这两个文件、
-Tang 顶层和 CST 约束一起构成当前 ABI `0.8` 合同。
+Tang 顶层和 CST 约束一起构成当前 ABI `0.9` 合同。
 
 ## 1. 阅读结论与证据边界
 
@@ -24,7 +24,7 @@ UART0 写入 GW1NR 的 User Flash A/B 槽。**客户应用不编进 FPGA 位流�
 ```mermaid
 flowchart TB
   subgraph BIT[一次固化的 FPGA 配置]
-    CPU[PicoRV32\nRV32IM] --> MMIO[OpenMCU MMIO ABI 0.8]
+    CPU[PicoRV32\nRV32IM] --> MMIO[OpenMCU MMIO ABI 0.9]
     CPU --> ROM[4 KiB Boot ROM\nUART0 Bootloader]
     CPU --> SRAM[44 KiB SRAM]
     MMIO --> P[GPIO · UART · TIMER · SPI · I2C · WDT · PWM · ALARM · PULSE · FAULT]
@@ -43,9 +43,9 @@ flowchart TB
 | 结论层级 | 当前状态 | 含义 |
 | --- | --- | --- |
 | 源码 / RTL | 已实现 | 本页描述的模块、地址、顶层连接和约束文件已存在于仓库。 |
-| SDK / 规格同步 | 已验证 | ABI `0.8` JSON、生成头文件、Boot ROM 和 SDK 示例已做自动化检查。 |
+| SDK / 规格同步 | 已验证 | ABI `0.9` JSON、生成头文件、Boot ROM 和 SDK 示例已做自动化检查。 |
 | 数字仿真 | 已验证 | 外设、PINMUX、已编译固件到 Tang 顶层 pad 的数字路径已有回归覆盖。 |
-| 目标器件 P&R | 已验证（非 HIL） | 精确 `GW1NR-LV9QN88PC6/I5` 的同一 ABI 0.8 源码已完成综合、P&R、packing、ROM 嵌入指纹和 manifest。 |
+| 目标器件 P&R | 已验证（非 HIL） | 精确 `GW1NR-LV9QN88PC6/I5` 的同一 ABI 0.9 源码已完成综合、P&R、packing、ROM 嵌入指纹和 manifest。 |
 | 实体板 HIL | 待完成 | 未在本规格书中把 UART 电平、I2C ACK、W5500 链路、PWM 波形、User Flash 擦写或引脚电气宣称为实测通过。 |
 | 量产 / 安全认证 | 未实现 | CRC32 与 A/B 回退不是签名安全启动；也没有温度、寿命、EMC、ESD 或认证结论。 |
 
@@ -73,7 +73,7 @@ flowchart TB
 | CPU | PicoRV32 适配器，`RV32IM` / `ilp32`；压缩指令 `C` 未启用，仅支持自然对齐的指令和数据访问。 |
 | CPU 资源取舍 | 单端口寄存器堆、迭代移位、DSP 加速乘法、紧凑 32 步 PCPI 除法；`DIV/DIVU/REM/REMU` 语义保留。 |
 | CPU 计数器 | PicoRV32 内部 `cycle/instret` 不属于公开 ABI；运行时间使用 SYSCTRL 64-bit `RUN_TICKS`。 |
-| 硬件 ABI | `0x0000_0008`（主版本 `0`、次版本 `8`）。旧 ABI 0.7 / `rv32imc` 镜像不可执行且由 Bootloader 拒绝。 |
+| 硬件 ABI | `0x0000_0009`（主版本 `0`、次版本 `9`）。Bootloader 精确匹配，旧 ABI 0.7/0.8 或 `rv32imc` 镜像均由它拒绝。 |
 | `CHIP_ID` | `0x4F4D_4355`，ASCII 为 `OMCU`。 |
 | `FEATURES` | 产品位流为 `0x000F_FFFF`（bit 0..19 全部置位）。 |
 | Boot ROM | 4 KiB，1,024 个 32-bit words；只放稳定 UART0 Bootloader。 |
@@ -91,7 +91,7 @@ flowchart TB
 | `0x0000_0000` | Boot ROM | 4 KiB 只读启动器镜像。 |
 | `0x1000_0000` | SRAM | 44 KiB；应用加载和运行地址。 |
 | `0x2000_0000` | User Flash | 77,824 B 字节寻址窗口；由 Bootloader 管理应用槽。 |
-| `0x4000_0000` | GPIO0 | 12 路 J5 GPIO、两级同步、端口一致性数字滤波、边沿 IRQ 与事件快照；LED0..5 镜像 bit0..5。 |
+| `0x4000_0000` | GPIO0 | 12 路 J5 GPIO、两级同步、兼容共享数字滤波或掩码内按针 2/4/8 样本独立滤波、边沿 IRQ 与事件快照；LED0..5 镜像 bit0..5。 |
 | `0x4000_1000` | UART0 | Bootloader、恢复和默认日志串口。 |
 | `0x4000_2000` | TIMER0 | 32-bit 基础比较定时器。 |
 | `0x4000_3000` | SPI0 | mode 0、单片选、逐字节主机。 |
@@ -123,7 +123,7 @@ bring-up 位流能运行而假定它具备产品模式的 User Flash、UART1 或
 | 12 | `PINMUX` | 可显式把指定 J5 pad 交给替代功能。 |
 | 13 | `GPIO_EXPANSION` | 12 路 J5 扩展 GPIO 档案。 |
 | 14 | `USER_FLASH` | 产品位流具备 GW1NR User Flash 与 A/B 应用存储合同。 |
-| 15 | `GPIO_RELIABILITY` | GPIO 两级同步、端口一致性数字滤波与事件快照。 |
+| 15 | `GPIO_RELIABILITY` | GPIO 两级同步、兼容共享滤波、按针独立滤波与事件快照。 |
 | 16 | `ALARM0` | 两路硬件比较闹钟。 |
 | 17 | `PULSE0` | 低速脉冲计数 / 周期测量。 |
 | 18 | `FAULT0` | 硬件故障锁存与安全输出门控。 |
@@ -269,9 +269,10 @@ GPIO `OUT/OE`。SDK 的 `omcu_tn9k_uart1_init()`、`omcu_tn9k_pwm1_configure()`�
 3. SPI0 与 TF 信号组共享。外设 CS 的逻辑正确不等于可以同 microSD 同时占线；默认禁止并用。
 4. PWM0/PWM1 是 FPGA 逻辑级输出。电机、MOSFET、继电器、舵机和高压灯带需要审查过的外部驱动、
    限流、隔离/保护和失效安全设计，不能直接由 pad 驱动。
-5. 所有 GPIO 输入都经过两级同步；GPIO0 的数字滤波是**整端口一致性窗口**，一根输入改变会重启该
-   窗口。PULSE0、FAULT0 和 TIMER1 也各自有同步/滤波路径，但它们都不是异步高速捕获器。对长线、
-   工业输入、跨时钟或高噪声信号，仍须使用外部调理和实体板 HIL。
+5. 所有 GPIO 输入都经过两级同步。默认兼容路径是**整端口一致性窗口**，一根输入改变会重启该窗口；
+   `FILTER_CTRL.INDEPENDENT_ENABLE=1` 后，`FILTER_MASK` 中的 pin 以 2/4/8 个连续相同样本独立确认，
+   无关输入不再重启该 pin。PULSE0、FAULT0 和 TIMER1 也各自有同步/滤波路径，但它们都不是异步高速
+   捕获器或毫秒级机械去抖器。对长线、工业输入、跨时钟或高噪声信号，仍须使用外部调理和实体板 HIL。
 6. 本工程不提供绝对最大额定值、VIH/VIL、持续灌拉电流、ESD、EMC、温度或寿命数据。它们必须以
    Gowin 器件数据手册、Tang Nano 9K 板卡原理图及实际测试为准，不能从 `DRIVE=8` 推导。
 
@@ -281,7 +282,7 @@ GPIO `OUT/OE`。SDK 的 `omcu_tn9k_uart1_init()`、`omcu_tn9k_pwm1_configure()`�
 
 | 外设 | 基址 | 特性位 | CPU IRQ | 外部 I/O / 主要用途 | 当前不包含的能力 |
 | --- | ---: | --- | ---: | --- | --- |
-| GPIO0 | `0x4000_0000` | GPIO0、GPIO_EXPANSION、GPIO_RELIABILITY | 8 | 12 J5 GPIO、LED0..5 镜像、两级同步、端口一致性滤波、边沿 IRQ/快照 | ADC、每针独立滤波计数器、高速采样、所有未用 IOB。 |
+| GPIO0 | `0x4000_0000` | GPIO0、GPIO_EXPANSION、GPIO_RELIABILITY | 8 | 12 J5 GPIO、LED0..5 镜像、两级同步、兼容共享或按针 2/4/8 样本独立滤波、边沿 IRQ/快照 | ADC、高速采样、所有未用 IOB。 |
 | UART0 | `0x4000_1000` | UART0 | 9 | pad 17/18；升级/恢复/日志 | FIFO、流控、RS-485 方向控制。 |
 | TIMER0 | `0x4000_2000` | TIMER0 | 10 | 片内 32-bit 定时 | capture、encoder、PWM 互补。 |
 | SPI0 | `0x4000_3000` | SPI0 | 11 | pad 38/37/36/39 | 多 CS、FIFO、DMA、QSPI/XIP、非 mode 0。 |
@@ -302,7 +303,9 @@ GPIO `OUT/OE`。SDK 的 `omcu_tn9k_uart1_init()`、`omcu_tn9k_pwm1_configure()`�
 
 GPIO0 为 12-bit J5 档案。bit0..11 一一对应上文扩展 GPIO0..11；其中 bit0..5 的 `OUT/OE` 同时
 镜像板载低有效 LED0..5。`OUT` 为输出锁存，`OE=0` 时 J5 pad 高阻（除非被 PINMUX 接管）。任何
-输入先经过两级同步；随后整端口共享一个可编程一致性滤波窗口，不能当作高速或无亚稳风险的采样接口。
+输入先经过两级同步。默认兼容路径随后使用整端口共享的可编程一致性窗口；ABI 0.9 也可让
+`FILTER_MASK` 中的 pin 使用相互独立的 2/4/8 样本一致性窗口。两种方式都不能当作高速、无亚稳风险
+或毫秒级机械去抖的采样接口。
 
 | 偏移 | 寄存器 | 访问 | 定义 |
 | ---: | --- | --- | --- |
@@ -317,8 +320,8 @@ GPIO0 为 12-bit J5 档案。bit0..11 一一对应上文扩展 GPIO0..11；其�
 | `0x24` | `RISE_EN` | RW | 上升沿事件使能。 |
 | `0x28` | `FALL_EN` | RW | 下降沿事件使能。 |
 | `0x2C` | `IRQ_STATUS` | RW1C | 已锁存的边沿事件；GPIO IRQ 仅在至少一个 bit 挂起时触发。 |
-| `0x30` | `FILTER_MASK` | RO | 实施范围；当前为所有 12 个 GPIO bit，写入忽略。 |
-| `0x34` | `FILTER_CYCLES` | RW | low8 `N`：整端口连续 `N+1` 个相同同步样本后接受。任一 bit 改变都会重启窗口；`0` 不增加稳定等待。 |
+| `0x30` | `FILTER_MASK` | RW | 独立模式的 pin 选择掩码；仅在 `FILTER_CTRL.INDEPENDENT_ENABLE=1` 时参与判定。 |
+| `0x34` | `FILTER_CYCLES` | RW | low8 `N`：兼容共享模式下，整端口连续 `N+1` 个相同同步样本后接受。任一 bit 改变都会重启窗口；`0` 不增加稳定等待。独立模式下保留但不参与判定。 |
 | `0x38` | `SNAPSHOT_CTRL` | RW | bit0 `ENABLE`，bit1 `IRQ_ENABLE`（共享 GPIO IRQ），bit2 `OVERWRITE`。 |
 | `0x3C/0x40` | `SNAPSHOT_RISE_EN/FALL_EN` | RW | `RISE_EN/FALL_EN` 的同一组别名；改变它也改变普通 GPIO 边沿 IRQ 使能。 |
 | `0x44` | `SNAPSHOT_STATUS` | RW1C | bit0 `VALID`，bit1 `OVERFLOW`，bit2 `FORCED`（FAULT0 优先上下文）；写 1 清 bit0/1。 |
@@ -327,6 +330,12 @@ GPIO0 为 12-bit J5 档案。bit0..11 一一对应上文扩展 GPIO0..11；其�
 | `0x50` | `SNAPSHOT_IRQ` | RO | 捕获时 IRQCTRL active mask（CPU bit8..18）。 |
 | `0x54` | `SNAPSHOT_RESET` | RO | 捕获时保留的 reset cause。 |
 | `0x58` | `SNAPSHOT_TICKS` | RO | 捕获时 SYSCTRL `RUN_TICKS` 的低 32 位。 |
+| `0x5C` | `FILTER_CTRL` | RW | bit0 `INDEPENDENT_ENABLE`；bits2:1 深度：`00`=2、`01`=4、`10/11`=8 个连续相同同步样本。 |
+
+改写 `FILTER_MASK`、`FILTER_CYCLES` 或 `FILTER_CTRL` 会开启新的滤波周期，并保留已接受输出直到新配置
+确认新的稳定值。SDK 的 `omcu_gpio_configure_filter(N)` 选择兼容共享路径；
+`omcu_gpio_configure_independent_filter(mask, depth)` 按安全顺序设置掩码和独立深度。未选 pin 在独立
+模式中仍保持两级同步且没有额外滤波延迟。
 
 GPIO 输出和替代功能的所有权以第 4.2 节为准。举例：PINMUX UART1 已接管 GPIO10/11 时，继续写
 GPIO bit10/11 不会夺回 UART1 的物理 pad。FAULT0 发生时，即使之前已经有普通 GPIO 快照，也会强制
@@ -410,7 +419,7 @@ I2C0 以外部上拉实现开漏 SCL/SDA，只驱动低或释放高。`CLKDIV` �
 ### 5.7 WDT0：增强看门狗
 
 WDT0 是 32-bit 系统时钟计数的看门狗。启用后计数到 `TIMEOUT` 时置 `EXPIRED`；若同时置
-`RESET_ENABLE`，则向顶层产生一次复位请求。重新喂狗必须精确写入魔数 `0x51F1_5EED`。ABI 0.8
+`RESET_ENABLE`，则向顶层产生一次复位请求。重新喂狗必须精确写入魔数 `0x51F1_5EED`。ABI 0.8 曾
 增加预警、最小喂狗窗口和最多 8 个软件任务 heartbeat，适合把“主循环还在转”升级为“关键任务都报告
 过进度”的监督策略。
 
@@ -614,7 +623,7 @@ PWM1 拉低以及把全部 12 路公开 GPIO 释放为高阻。它是面向逻�
 | 偏移 | 寄存器 | 访问 | 定义 |
 | ---: | --- | --- | --- |
 | `0x00` | `CHIP_ID` | RO | `0x4F4D_4355`（ASCII `OMCU`）。 |
-| `0x04` | `ABI` | RO | `[31:16]` 主版本、`[15:0]` 次版本；本产品为 `0x0000_0008`。 |
+| `0x04` | `ABI` | RO | `[31:16]` 主版本、`[15:0]` 次版本；本产品为 `0x0000_0009`。 |
 | `0x08` | `FEATURES` | RO | 见第 2.2 节；Tang MCU 产品模式为 `0x000F_FFFF`。 |
 | `0x0C` | `BUILD_ID` | RO | 平台构建标识。 |
 | `0x10` | `MEMORY_KIB` | RO | `[31:16]` SRAM KiB、`[15:0]` ROM KiB；产品为 44 / 4。 |
@@ -681,7 +690,7 @@ static bool require_product_profile(void) {
 
 - 不要使用 raw package pad 编号做软件寄存器位。软件只使用 `OMCU_TN9K_GPIO0..11` 和 SDK helper。
 - 启用 UART1/PWM1/TIMER1/PULSE0/FAULT0 之前检查相应特性位，且通过 Tang helper 申请 PINMUX；后两者会改变 GPIO0..3 的所有权。
-- GPIO 的可靠性滤波是“整个 12-bit 端口一致性窗口”，不是每根输入各自独立的去抖器；`FILTER_CYCLES=N` 需 N+1 个连续相同的同步端口样本。
+- GPIO 默认可靠性滤波是“整个 12-bit 端口一致性窗口”；需要独立条件化时，调用 `omcu_gpio_configure_independent_filter()`，让 `FILTER_MASK` 中每根 pin 用 2/4/8 个连续相同同步样本确认。两者均不是毫秒级机械去抖或高速采样器。
 - 用 `omcu_gpio_snapshot_arm()` 选择希望记录的普通 GPIO 边沿，用 `omcu_gpio_snapshot_read()` 读取事件、电平、运行 tick、IRQ 和复位原因；`forced=true` 表示 FAULT0 强制快照。
 - UART0 默认是 Bootloader/恢复通道。即使业务复用它，也要保留软件返 Bootloader 和外部复位恢复路径。
 - 所有阻塞式 SPI/I2C 操作必须有 timeout/错误路径；I2C 目标断线或 W5500 链路故障不能让安全关键控制无限等待。
@@ -694,14 +703,15 @@ SDK API、示例工程和寄存器封装详见[外设与 SDK](peripherals-and-sd
 
 ### 8.1 当前资源事实
 
-ABI `0.8` 的最终产品 P&R 证据已写入
-`build/tangnano9k-mcu-abi08-rv32im-release/omcu_tn9k_mcu_manifest.json`：LUT4 `6962 / 8640`
-（80.58%）、DFF `2511 / 6480`（38.75%）、BSRAM `24 / 26`（92.31%）、ALU `1336 / 6480`、
-MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束下实现 40.533 MHz，
-裕量 12.366 ns。该记录证明同一源码、约束、ROM 和目标器件可完成开源 P&R/packing，不能把它写成实板通过证据。
+ABI `0.9` 的最终产品 P&R 证据已写入
+`build/tangnano9k-mcu-abi09-independent-history-filter-packed/omcu_tn9k_mcu_manifest.json`：LUT4 `7184 / 8640`
+（83.15%）、DFF `2610 / 6480`（40.28%）、BSRAM `24 / 26`（92.31%）、ALU `1336 / 6480`、
+MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束下实现 44.295 MHz，
+裕量 14.461 ns。该记录证明同一源码、约束、ROM 和目标器件可完成开源 P&R/packing，不能把它写成实板通过证据。
 
-虽有两个 BSRAM 余量，也不能在本基线中承诺大 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP。后续每项 RTL
-扩展都必须独立重新 P&R，并同时更新 ABI、SDK、引脚合同、文档与 HIL 矩阵。
+虽显示两个 BSRAM 余量，但极小的单块 BSRAM 记录器把产品推至 25/26 后也无法得到合法布局/布线；因此
+不能在本基线中承诺大 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP。后续每项 RTL 扩展都必须独立重新 P&R，
+并同时更新 ABI、SDK、引脚合同、文档与 HIL 矩阵。
 
 ### 8.2 仍需完成的实体板 HIL
 
@@ -709,7 +719,7 @@ MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束�
 2. User Flash 空白/有效/损坏 A/B 镜像、完整升级、擦除/写入/校验/提交四阶段断电和重复擦写。
 3. GPIO 高/低/高阻、3.3 V 电平、RGB LCD 共线互斥；UART0/1 115200 8-N-1 的 TX/RX/overrun。
 4. PWM0/PWM1 频率、占空比、四路共同相位和 disable 后低电平；只接安全逻辑级负载或审核过的驱动级。
-5. GPIO 12 路输入的同步/全端口滤波阈值、边沿 IRQ、普通快照与 FAULT 强制快照；再验证按键、慢速传感器、线缆与噪声条件。
+5. GPIO 12 路输入的同步、共享与独立滤波（掩码和 2/4/8 样本）阈值、边沿 IRQ、普通快照与 FAULT 强制快照；再验证按键、慢速传感器、线缆与噪声条件。
 6. ALARM0 两路同 tick、one-shot、周期重装和 IRQ；PULSE0 三个候选输入的切换、边沿、频率范围与外部前端。
 7. FAULT0 的极性、滤波、锁存/clear 拒绝、PWM0/PWM1 拉低和 GPIO 高阻门控；只能在安全逻辑级负载和人工受控故障条件下验证。
 8. WDT0 的预警、窗口、heartbeat 缺失、拒绝喂狗和复位原因；需要观察真实复位时序。
@@ -724,6 +734,7 @@ MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束�
 
 | ABI | 日期 | 规格变更 |
 | --- | --- | --- |
+| 0.9 | 2026-08-26 | 新增 `FILTER_CTRL` 和可写 `FILTER_MASK`；在 ABI 0.8 共享窗口之外，为选中 GPIO 提供互不干扰的 2/4/8 连续样本独立滤波。SDK、镜像 ABI、RTL 回归与目标器件 P&R/packing 同步更新。 |
 | 0.8 | 2026-08-26 | 产品 CPU 固定为 `rv32im` / `ilp32`，关闭压缩指令 `C` 以释放可靠性/诊断外设资源；Boot ROM 收敛为 4 KiB；MMIO 配置/命令/W1C 统一为完整 32-bit 原子写；同一源码 P&R/packing 通过。 |
 | 0.7 | 2026-08-25 | 新增 GPIO 可靠性/快照、两路并行 ALARM0、单选 PULSE0、FAULT0 输出门控与增强 WDT；产品 GPIO 收敛为 12 路，LED0..5 成为 GPIO0..5 镜像。 |
 | 0.6 | 2026-08-25 | 完成 12 路扩展 GPIO、UART1、PWM1、TIMER1、诊断/返 Bootloader、P0 外置器件 SDK 与资源受控 RV32M 除法；本页作为外设与引脚单一主规格书。 |

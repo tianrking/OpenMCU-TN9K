@@ -46,7 +46,7 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 
 ## UART1、PWM1、TIMER1、PULSE0、FAULT0 与显式 pinmux
 
-UART0 始终保留给 Bootloader、下载和默认日志。需要第二路设备串口时，ABI 0.8 在 J5 的
+UART0 始终保留给 Bootloader、下载和默认日志。需要第二路设备串口时，ABI 0.9 在 J5 的
 两个已约束 3.3 V pad 上提供无 FIFO 的 UART1：TX 为 GPIO10 / J5.18 / package pad 53，RX
 为 GPIO11 / J5.19 / package pad 54。复位时这两个 pad 仍是普通高阻 GPIO，不会因为 FPGA
 中存在 UART1 而被暗中占用。
@@ -152,7 +152,7 @@ FAULT0 使用 GPIO3 / J5.11。应用应在外部物理故障实际消失后才�
 - [ ] 六个 LED 极性、UART0 与 UART1 TX/RX、27 MHz 时钟的实测；
 - [ ] SRAM 下载、断电消失、Flash 下载、断电后重启四种行为；
 - [ ] GPIO 高/低/高阻、PWM0/PWM1 周期/占空比/disable 低电平、TIMER1 捕获/正交方向、SPI 回环；
-- [ ] GPIO 同步/端口滤波/快照，ALARM0 同 tick，PULSE0 边沿/周期，FAULT0 锁存/门控/清除拒绝，
+- [ ] GPIO 同步、共享和独立滤波（掩码、2/4/8 样本）/快照，ALARM0 同 tick，PULSE0 边沿/周期，FAULT0 锁存/门控/清除拒绝，
   增强 WDT 的预警/窗口/heartbeat/复位原因；
 - [ ] I2C 真正目标的 ACK/NACK、时钟拉伸和断线恢复；
 - [ ] 连接外设时电压、地、温升和信号完整性检查。

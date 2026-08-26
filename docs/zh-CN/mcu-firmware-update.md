@@ -104,7 +104,7 @@ omcu_add_application(my_product_app examples/my_product_app/main.c)
 
 然后重新运行 `build-sdk`，得到 `build\sdk\my_product_app.omcu`。旧的 `omcu_add_firmware()` 和 `.hex` 只保留给 RTL/FPGA bring-up 回归；它们不适用于已交付 MCU 的客户升级。
 
-应用的编译 ABI 必须与目标匹配：当前为 `rv32im` / `ilp32`，硬件 ABI 为 `0x00000008`。压缩指令 `C` 未启用；旧 `rv32imc` / ABI 0.7 镜像不兼容。镜像工具和启动器都会拒绝 ABI、入口地址、长度或 CRC 不匹配的文件。
+应用的编译 ABI 必须与目标匹配：当前为 `rv32im` / `ilp32`，硬件 ABI 为 `0x00000009`。压缩指令 `C` 未启用；旧 `rv32imc`、ABI 0.7 或 ABI 0.8 镜像不兼容。镜像工具和启动器都会拒绝 ABI、入口地址、长度或 CRC 不匹配的文件。
 
 ## C. 客户通过 UART 更新
 

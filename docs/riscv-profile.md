@@ -15,12 +15,12 @@ Tang Nano 9K 产品 MCU 配置与 SDK 固定使用 **`rv32im` / `ilp32`**。这�
 
 实现来源是 [LICENSES.md](../LICENSES.md) 中固定修订版的 PicoRV32。PicoRV32 是可配置 CPU IP；本工程明确选择其 RV32IM 配置，而不是要求客户应用工程直接依赖它。
 
-## ABI 0.8 的兼容性边界
+## ABI 0.8 引入、ABI 0.9 延续的兼容性边界
 
-为给可靠 GPIO、事件快照、ALARM0、PULSE0、FAULT0、增强 WDT 与既有 P1 外设腾出实现资源，产品配置关闭了压缩指令译码。这个改变会使旧的 `rv32imc` 机器码不可执行，因此硬件 ABI 升为 **`0x0000_0008`**：
+为给可靠 GPIO、事件快照、ALARM0、PULSE0、FAULT0、增强 WDT 与既有 P1 外设腾出实现资源，产品配置关闭了压缩指令译码。该 ISA 变化最初把硬件 ABI 升为 `0x0000_0008`；当前 ABI 0.9（`0x0000_0009`）在其上增加 GPIO 按针独立滤波，并保持同一 `rv32im` / `ilp32` 机器码要求：
 
 - 新应用必须由本仓库 SDK 以 `rv32im` / `ilp32` 编译和打包；
-- Bootloader 对 `.omcu` 头部执行 ABI 精确匹配，旧 ABI `0.7` 镜像会被拒绝，而不会被误启动；
+- Bootloader 对 `.omcu` 头部执行 ABI 精确匹配，当前只接受 ABI `0.9`；旧 ABI `0.7` 或 `0.8` 镜像会被拒绝，而不会被误启动；
 - 重新编译 C/C++ 源码即可迁移；源代码层面不要求改写为“非 RISC-V”程序；
 - 把旧 `.hex` 直接嵌进泛用 bring-up ROM 不受该保护，必须自行确认其 ISA 与硬件一致。
 
@@ -35,7 +35,7 @@ Tang Nano 9K 产品 MCU 配置与 SDK 固定使用 **`rv32im` / `ilp32`**。这�
 - 标准 RISC-V 中断控制器、PLIC/CLINT、特权中断 CSR，或应用直接使用 PicoRV32 自定义 IRQ 指令码；
 - 非对齐访问、缓存一致性、DMA 或 Linux 支持。
 
-PicoRV32 的内部周期/指令计数器为节省 LUT 已禁用，不是公开 CSR 或 ABI；运行时间请使用 SYSCTRL 的 64-bit `RUN_TICKS`。ABI 0.8 通过 `omcu.h` 提供一条刻意收窄、已经文档化的 PicoRV32 自定义 IRQ 路径：十一项外部源使用位 8 至 18，SDK 独占 `0x10` 向量，应用提供 C 语言分发钩子。这不会使内核成为特权 RISC-V 实现。
+PicoRV32 的内部周期/指令计数器为节省 LUT 已禁用，不是公开 CSR 或 ABI；运行时间请使用 SYSCTRL 的 64-bit `RUN_TICKS`。ABI 0.9 通过 `omcu.h` 提供一条刻意收窄、已经文档化的 PicoRV32 自定义 IRQ 路径：十一项外部源使用位 8 至 18，SDK 独占 `0x10` 向量，应用提供 C 语言分发钩子。这不会使内核成为特权 RISC-V 实现。
 
 今后若接入标准完整的异常/中断内核适配器，属于新的硬件能力，必须同步更新 SYSCTRL 特性位和 SDK 支持。具体的非标准边界见 [中断约定](interrupts.md)。
 

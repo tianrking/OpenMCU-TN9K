@@ -55,7 +55,7 @@ PicoRV32 -> ROM / SRAM / OpenMCU MMIO fabric
                                       -> IRQCTRL -> PicoRV32 IRQ 位 8..15
 ~~~
 
-该适配器启用已批准的 <code>M</code> 指令扩展，**不启用 <code>C</code> 压缩指令**。快速乘法器和紧凑 32 步 PCPI 除法器保留标准 RV32M 语义；为给完整 P1 与可靠性/诊断外设腾出资源，寄存器堆为单端口、移位器为迭代实现。它刻意不承诺 <code>Zicsr</code>、特权机器态、标准 RISC-V Trap CSR、PLIC/CLINT、调试支持、原子操作或浮点；PicoRV32 内部 <code>cycle/instret</code> 也不属于公开 ABI，软件使用 SYSCTRL 64-bit tick。旧 `rv32imc` 二进制与产品 ABI 0.8 不兼容，Bootloader 会拒绝旧 ABI 镜像。
+该适配器启用已批准的 <code>M</code> 指令扩展，**不启用 <code>C</code> 压缩指令**。快速乘法器和紧凑 32 步 PCPI 除法器保留标准 RV32M 语义；为给完整 P1 与可靠性/诊断外设腾出资源，寄存器堆为单端口、移位器为迭代实现。它刻意不承诺 <code>Zicsr</code>、特权机器态、标准 RISC-V Trap CSR、PLIC/CLINT、调试支持、原子操作或浮点；PicoRV32 内部 <code>cycle/instret</code> 也不属于公开 ABI，软件使用 SYSCTRL 64-bit tick。产品 Bootloader 要求镜像精确为 ABI 0.9；旧 `rv32imc`、ABI 0.7 或 ABI 0.8 镜像都会被拒绝。
 
 它实现了单独版本化的 PicoRV32 自定义 IRQ ABI：IRQCTRL 将八个外设源映射到 CPU 位 8 至 15，SDK 独占固定 <code>0x10</code> 向量并完整保存 C ABI 上下文。精确的非标准边界与确认顺序见 <a href="interrupts.md">中断约定</a>。非法事务或写 ROM 事务会被应答并作为仿真/bring-up 诊断呈现；这个最小适配器暂不把它们转换为 RISC-V 访问异常。
 

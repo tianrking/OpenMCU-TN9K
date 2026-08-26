@@ -1,4 +1,4 @@
-# OpenMCU ABI 0.8 寄存器参考
+# OpenMCU ABI 0.9 寄存器参考
 
 所有 MMIO 寄存器为 32-bit、小端、4-byte 对齐。ABI 主版本为 0 时，本文件列出的既有地址不变；
 应用应先读取 `SYSCTRL.CHIP_ID`、ABI 主版本和 `FEATURES`，再使用可选外设。机器可读的唯一来源是
@@ -33,7 +33,9 @@
 ## GPIO0 — `0x4000_0000`
 
 Tang 产品公开 GPIO0 bit 0..11。bit 0..5 同时镜像到板载低有效 LED；LED 不是另一组私有 GPIO。
-所有输入先经过两级同步，再经过整个 12-bit 端口共享的稳定滤波；因此 GPIO 不是异步高速采样接口。
+所有输入先经过两级同步；复位兼容的默认路径是整个 12-bit 端口共享的稳定滤波。若
+`FILTER_CTRL.INDEPENDENT_ENABLE=1`，`FILTER_MASK` 选中的 pin 改用相互独立的 2/4/8 样本一致性
+滤波，未选中的 pin 保持两级同步、没有额外等待。因此 GPIO 仍不是异步高速采样接口。
 
 | 偏移 | 名称 | 访问 | 含义 |
 | ---: | --- | --- | --- |
@@ -48,8 +50,8 @@ Tang 产品公开 GPIO0 bit 0..11。bit 0..5 同时镜像到板载低有效 LED�
 | `0x24` | `RISE_EN` | RW | 上升沿 IRQ 使能。 |
 | `0x28` | `FALL_EN` | RW | 下降沿 IRQ 使能。 |
 | `0x2C` | `IRQ_STATUS` | RW1C | 锁存的边沿事件。 |
-| `0x30` | `FILTER_MASK` | RO | 固定的已实现 GPIO 位掩码；所有位共用同步/滤波通路，写入忽略。 |
-| `0x34` | `FILTER_CYCLES` | RW | low8：`N` 表示须有 N+1 个不变的同步**端口**样本才接受。 |
+| `0x30` | `FILTER_MASK` | RW | 独立模式的 pin 选择掩码；仅在 `FILTER_CTRL.INDEPENDENT_ENABLE=1` 时生效。 |
+| `0x34` | `FILTER_CYCLES` | RW | low8：默认共享模式的 `N`；整个端口须有 N+1 个不变同步样本才接受。独立模式下保留但不参与判定。 |
 | `0x38` | `SNAPSHOT_CTRL` | RW | bit0 ENABLE，bit1 GPIO0 IRQ_ENABLE，bit2 OVERWRITE。 |
 | `0x3C` | `SNAPSHOT_RISE_EN` | RW | `RISE_EN` 别名；同一掩码同时决定 GPIO IRQ/普通快照边沿。 |
 | `0x40` | `SNAPSHOT_FALL_EN` | RW | `FALL_EN` 别名；同一掩码同时决定 GPIO IRQ/普通快照边沿。 |
@@ -59,6 +61,12 @@ Tang 产品公开 GPIO0 bit 0..11。bit 0..5 同时镜像到板载低有效 LED�
 | `0x50` | `SNAPSHOT_IRQ` | RO | 锁存时 IRQCTRL active CPU IRQ 掩码。 |
 | `0x54` | `SNAPSHOT_RESET` | RO | 锁存时 retained reset cause。 |
 | `0x58` | `SNAPSHOT_TICKS` | RO | 锁存时 `RUN_TICKS` 的低 32 位。 |
+| `0x5C` | `FILTER_CTRL` | RW | bit0 `INDEPENDENT_ENABLE`；bits2:1 深度：`00` 2、`01` 4、`10/11` 8 个连续相同同步样本。 |
+
+改写 `FILTER_MASK`、`FILTER_CYCLES` 或 `FILTER_CTRL` 会开始新的滤波周期；硬件保留已经接受的
+输出，直到新配置确认稳定的新电平。使用 SDK 时，旧共享语义调用
+`omcu_gpio_configure_filter()`；需要按针独立条件化时调用
+`omcu_gpio_configure_independent_filter(mask, OMCU_GPIO_FILTER_CTRL_DEPTH_2/4/8)`。
 
 ## UART0 / UART1 — `0x4000_1000` / `0x4000_8000`
 
@@ -294,7 +302,7 @@ FAULT0 使用 GPIO3/J5.11，经 PINMUX 接管后作输入。它有独立两级�
 | 偏移 | 名称 | 访问 | 含义 |
 | ---: | --- | --- | --- |
 | `0x00` | `CHIP_ID` | RO | `0x4F4D_4355`（ASCII `OMCU`）。 |
-| `0x04` | `ABI` | RO | `[31:16]` 主版本、`[15:0]` 次版本；当前为 `0x0000_0008`。 |
+| `0x04` | `ABI` | RO | `[31:16]` 主版本、`[15:0]` 次版本；当前为 `0x0000_0009`。 |
 | `0x08` | `FEATURES` | RO | bit0..19：基础外设、P1、GPIO_RELIABILITY、ALARM0、PULSE0、FAULT0、WDT_SUPERVISOR；Tang 产品为 `0x000F_FFFF`。 |
 | `0x0C` | `BUILD_ID` | RO | 平台构建标识。 |
 | `0x10` | `MEMORY_KIB` | RO | `[31:16]` SRAM KiB，`[15:0]` ROM KiB；产品为 44 / 4。 |

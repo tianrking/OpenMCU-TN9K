@@ -73,7 +73,7 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 | 启动器 SRAM | 应用区顶部之外的 4 KiB | 启动器校验、复制和 UART 会话；应用不可使用 |
 | User Flash | `0x2000_0000`，76 KiB | A/B 应用槽；由启动器控制 |
 
-应用镜像固定从 `0x1000_0000` 装载和入口，最大已对齐载荷为 36,800 字节。镜像包含硬件 ABI `0x00000008`、载荷长度、CRC32 和状态字；不要手工修改头部或绕开 `tools/omcu_image.py`。ABI 0.8 对应 RV32IM；旧 `rv32imc` / ABI 0.7 镜像会被 Bootloader 拒绝，重新编译源代码即可迁移。
+应用镜像固定从 `0x1000_0000` 装载和入口，最大已对齐载荷为 36,800 字节。镜像包含硬件 ABI `0x00000009`、载荷长度、CRC32 和状态字；不要手工修改头部或绕开 `tools/omcu_image.py`。ABI 0.9 对应 RV32IM；Bootloader 精确匹配 ABI，旧 `rv32imc`、ABI 0.7 或 ABI 0.8 镜像会被拒绝，重新编译源代码即可迁移。
 
 `omcu_tn9k.h` 只定义 27 MHz 时钟和逻辑 LED/GPIO 位掩码，不暴露 FPGA 封装管脚。物理管脚、电平和外设冲突请看 [Tang Nano 9K 平台说明](../rtl/platform/tangnano9k/README.md)。
 
@@ -85,7 +85,7 @@ sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
 | `omcu_uart1_loopback` | 独立 `.omcu` 的 UART1 回显/HIL 示例；UART0 保持给升级器。 |
 | `omcu_pwm1_demo` | 独立 `.omcu` 的四路共享计数器 PWM/HIL 示例。 |
 | `omcu_timer1_encoder_demo` | 独立 `.omcu` 的 TIMER1 捕获/正交编码器模板；GPIO8/9 经输入 pinmux 使用。 |
-| `omcu_gpio_reliable_input_demo` | 12 路 GPIO 的两级同步、端口滤波、边沿 IRQ 和事件快照模板。 |
+| `omcu_gpio_reliable_input_demo` | 12 路 GPIO 的两级同步、按针独立滤波、边沿 IRQ 和事件快照模板。 |
 | `omcu_alarm_pulse_demo` | 两路并行 ALARM0 与 GPIO0..2 中单选 PULSE0 的低速测量模板。 |
 | `omcu_fault_wdt_supervisor_demo` | GPIO3 FAULT0 门控/快照与增强 WDT 的窗口、预警和 heartbeat 模板。 |
 | `omcu_bootloader_request_demo` | 独立 `.omcu` 的软件请求回 UART0 Bootloader 示例；只适用于产品 MCU 位流。 |
@@ -156,10 +156,13 @@ OMCU_FEATURE_PINMUX`，配置两级同步、`FILTER=4` 的稳定样本滤波、A
 
 ## GPIO 可靠性、ALARM0、PULSE0、FAULT0 与增强 WDT
 
-`omcu_gpio_reliable_input_demo` 展示 `omcu_gpio0_set_filter_cycles()`、
-`omcu_gpio_snapshot_arm()` 和 `omcu_gpio_snapshot_read()`：GPIO0 的每根输入都会先过两级同步，
-但额外的稳定滤波窗口由整个 12-bit 端口共享；一根引脚变化会重启窗口。快照记录边沿、过滤后输入、
-`RUN_TICKS`、IRQCTRL active 与 reset cause；若 `forced=true`，代表 FAULT0 的优先捕获覆盖了普通快照。
+`omcu_gpio_reliable_input_demo` 展示 `omcu_gpio_configure_independent_filter()`、
+`omcu_gpio_snapshot_arm()` 和 `omcu_gpio_snapshot_read()`：GPIO0 的每根输入都会先过两级同步；
+SDK 默认兼容的 `omcu_gpio_configure_filter(N)` 仍是整端口 N+1 样本窗口，而独立 API 对掩码内的
+每根 pin 分别使用 2/4/8 个连续相同样本，其他 pin 的变化不会重启该 pin 的条件化。快照记录边沿、
+过滤后输入、`RUN_TICKS`、IRQCTRL active 与 reset cause；若 `forced=true`，代表 FAULT0 的优先捕获
+覆盖了普通快照。该采样深度在 27 MHz 下是亚微秒级数字抗毛刺，不是机械按键的毫秒去抖承诺；机械
+输入仍应使用软件定时、外部 RC/施密特整形并完成实板 HIL。
 
 `omcu_alarm_pulse_demo` 演示复用 TIMER0 时基的两个并行 16-bit ALARM0 通道，以及 PULSE0 在 GPIO0/J5.8、GPIO1/J5.9、
 GPIO2/J5.10 中单选一路的 16-bit 边沿计数/周期。PULSE0 不是异步高速计数器；接管前会释放三根 GPIO

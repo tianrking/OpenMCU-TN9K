@@ -5,7 +5,7 @@
 > 本页保留产品总览、交付模型、资源结论和版本记录；不再要求读者在多份指南中拼凑完整引脚合同。
 
 > **目标器件：** Tang Nano 9K / `GW1NR-LV9QN88PC6/I5`（GW1N-9C）
-> **硬件 ABI：** `0x0000_0008`（0.8）
+> **硬件 ABI：** `0x0000_0009`（0.9）
 > **定位：** 一次固化 FPGA 平台，之后以独立 MCU 固件持续升级应用
 > **证据状态：** RTL、SDK、数字回归与本 ABI 的目标器件 P&R/packing 已完成；实体 Tang Nano 9K HIL 尚待执行。
 
@@ -25,7 +25,7 @@ OpenMCU-TN9K 不是把客户 C 程序重新塞入 FPGA 的演示工程。产品�
 ```mermaid
 flowchart TB
   subgraph Fixed[一次性固化的 FPGA 平台]
-    CPU[PicoRV32 RV32IM] --> MMIO[固定 MMIO ABI 0.8]
+    CPU[PicoRV32 RV32IM] --> MMIO[固定 MMIO ABI 0.9]
     CPU --> ROM[4 KiB Boot ROM\nUART 更新器]
     CPU --> SRAM[44 KiB SRAM]
     MMIO --> PERI[GPIO · UART · TIMER · SPI · I2C · WDT · PWM · ALARM · PULSE · FAULT · IRQCTRL · PINMUX]
@@ -45,9 +45,9 @@ flowchart TB
 | --- | --- | --- |
 | P0 外置器件 SDK | 已实现 | DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 驱动和编译回归；目标器件总线 HIL 待做。 |
 | P1 GPIO/UART/PWM/TIMER | 已实现 | 12 路 GPIO（LED0..5 镜像 GPIO0..5）、UART1、四路 PWM1、TIMER1 捕获/正交 RTL、SDK、已编译固件和仿真已覆盖；引脚电平及共线 HIL 待做。 |
-| 可靠性与诊断扩展 | 已实现 | GPIO 两级同步/端口滤波/快照、两路 ALARM0、单选 PULSE0、FAULT0 门控/快照和增强 WDT 的 RTL、寄存器规范、SDK 与数字回归已覆盖；实体输入/输出 HIL 待做。 |
+| 可靠性与诊断扩展 | 已实现 | GPIO 两级同步、兼容共享滤波、按针 2/4/8 样本独立滤波/快照、两路 ALARM0、单选 PULSE0、FAULT0 门控/快照和增强 WDT 的 RTL、寄存器规范、SDK 与数字回归已覆盖；实体输入/输出 HIL 待做。 |
 | P1 诊断与返 Bootloader | 已实现 | RESET_CAUSE、RUN_TICKS、RESET_COUNT、软件请求/确认、Boot ROM、SDK 与顶层仿真已覆盖；实体复位与 UART 会话 HIL 待做。 |
-| FPGA 产品版 | 已完成 P&R（非 HIL） | 精确目标器件的同一 ABI 0.8 源码已完成综合、布局布线、时序、packing、ROM 指纹和 manifest；不能把这项证据替代为板级 HIL。 |
+| FPGA 产品版 | 已完成 P&R（非 HIL） | 精确目标器件的同一 ABI 0.9 源码已完成综合、布局布线、时序、packing、ROM 指纹和 manifest；不能把这项证据替代为板级 HIL。 |
 | User Flash A/B | 逻辑与协议已实现 | 仿真模型、镜像校验、协议与回退路径已测试；真实 `FLASH608K` 擦写、断电、寿命仍待 HIL。 |
 | 安全启动 | 未实现 | CRC32 只检测偶发损坏，不认证来源，不能抵抗恶意镜像替换。 |
 
@@ -57,15 +57,15 @@ flowchart TB
 
 ### 2.1 当前可追溯 FPGA 工件
 
-`build/tangnano9k-mcu-abi08-rv32im-release/omcu_tn9k_mcu_manifest.json` 是本 ABI 的可追溯 P&R/packing 构建证据：
+`build/tangnano9k-mcu-abi09-independent-history-filter-packed/omcu_tn9k_mcu_manifest.json` 是本 ABI 的可追溯 P&R/packing 构建证据：
 
 | 项目 | 记录值 |
 | --- | --- |
-| `.fs` SHA-256 | `1666a4c6218a040a11b2a21906b7681471ad1ebe847b3c2decf3cd6f4cfeb075` |
-| 时钟 | 27.000 MHz 约束，40.533421 MHz 实现，12.366037 ns 裕量 |
-| LUT4 / DFF | 6,962 / 8,640（80.58%）；2,511 / 6,480（38.75%） |
+| `.fs` SHA-256 | `36fc2a3d2e73b6399a92c74a88e2424759b00c6a8b01171ec11d9c6c182de67a` |
+| 时钟 | 27.000 MHz 约束，44.294827 MHz 实现，14.461037 ns 裕量 |
+| LUT4 / DFF | 7,184 / 8,640（83.15%）；2,610 / 6,480（40.28%） |
 | BSRAM / IOB | 24 / 26（92.31%）；15 / 276（5.43%） |
-| Boot ROM 链 | 2 个 BSRAM；综合与 P&R 初始化指纹均为 `3c1605bcf45d0c27dd0911867b4c9dd8321c2462285f7322f24a418175d36b8d`。 |
+| Boot ROM 链 | 2 个 BSRAM；综合与 P&R 初始化指纹均为 `e31384ff72254719fb25d553fb87070d300a76726eadb7247096b1dabca05e88`。 |
 
 这个 manifest 证明本版的开源 P&R/packing 可重现，**不是**实体板 HIL 或量产资格记录。
 
@@ -93,7 +93,7 @@ flowchart TB
 | Boot ROM | `0x0000_0000`，4 KiB | 固定启动器；随产品 FPGA 位流固化。 |
 | SRAM | `0x1000_0000`，44 KiB | 40 KiB 应用运行区 + 4 KiB 启动器工作区。 |
 | User Flash | `0x2000_0000`，76 KiB | 独立持久应用存储；两个 36 KiB A/B 槽。 |
-| MMIO | `0x4000_0000` 起 | 固定 ABI 0.8 外设窗口；配置/命令/W1C 采用完整 32-bit 原子写。 |
+| MMIO | `0x4000_0000` 起 | 固定 ABI 0.9 外设窗口；配置/命令/W1C 采用完整 32-bit 原子写。 |
 
 每个 `.omcu` 有固定 64 字节头部、目标 ABI、长度、序号、头部 CRC32 和载荷 CRC32。
 Bootloader 始终向**非当前槽**写入，完成写入和回读校验后再原子提交。因此中途掉电不应让半写入
@@ -125,14 +125,14 @@ sequenceDiagram
 保持 UART0 更新会话，PC 可直接运行 `omcu_flash.py`，无需抢启动窗口。若应用失控、请求不可用或
 串口仍不可达，仍可采用“先启动 PC 工具、再按外部复位”的独立救砖路径。
 
-## 5. ABI 0.8 外设总览
+## 5. ABI 0.9 外设总览
 
 Tang Nano 9K 产品顶层的 `SYSCTRL.FEATURES` 应报告 `0x000F_FFFF`：bit 0..19 全部存在。
 较小的 bring-up 顶层不提供 User Flash 时，软件必须先做特性探测，不能假定产品外设必然存在。
 
 | 外设 | 基址 | 核心能力 | 主要限制 |
 | --- | ---: | --- | --- |
-| GPIO0 | `0x4000_0000` | 12 路 GPIO、OE、高阻、两级同步、端口滤波、边沿 IRQ 和事件快照；LED0..5 镜像 GPIO0..5 | 不是 ADC/高速采样；全端口滤波不是每 pin 独立去抖。 |
+| GPIO0 | `0x4000_0000` | 12 路 GPIO、OE、高阻、两级同步、兼容共享滤波或掩码内按针 2/4/8 样本独立滤波、边沿 IRQ 和事件快照；LED0..5 镜像 GPIO0..5 | 不是 ADC/高速采样；采样深度不是毫秒级机械去抖承诺。 |
 | UART0 | `0x4000_1000` | 8N1 RX/TX、IRQ、默认 115200 | 保留给 Bootloader、恢复和默认日志。 |
 | TIMER0 | `0x4000_2000` | 比较定时、自动重装、IRQ | 基础软件定时器。 |
 | SPI0 | `0x4000_3000` | mode 0 字节传输、显式多字节 CS 保持 | 与 TF 信号组共享；不与 microSD 并用。 |
@@ -178,7 +178,7 @@ J6/HDMI 的低电压/高速路径、JTAG、配置相关 pin 和“未使用 IOB�
 
 ### 5.3 PWM1 与 TIMER1 的位宽合同
 
-为在 9K 器件的满 BSRAM 条件下容纳完整 P0/P1 档案，PWM1 和 TIMER1 的共享计数路径明确采用
+为在 9K 器件的高 BSRAM 占用与高 LUT/路由密度下容纳完整 P0/P1 档案，PWM1 和 TIMER1 的共享计数路径明确采用
 资源受控的 16-bit 数据宽度。MMIO 仍为 32-bit word 地址，但读回的未定义高位均为零，编码器
 读回为低 16-bit 的符号扩展。
 
@@ -232,7 +232,7 @@ IRQCTRL 把以下 11 个源映射到 PicoRV32 CPU IRQ bit 8..18：
 
 ## 8. 已知限制与安全边界
 
-- BSRAM 已使用 24/26；两个剩余块并不构成大 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP 的承诺，任何存储扩展均须重新 P&R、定义带宽/一致性合同并做 HIL。
+- BSRAM 当前产品 P&R 使用 24/26。已试验极小的一块额外 BSRAM 记录器（25/26）也无法得到合法布局/布线，因此不能把“面上还显示两个块”解释为可用 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP；任何存储扩展都须重做 P&R、定义带宽/一致性合同并做 HIL。
 - UART1 无大 FIFO；SPI/I2C 是轮询型小事务接口；没有 DMA、缓存、网络栈或片上以太网 MAC/PHY。
 - PWM1 不提供互补对、死区、同步影子更新、过流关断或高压栅极驱动；高压/功率输出需外部安全级。
 - TIMER1 不提供异步高速采样、边沿 FIFO、速度计算或绝缘/EMC 前端。
@@ -245,6 +245,7 @@ IRQCTRL 把以下 11 个源映射到 PicoRV32 CPU IRQ bit 8..18：
 
 | ABI | 日期 | 变化 |
 | --- | --- | --- |
+| 0.9 | 2026-08-26 | 新增 `FILTER_CTRL` 与可写 `FILTER_MASK`：保留 ABI 0.8 共享滤波，同时为选择的 GPIO 提供相互独立的 2/4/8 连续样本条件化；SDK、Boot ROM 镜像 ABI、RTL 回归和目标器件 P&R/packing 同步更新。 |
 | 0.8 | 2026-08-26 | 固定产品 CPU 为 `rv32im` / `ilp32`，关闭压缩指令 `C`；产品 Boot ROM 收敛为 4 KiB，MMIO 配置/命令/W1C 采用完整 32-bit 原子写，并完成同一源码的目标器件 P&R/packing。 |
 | 0.7 | 2026-08-25 | 新增 GPIO 可靠性/快照、ALARM0、PULSE0、FAULT0 与增强 WDT；公开 GPIO 改为 12 路逻辑位，LED0..5 镜像 GPIO0..5。 |
 | 0.6 | 2026-08-25 | 完成 P0 外置器件 SDK、12 路扩展 GPIO、UART1、PWM1、TIMER1、诊断/软件返 Bootloader 与资源受控 RV32M 除法；中文数据手册改为当前合同。 |

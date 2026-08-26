@@ -1,7 +1,7 @@
 # 验证状态与发布门槛
 
-> **当前产品基线：** ABI `0.8`、`rv32im` / `ilp32`、4 KiB Boot ROM、44 KiB SRAM、76 KiB User Flash A/B。<br>
-> **可追溯 FPGA 构建：** `build/tangnano9k-mcu-abi08-rv32im-release/`。<br>
+> **当前产品基线：** ABI `0.9`、`rv32im` / `ilp32`、4 KiB Boot ROM、44 KiB SRAM、76 KiB User Flash A/B。<br>
+> **可追溯 FPGA 构建：** `build/tangnano9k-mcu-abi09-independent-history-filter-packed/`。<br>
 > **结论：** RTL、SDK、镜像工具和精确目标器件的开源 P&R/packing 已通过；实体 Tang Nano 9K HIL、长期可靠性、安全启动和量产资格尚未完成。
 
 本页明确区分“源码存在”“数字仿真通过”“已生成目标位流”“实体板通过”和“可量产”。它们不能互相替代。对外发布时必须保存对应 Git commit、`.fs`、manifest、`.omcu`、工具版本与真实板记录。
@@ -10,7 +10,7 @@
 
 | 层级 | 状态 | 已有证据 | 尚未覆盖 |
 | --- | --- | --- | --- |
-| 规格 / SDK 同步 | 已通过 | `generate-sdk.ps1 -Check`，ABI 0.8 JSON 与生成头一致 | 客户项目与第三方工具链兼容性 |
+| 规格 / SDK 同步 | 已通过 | `generate-sdk.ps1 -Check`，ABI 0.9 JSON 与生成头一致 | 客户项目与第三方工具链兼容性 |
 | SDK / Boot ROM | 已通过 | 全量 SDK 以 `rv32im` 构建；已提交 Boot ROM fixture 与生成 `.hex` 逐 word 一致 | 实体 UART 下载与真实 ROM 启动 |
 | RTL / 集成仿真 | 已通过 | 36 个 smoke 目标，覆盖全部公开外设、CPU、SDK、User Flash 模型、Tang 顶层及新原子 MMIO 合同 | 真实电平、异步噪声、功率级和真实 Flash |
 | 镜像 / 下载协议 | 已通过 | Python 单元测试 9/9，覆盖 fixture、镜像完整性与 UART 帧不变量 | 真实串口丢包、断电和设备互操作 |
@@ -23,12 +23,12 @@
 ### SDK、规格与 Boot ROM
 
 ```powershell
-.scriptsgenerate-sdk.ps1 -Check
+.\scripts\generate-sdk.ps1 -Check
 cmake --build .\build\sdk
 python -m unittest discover -s tools\tests -p 'test_*.py' -v
 ```
 
-结果：生成头与规范一致；SDK 全量构建完成，所有 `.omcu` 镜像使用硬件 ABI `0x00000008`；
+结果：生成头与规范一致；SDK 全量构建完成，所有 `.omcu` 镜像使用硬件 ABI `0x00000009`；
 Boot ROM fixture 检查通过；Python 测试 **9/9** 通过。
 
 ### RTL、CPU、外设与产品顶层
@@ -46,13 +46,13 @@ $tests | ForEach-Object { .\scripts\run-rtl-smoke.ps1 -Test $_ }
 结果：**36/36** 通过，重点包括：
 
 - RV32IM 的乘、除、取余及标准边界；旧 `rv32imc` 二进制不属于产品 ABI；
-- GPIO 两级同步、全端口稳定滤波、普通/FAULT 快照；ALARM0、PULSE0、FAULT0 和增强 WDT；
+- GPIO 两级同步、兼容全端口稳定滤波、按针 2/4/8 样本独立滤波、普通/FAULT 快照；ALARM0、PULSE0、FAULT0 和增强 WDT；
 - UART/SPI/I2C、GPIO、定时器、PWM、IRQCTRL、FAULT0 等配置/命令寄存器的部分 MMIO 写拒绝；
 - Bootloader 请求、复位原因、运行 tick、User Flash 模型、A/B 路径，以及编译固件到 Tang 顶层 pad 的数字路径。
 
 Icarus Verilog 会对部分 `always_comb` 常量选择和 `unique case` 输出已知的信息性限制提示；它们不等于 RTL 失败，也不构成“零警告仿真签核”。应保留日志并用 HIL/其他工具复核。
 
-## 3. ABI 0.8 最终产品 P&R / packing
+## 3. ABI 0.9 最终产品 P&R / packing
 
 运行：
 
@@ -60,10 +60,10 @@ Icarus Verilog 会对部分 `always_comb` 常量选择和 `unique case` 输出�
 $tools = (Resolve-Path .\.venv\yowasp-gowin\Scripts).Path
 .\scripts\build-tangnano9k-open.ps1 -McuMode `
   -ToolBin $tools `
-  -BuildDirectory .\build\tangnano9k-mcu-abi08-rv32im-release
+  -BuildDirectory .\build\tangnano9k-mcu-abi09-independent-history-filter-packed
 ```
 
-manifest：`build/tangnano9k-mcu-abi08-rv32im-release/omcu_tn9k_mcu_manifest.json`。
+manifest：`build/tangnano9k-mcu-abi09-independent-history-filter-packed/omcu_tn9k_mcu_manifest.json`。
 
 | 项目 | 记录值 |
 | --- | --- |
@@ -71,10 +71,10 @@ manifest：`build/tangnano9k-mcu-abi08-rv32im-release/omcu_tn9k_mcu_manifest.jso
 | 产品模式 | `mcu_mode=true`；Bootloader 固化在 FPGA 配置中，客户应用写入独立 User Flash A/B 槽 |
 | Boot ROM / SRAM | 4 KiB（1,024 words） / 44 KiB（45,056 B） |
 | User Flash | 77,824 B（76 KiB），2 × 36,864 B 槽，单应用载荷上限 36,800 B |
-| Boot ROM 哈希链 | SDK 输入 SHA-256 `ce3528a1c607e5d6c47c9a75db656c7cf3cb4a230cd6226d701acc06e41de6d2`；综合/P&R BSRAM 初始化指纹一致 `3c1605bcf45d0c27dd0911867b4c9dd8321c2462285f7322f24a418175d36b8d`（2 个单元） |
-| `.fs` SHA-256 | `1666a4c6218a040a11b2a21906b7681471ad1ebe847b3c2decf3cd6f4cfeb075` |
-| 时钟 | `platform.clk_27m_i`：27.000 MHz 约束，40.533421 MHz 实现，12.366037 ns 裕量 |
-| LUT4 / DFF / BSRAM | 6,962 / 8,640（80.58%）；2,511 / 6,480（38.75%）；24 / 26（92.31%） |
+| Boot ROM 哈希链 | SDK 输入 SHA-256 `3fc5ed46a577f05f6b00a0efa3bd25e1de39aff6f23ec241137b1e1710375b68`；综合/P&R BSRAM 初始化指纹一致 `e31384ff72254719fb25d553fb87070d300a76726eadb7247096b1dabca05e88`（2 个单元） |
+| `.fs` SHA-256 | `36fc2a3d2e73b6399a92c74a88e2424759b00c6a8b01171ec11d9c6c182de67a` |
+| 时钟 | `platform.clk_27m_i`：27.000 MHz 约束，44.294827 MHz 实现，14.461037 ns 裕量 |
+| LUT4 / DFF / BSRAM | 7,184 / 8,640（83.15%）；2,610 / 6,480（40.28%）；24 / 26（92.31%） |
 | ALU / MULT36X36 / IOB | 1,336 / 6,480；1 / 5；15 / 276 |
 | 工具 | YoWASP Yosys 0.68、nextpnr-himbaechel-gowin 0.11.1、Apycula 0.32 |
 
@@ -86,7 +86,7 @@ Yosys 会对顶层 I2C/GPIO 三态 Pad 发出有限三态支持警告；P&R/pack
 
 1. 先 SRAM 下载 `.fs`，检查 27 MHz、LED、UART0 和外部复位；核对 manifest 后再固化配置 Flash，至少做 10 次冷启动。
 2. 空白/有效/损坏的 A/B 镜像、正常升级、重复帧/重连，以及擦除、数据页写入、`END` 校验、最终提交四阶段断电。
-3. GPIO 电平/高阻、RGB LCD 共线、UART0/1、PWM0/1 波形、TIMER1 编码器/噪声、GPIO 端口滤波和快照。
+3. GPIO 电平/高阻、RGB LCD 共线、UART0/1、PWM0/1 波形、TIMER1 编码器/噪声、GPIO 共享和独立滤波（掩码、2/4/8 样本）及快照。
 4. ALARM0、PULSE0、FAULT0 门控/清除、WDT 预警/窗口/heartbeat/真实复位时序；故障试验只连接安全逻辑负载和人工受控条件。
 5. I2C 上拉、ACK/NACK/时钟拉伸；SPI 回环、TF 互斥及 DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 目标模块与链路。
 6. 温度、电压、长线、反复擦写和外部电源矩阵；按实际板卡 revision、模块和本次 `.fs` SHA-256 记录完整日志。

@@ -242,13 +242,18 @@ if (omcu_tn9k_timer1_configure(0u, UINT16_MAX, 4u, ctrl)) {
 
 ### GPIO 可靠性、事件快照、ALARM0、PULSE0 与 FAULT0
 
-GPIO0 的每根输入都会经过两级同步；额外 `FILTER_CYCLES=N` 是**整个 12-bit 端口**共享的 N+1
-稳定样本窗口，不是每根 pin 独立去抖。`omcu_gpio_snapshot_arm()` 复用 GPIO 的边沿使能掩码，
-`omcu_gpio_snapshot_read()` 返回边沿 mask、过滤后输入、run tick、IRQCTRL active 与 reset cause。
-FAULT0 trip 会优先覆盖该记录并把 `snapshot.forced` 置真，便于故障后诊断。
+GPIO0 的每根输入都会经过两级同步。默认/兼容的 `FILTER_CYCLES=N` 是**整个 12-bit 端口**共享的
+N+1 稳定样本窗口；ABI 0.9 的 `FILTER_CTRL.INDEPENDENT_ENABLE=1` 则让 `FILTER_MASK` 选中的每根
+pin 分别用 2/4/8 个连续相同样本判定，未选 pin 只有两级同步且不增加等待。独立模式避免无关输入
+变化重启正在确认的 pin，但仍不是异步高速采样器或毫秒级机械去抖器。`omcu_gpio_snapshot_arm()` 复用
+GPIO 的边沿使能掩码，`omcu_gpio_snapshot_read()` 返回边沿 mask、过滤后输入、run tick、IRQCTRL active
+与 reset cause。FAULT0 trip 会优先覆盖该记录并把 `snapshot.forced` 置真，便于故障后诊断。
 
 ```c
-omcu_gpio_configure_filter(4u);
+omcu_gpio_configure_independent_filter(
+  OMCU_TN9K_GPIO6,
+  OMCU_GPIO_FILTER_CTRL_DEPTH_8
+);
 omcu_gpio_snapshot_arm(OMCU_TN9K_GPIO6, 0u, false, true);
 /* ISR 或主循环： */
 omcu_gpio_snapshot_t snapshot;

@@ -1,6 +1,6 @@
-# OpenMCU ABI 0.8 中断约定
+# OpenMCU ABI 0.9 中断约定
 
-OpenMCU ABI 0.8 为 RV32IM FPGA 目标保留了一条完整、可执行的外部中断路径。它覆盖外设事件捕获、软件使能与确认寄存器、CPU 投递、固定向量、完整 C ABI 保存/恢复包装器，以及 SDK 分发钩子。该约定适用于声明 <code>OMCU_FEATURE_IRQCTRL</code> 的仿真与 Tang Nano 9K 封装。
+OpenMCU ABI 0.9 为 RV32IM FPGA 目标保留了一条完整、可执行的外部中断路径。它覆盖外设事件捕获、软件使能与确认寄存器、CPU 投递、固定向量、完整 C ABI 保存/恢复包装器，以及 SDK 分发钩子。该约定适用于声明 <code>OMCU_FEATURE_IRQCTRL</code> 的仿真与 Tang Nano 9K 封装。
 
 ## 适用范围与兼容性边界
 

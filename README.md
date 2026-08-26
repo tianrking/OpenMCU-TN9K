@@ -13,7 +13,7 @@
 
 ## 这是什么
 
-OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 `RV32IM` CPU、ROM/SRAM、12 路受约束 J5 GPIO、UART0/1、TIMER0/1、SPI、I2C、增强看门狗、PWM0/四路 PWM1、IRQCTRL、ALARM0、PULSE0、FAULT0、PINMUX、诊断 SYSCTRL 和 User Flash 控制器组合成固定硬件 ABI `0.8` 的 MCU 平台。板载 LED0..5 镜像 GPIO0..5 的输出/OE，不再占用独立的 GPIO 编号。
+OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 `RV32IM` CPU、ROM/SRAM、12 路受约束 J5 GPIO、UART0/1、TIMER0/1、SPI、I2C、增强看门狗、PWM0/四路 PWM1、IRQCTRL、ALARM0、PULSE0、FAULT0、PINMUX、诊断 SYSCTRL 和 User Flash 控制器组合成固定硬件 ABI `0.9` 的 MCU 平台。GPIO0 除保留兼容的共享稳定滤波外，还提供按针选择的 2/4/8 样本独立数字滤波；板载 LED0..5 镜像 GPIO0..5 的输出/OE，不再占用独立的 GPIO 编号。
 
 PicoRV32 是 FPGA 配置内部使用的 CPU IP 依赖；它不是客户每次开发应用都要“引用”的库。对应用开发者而言，本项目提供的是普通的裸机 SDK、链接脚本、应用镜像格式和串口升级工具。
 
@@ -147,7 +147,7 @@ arm/                         ARM 后端授权边界（不含 ARM IP）
 - [构建与烧录](docs/zh-CN/build-and-program.md)
 - [硬件与引脚](docs/zh-CN/hardware-and-pins.md)
 - [外设与 SDK](docs/zh-CN/peripherals-and-sdk.md)
-- [ABI 0.8 寄存器参考](docs/registers.md)
+- [ABI 0.9 寄存器参考](docs/registers.md)
 - [中断开发约定](docs/zh-CN/interrupts.md)
 - [测试计划](tests/README.md)
 - [ASIC 交接边界](asic/README.md)

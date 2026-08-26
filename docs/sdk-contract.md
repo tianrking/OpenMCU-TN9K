@@ -21,7 +21,7 @@ v0 的机器可读规范是 <a href="../spec/omcu-v0.json">spec/omcu-v0.json</a>
 
 ## 必须提供的公开 SDK 功能
 
-ABI 0.8 SDK 包括设备/特性发现、12-bit GPIO 档案（LED0..5 镜像 GPIO0..5）、两级同步/端口滤波/事件快照、UART0/1、TIMER0/1、两路 ALARM0、单选 PULSE0、FAULT0、轮询式 SPI 单字节和连续 CS 帧传输、可组合的 I2C START/STOP/读写字节辅助函数、增强看门狗、PWM0/四路 PWM1、PINMUX、复位诊断、软件请求 Bootloader，以及可执行的外部 IRQ 入口：<code>omcu_irq_set_mask()</code>、<code>omcu_irq_wait()</code>、<code>omcu_irq_global_enable()</code> 和 IRQCTRL 辅助函数。SDK 固定以 `rv32im` / `ilp32` 构建；压缩指令未启用，ABI 0.7 的 `rv32imc` 镜像必须重新编译。
+ABI 0.9 SDK 包括设备/特性发现、12-bit GPIO 档案（LED0..5 镜像 GPIO0..5）、两级同步、兼容共享滤波和按针 2/4/8 样本独立滤波、事件快照、UART0/1、TIMER0/1、两路 ALARM0、单选 PULSE0、FAULT0、轮询式 SPI 单字节和连续 CS 帧传输、可组合的 I2C START/STOP/读写字节辅助函数、增强看门狗、PWM0/四路 PWM1、PINMUX、复位诊断、软件请求 Bootloader，以及可执行的外部 IRQ 入口：<code>omcu_irq_set_mask()</code>、<code>omcu_irq_wait()</code>、<code>omcu_irq_global_enable()</code> 和 IRQCTRL 辅助函数。SDK 固定以 `rv32im` / `ilp32` 构建；压缩指令未启用，ABI 0.7/0.8 镜像必须重新编译。
 
 应用通过提供强符号 <code>omcu_irq_dispatch(uint32_t pending)</code> 实现中断分发。SDK 的向量包装器负责 PicoRV32 自定义指令和全部整数寄存器保护。精确的非标准边界与确认顺序见 <a href="interrupts.md">中断约定</a>。
 

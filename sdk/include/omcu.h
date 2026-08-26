@@ -202,7 +202,7 @@ static inline bool omcu_gpio_configure_filter(uint8_t filter_cycles) {
   if (!omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY)) {
     return false;
   }
-  /* Restore the ABI 0.8 shared-port profile before updating its period. */
+  /* Restore the legacy shared-port profile before updating its period. */
   OMCU_GPIO0->filter_ctrl = 0u;
   OMCU_GPIO0->filter_cycles = (uint32_t)filter_cycles;
   return true;
