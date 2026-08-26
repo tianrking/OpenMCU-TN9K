@@ -4,9 +4,9 @@
 // This is deliberately a compiled-SDK gate rather than a hand-coded ROM
 // fixture. `omcu_isa_smoke.hex` is built with -march=rv32im and validates
 // base integer control plus MUL/DIV/REM execution through the actual SoC.
-// The legacy file/module name is retained only to keep the smoke target name
-// stable while the product ISA moved to ABI 0.9.
-module omcu_rv32imc_sdk_tb;
+// The file/module name deliberately follows the current RV32IM product
+// profile so test output and CI never suggest that C compression is enabled.
+module omcu_rv32im_sdk_tb;
   logic clk = 1'b0;
   logic rst_n = 1'b0;
   logic [3:0] gpio_out;

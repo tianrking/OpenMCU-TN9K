@@ -109,6 +109,20 @@ python -m unittest `
 
 这些测试不直接替代“启动器在真实 User Flash 上写入并重新启动应用”的端到端板级测试。
 
+## GitHub Actions 推送门禁
+
+.github/workflows/ci.yml 对每一次 push、pull request 和手动触发执行以下独立门禁：
+
+| Job | 覆盖范围 | 通过的含义 |
+| --- | --- | --- |
+| RTL and project-contract checks | 生成寄存器检查、两个 Tang 工程合同检查、27 个不依赖已编译应用的 RTL smoke。 | 源码、规格和基础数字路径一致。 |
+| RV32IM SDK, image and compiled-firmware simulation | 锁定 RISC-V 工具链的全量 SDK/Boot ROM 构建、9 个已编译固件 smoke、Python 镜像和 UART 协议测试。 | MCU 软件产物可构建并通过数字仿真。 |
+| SDK host build | Windows 与 macOS 上以同一锁定工具链构建全量 SDK。 | SDK 入口不只依赖一个主机环境。 |
+| Tang Nano 9K product P&R and packing | Windows YoWASP 精确器件综合、P&R、packing，并上传 .fs、manifest、report 和日志。 | 当前 FPGA 产品顶层能产生目标器件 bitstream；不等于实板通过。 |
+
+CI 必须保持这些任务全部绿色才可合并 FPGA/SDK 变更。artifact 只保存可追溯构建证据；
+它不会替代下载、冷启动、串口、Flash、外设电气或掉电 HIL。
+
 ## FPGA 构建与下载验证
 
 产品模式需要额外检查工程完整性和位流构建：

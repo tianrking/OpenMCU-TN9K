@@ -3,12 +3,21 @@ name: OpenMCU CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# FPGA P&R is intentionally part of the required product gate. Cancel an
+# obsolete run for the same branch instead of spending a Windows runner on a
+# bitstream that can no longer be merged.
+concurrency:
+  group: openmcu-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rtl:
+    name: RTL and project-contract checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,31 +28,27 @@ jobs:
       - name: Check generated SDK register definitions
         shell: pwsh
         run: ./scripts/generate-sdk.ps1 -Check
-      - name: Check Tang Nano 9K project source coverage
-        shell: pwsh
-        run: ./scripts/check-tangnano9k-project.ps1
-      - name: Check Tang Nano 9K MCU product project source coverage
-        shell: pwsh
-        run: ./scripts/check-tangnano9k-project.ps1 -McuMode
-      - name: Run portable, product and Tang bring-up RTL smoke tests
+      - name: Check Tang Nano 9K source and constraint coverage
         shell: pwsh
         run: |
-          ./scripts/run-rtl-smoke.ps1 -Test gpio
-          ./scripts/run-rtl-smoke.ps1 -Test timer
-          ./scripts/run-rtl-smoke.ps1 -Test uart
-          ./scripts/run-rtl-smoke.ps1 -Test spi
-          ./scripts/run-rtl-smoke.ps1 -Test i2c
-          ./scripts/run-rtl-smoke.ps1 -Test wdt
-          ./scripts/run-rtl-smoke.ps1 -Test pwm
-          ./scripts/run-rtl-smoke.ps1 -Test irqctrl
-          ./scripts/run-rtl-smoke.ps1 -Test sysctrl
-          ./scripts/run-rtl-smoke.ps1 -Test user-flash
-          ./scripts/run-rtl-smoke.ps1 -Test system
-          ./scripts/run-rtl-smoke.ps1 -Test system-uart
-          ./scripts/run-rtl-smoke.ps1 -Test mcu-top
-          ./scripts/run-rtl-smoke.ps1 -Test tn9k
+          ./scripts/check-tangnano9k-project.ps1
+          ./scripts/check-tangnano9k-project.ps1 -McuMode
+      - name: Run all source-only RTL smoke tests
+        shell: pwsh
+        run: |
+          $tests = @(
+            'timer', 'timer1', 'timer1-fabric', 'alarm', 'pulse',
+            'alarm-pulse-fabric', 'fault', 'fault-fabric', 'gpio', 'uart',
+            'uart1', 'spi', 'i2c', 'wdt', 'wdt-supervisor', 'pwm', 'pwm1',
+            'pwm1-fabric', 'irqctrl', 'sysctrl', 'pinmux', 'user-flash',
+            'pcpi-div', 'system', 'system-uart', 'tn9k', 'mcu-top'
+          )
+          foreach ($test in $tests) {
+            ./scripts/run-rtl-smoke.ps1 -Test $test
+          }
 
   sdk:
+    name: RV32IM SDK, image and compiled-firmware simulation
     runs-on: ubuntu-latest
     env:
       XPACKS_STORE_FOLDER: ${{ github.workspace }}/.xpack-store
@@ -54,7 +59,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install RTL simulator and host build tools
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install host build tools
         run: |
           sudo apt-get update
           sudo apt-get install --yes cmake ninja-build iverilog
@@ -80,17 +88,20 @@ jobs:
             throw "xPack did not provide $compilerPath"
           }
           (Get-Item -LiteralPath $compilerPath).DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-      - name: Build RV32IMC firmware through the POSIX SDK entry point
+      - name: Build every RV32IM SDK target and verify the immutable Boot ROM fixture
         run: sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
-      - name: Execute compiled RV32IMC SDK firmware in SoC simulation
+      - name: Execute all compiled-firmware RTL smoke tests
         shell: pwsh
         run: |
-          ./scripts/run-rtl-smoke.ps1 -Test sdk-isa
-          ./scripts/run-rtl-smoke.ps1 -Test sdk-peripherals
-          ./scripts/run-rtl-smoke.ps1 -Test sdk-i2c
-          ./scripts/run-rtl-smoke.ps1 -Test sdk-irq
-          ./scripts/run-rtl-smoke.ps1 -Test tn9k-wdt
-          ./scripts/run-rtl-smoke.ps1 -Test tn9k-peripherals
+          $tests = @(
+            'sdk-isa', 'sdk-peripherals', 'sdk-i2c', 'sdk-irq', 'tn9k-wdt',
+            'tn9k-peripherals', 'tn9k-pwm1', 'tn9k-timer1', 'tn9k-boot-request'
+          )
+          foreach ($test in $tests) {
+            ./scripts/run-rtl-smoke.ps1 -Test $test
+          }
+      - name: Test image and UART-update protocol tools
+        run: python -m unittest discover -s tools/tests -p 'test_*.py' -v
 
   sdk-cross-platform:
     name: SDK host build (${{ matrix.os }})
@@ -100,9 +111,6 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     env:
-      # Keep the package store inside the disposable CI workspace, then locate
-      # the compiler by executable name instead of hard-coding OS-specific
-      # xPack home-directory locations.
       XPACKS_STORE_FOLDER: ${{ github.workspace }}/.xpack-store
     steps:
       - uses: actions/checkout@v4
@@ -111,20 +119,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install pinned xPack GNU RISC-V toolchain and build all SDK examples
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned xPack toolchain and build all RV32IM SDK examples
         shell: pwsh
         run: |
           cmake --version
           ninja --version
 
-          $xpmWork = Join-Path $env:RUNNER_TEMP 'omcu-xpm'
+          $xpmWork = Join-Path $env:RUNNER_TEMP 'omcu-xpm-host'
           New-Item -ItemType Directory -Force -Path $xpmWork | Out-Null
           Push-Location $xpmWork
           try {
             npm install --no-save xpm@0.23.2
             $xpmName = if ($IsWindows) { 'xpm.cmd' } else { 'xpm' }
             $xpmPath = Join-Path $xpmWork (Join-Path 'node_modules/.bin' $xpmName)
-            & $xpmPath init --name omcu-ci-xpack
+            & $xpmPath init --name omcu-ci-host
             if ($LASTEXITCODE -ne 0) { throw "xpm init failed with exit code $LASTEXITCODE" }
             & $xpmPath install '@xpack-dev-tools/riscv-none-elf-gcc@15.2.0-1.1' --verbose
             if ($LASTEXITCODE -ne 0) { throw "xpm toolchain install failed with exit code $LASTEXITCODE" }
@@ -132,17 +143,21 @@ jobs:
             Pop-Location
           }
 
+          # On Windows, xPack's project-local entry is a .cmd/.ps1 launcher.
+          # CMake/Ninja need the real native executable, so locate it in the
+          # xPack store. POSIX xPack launchers are executable symlinks.
           $compilerName = if ($IsWindows) { 'riscv-none-elf-gcc.exe' } else { 'riscv-none-elf-gcc' }
-          # xpm creates a project-local launcher for every installed xPack.
-          # Use it first: on macOS, the central-store payload lives below the
-          # hidden .content directory, which PowerShell does not recurse into
-          # unless -Force is specified.
-          $compilerPath = Join-Path $xpmWork (Join-Path 'xpacks/.bin' $compilerName)
-          if (Test-Path -LiteralPath $compilerPath -PathType Leaf) {
-            $compiler = Get-Item -LiteralPath $compilerPath
-          } else {
+          if ($IsWindows) {
             $compiler = Get-ChildItem -LiteralPath $env:XPACKS_STORE_FOLDER -Recurse -Force -File -Filter $compilerName |
               Select-Object -First 1
+          } else {
+            $compilerPath = Join-Path $xpmWork (Join-Path 'xpacks/.bin' $compilerName)
+            if (Test-Path -LiteralPath $compilerPath -PathType Leaf) {
+              $compiler = Get-Item -LiteralPath $compilerPath
+            } else {
+              $compiler = Get-ChildItem -LiteralPath $env:XPACKS_STORE_FOLDER -Recurse -Force -File -Filter $compilerName |
+                Select-Object -First 1
+            }
           }
           if ($null -eq $compiler) {
             throw "xPack did not provide $compilerName below $env:XPACKS_STORE_FOLDER"
@@ -155,3 +170,74 @@ jobs:
           } else {
             sh ./scripts/build-sdk.sh --build-dir build/sdk-host --riscv-prefix riscv-none-elf-
           }
+
+  fpga-product-pnr:
+    name: Tang Nano 9K product P&R and packing
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      XPACKS_STORE_FOLDER: ${{ github.workspace }}/.xpack-store
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned YoWASP Gowin tools
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'yowasp-yosys==0.68.0.0.post1208' 'yowasp-nextpnr-himbaechel-gowin==0.11.1.0.post826' 'apycula==0.32'
+          $toolBin = Split-Path -Parent (Get-Command yowasp-yosys -ErrorAction Stop).Source
+          foreach ($tool in @('yowasp-yosys', 'yowasp-nextpnr-himbaechel-gowin', 'gowin_pack')) {
+            Get-Command $tool -ErrorAction Stop | Out-Null
+          }
+          Write-Output "YoWASP tool bin: $toolBin"
+      - name: Install pinned xPack RISC-V toolchain
+        shell: pwsh
+        run: |
+          $xpmWork = Join-Path $env:RUNNER_TEMP 'omcu-xpm-pnr'
+          New-Item -ItemType Directory -Force -Path $xpmWork | Out-Null
+          Push-Location $xpmWork
+          try {
+            npm install --no-save xpm@0.23.2
+            $xpmPath = Join-Path $xpmWork 'node_modules/.bin/xpm.cmd'
+            & $xpmPath init --name omcu-ci-pnr
+            if ($LASTEXITCODE -ne 0) { throw "xpm init failed with exit code $LASTEXITCODE" }
+            & $xpmPath install '@xpack-dev-tools/riscv-none-elf-gcc@15.2.0-1.1' --verbose
+            if ($LASTEXITCODE -ne 0) { throw "xpm toolchain install failed with exit code $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }
+
+          # The project-local xPack entry is a .cmd/.ps1 launcher on Windows.
+          # Pass CMake/Ninja the real executable directory instead.
+          $compiler = Get-ChildItem -LiteralPath $env:XPACKS_STORE_FOLDER -Recurse -Force -File -Filter 'riscv-none-elf-gcc.exe' |
+            Select-Object -First 1
+          if ($null -eq $compiler) {
+            throw "xPack did not provide riscv-none-elf-gcc.exe below $env:XPACKS_STORE_FOLDER"
+          }
+          $compiler.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Build product Boot ROM and Tang Nano 9K MCU bitstream
+        shell: pwsh
+        run: |
+          ./scripts/generate-sdk.ps1 -Check
+          ./scripts/build-sdk.ps1 -RiscvPrefix riscv-none-elf-
+          $toolBin = Split-Path -Parent (Get-Command yowasp-yosys -ErrorAction Stop).Source
+          ./scripts/build-tangnano9k-open.ps1 -McuMode -ToolBin $toolBin -BuildDirectory build/tangnano9k-mcu-ci
+      - name: Upload P&R evidence and bitstream
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openmcu-tn9k-product-pnr-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            build/tangnano9k-mcu-ci/omcu_tn9k_mcu.fs
+            build/tangnano9k-mcu-ci/omcu_tn9k_mcu_manifest.json
+            build/tangnano9k-mcu-ci/omcu_tn9k_mcu_report.json
+            build/tangnano9k-mcu-ci/yosys.log
+            build/tangnano9k-mcu-ci/nextpnr.log
