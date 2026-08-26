@@ -150,6 +150,7 @@ add_custom_command(TARGET omcu_bootloader POST_BUILD
   VERBATIM
 )
 omcu_add_application(omcu_mcu_blink examples/mcu_blink/main.c)
+omcu_add_application(omcu_mcu_hello examples/mcu_hello/main.c)
 omcu_add_application(omcu_uart1_loopback examples/uart1_loopback/main.c)
 omcu_add_application(omcu_pwm1_demo examples/pwm1_demo/main.c)
 omcu_add_application(omcu_timer1_encoder_demo examples/timer1_encoder_demo/main.c)

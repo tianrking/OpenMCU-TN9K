@@ -31,7 +31,7 @@ flowchart TB
     MMIO --> PERI[GPIO · UART · TIMER · SPI · I2C · WDT · PWM · ALARM · PULSE · FAULT · IRQCTRL · PINMUX]
     MMIO --> FLASH[76 KiB User Flash\nA/B 应用槽]
   end
-  APP[客户 C/C++ 应用] --> ELF[RV32IM ELF]
+  APP[客户 C 应用] --> ELF[RV32IM ELF]
   ELF --> IMAGE[独立 .omcu 镜像]
   IMAGE -->|UART0| ROM
   ROM --> FLASH

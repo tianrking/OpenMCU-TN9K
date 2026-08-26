@@ -22,7 +22,7 @@ flowchart LR
     B --> C[配置 Flash 固化]
   end
   subgraph U[反复应用开发：客户]
-    D[C/C++ 应用] --> E[ELF / .bin / .omcu]
+    D[C 应用] --> E[ELF / .bin / .omcu]
     E -->|UART0 115200 8N1| G[FPGA 内的 Bootloader]
     G --> H[User Flash A/B 槽]
     H --> I[复位后验证、复制到 SRAM、执行]
@@ -64,7 +64,7 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
 
 - `build\tangnano9k-mcu\omcu_tn9k_mcu.fs`：待下载的产品 FPGA 位流；
 - `build\tangnano9k-mcu\omcu_tn9k_mcu_manifest.json`：包含设备、顶层、模式、位流哈希、ROM 初始化和 User Flash 布局的可核验清单；
-- `build\sdk\omcu_mcu_blink.omcu`：一个独立应用示例，**不是** FPGA 输入。
+- `build\sdk\omcu_mcu_hello.omcu`：一个独立 Hello World 应用，**不是** FPGA 输入。
 
 先以 SRAM 方式试运行，再固化配置 Flash：
 
@@ -83,26 +83,30 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
 
 ## B. 客户编译 MCU 应用
 
+客户应用从[《从零开发与烧录 OpenMCU 应用》](mcu-application-development.md)开始。该指南包含
+Windows/Linux 环境、`omcu_mcu_hello`、代码编辑、串口日志和排错；本节只说明固定的镜像合同。
+
 SDK 的 `omcu_add_application()` 目标使用 `sdk/linker/omcu_application.ld`，自动执行：
 
 ```text
-C/C++ 源码 -> RV32IM ELF -> 原始 SRAM 二进制 -> 带校验头的 .omcu
+C 源码 -> RV32IM ELF -> 原始 SRAM 二进制 -> 带校验头的 .omcu
 ```
 
-仓库提供的最小独立应用是 `sdk/examples/mcu_blink/main.c`，构建后为：
+仓库提供的最小串口独立应用是 `sdk/examples/mcu_hello/main.c`，构建后为：
 
 ```powershell
 .\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
-python .\tools\omcu_image.py validate --image .\build\sdk\omcu_mcu_blink.omcu
+python .\tools\omcu_image.py validate --image .\build\sdk\omcu_mcu_hello.omcu
 ```
 
-创建自己的目标时，在 `sdk/CMakeLists.txt` 增加一行，而不是使用旧的 `omcu_add_firmware()`：
+创建自己的目标时，在 `sdk/CMakeLists.txt` 增加一行：
 
 ```cmake
 omcu_add_application(my_product_app examples/my_product_app/main.c)
 ```
 
-然后重新运行 `build-sdk`，得到 `build\sdk\my_product_app.omcu`。旧的 `omcu_add_firmware()` 和 `.hex` 只保留给 RTL/FPGA bring-up 回归；它们不适用于已交付 MCU 的客户升级。
+然后重新运行 `build-sdk`，得到 `build\sdk\my_product_app.omcu`。客户应用只使用这一类目标和
+`.omcu` 镜像。
 
 应用的编译 ABI 必须与目标匹配：当前为 `rv32im` / `ilp32`，硬件 ABI 为 `0x00000009`。压缩指令 `C` 未启用；旧 `rv32imc`、ABI 0.7 或 ABI 0.8 镜像不兼容。镜像工具和启动器都会拒绝 ABI、入口地址、长度或 CRC 不匹配的文件。
 
@@ -129,8 +133,8 @@ python .\tools\omcu_flash.py `
 ## D. 运行中的应用主动回到 Bootloader
 
 这条路径只适用于已固化的 `-McuMode` 产品位流：它需要 `OMCU_FEATURE_DIAGNOSTICS`、
-`OMCU_FEATURE_USER_FLASH` 和 `SYSCTRL.BOOT_CTRL.REQUEST_SUPPORTED`。普通 bring-up `.hex`
-镜像不会接受该命令，仍须使用外部复位。
+`OMCU_FEATURE_USER_FLASH` 和 `SYSCTRL.BOOT_CTRL.REQUEST_SUPPORTED`。不具备这些产品特性的
+目标不能接受该命令，仍须使用外部复位。
 
 ```c
 #include "omcu_tn9k.h"

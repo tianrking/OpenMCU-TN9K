@@ -2,7 +2,7 @@
 
 > **主规格书入口：**完整的引脚、复用、寄存器语义、IRQ、位宽和电气边界见
 > [《OpenMCU-TN9K 外设与引脚完整规格书》](peripheral-pin-specification.md)。
-> 本页保留面向 C/C++ 应用的 SDK API、用法和示例说明。
+> 本页保留面向 C 应用的 SDK API、用法和示例说明。
 
 ## 稳定地址空间
 
@@ -315,4 +315,4 @@ pending 并持续保持 UART0 更新会话，直到主机完成常规 `BOOT` 命
 4. 使用 `tools/omcu_image.py validate` 核对 `.omcu`，再通过 `tools/omcu_flash.py` 写入已经固化的产品 FPGA。
 5. 为新外设事务补充 RTL testbench、串口更新回归和实体板清单，再发布。
 
-`omcu_add_application()` 专门匹配固定的 40 KiB 应用 SRAM 与 User Flash A/B 槽；它不是把程序编进 FPGA ROM。`omcu_add_firmware()` 仅保留给旧式 bring-up 回归。若实验性改变 ROM/SRAM 几何，必须使用独立目标和匹配的链接脚本，不能混入产品 MCU 模式。
+`omcu_add_application()` 专门匹配固定的 40 KiB 应用 SRAM 与 User Flash A/B 槽；它不会把客户程序编进 FPGA ROM。若实验性改变 ROM/SRAM 几何，必须创建独立平台与匹配链接脚本，不能混入已交付的产品 MCU 模式。

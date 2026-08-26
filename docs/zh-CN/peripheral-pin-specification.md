@@ -31,7 +31,7 @@ flowchart TB
     MMIO --> SYS[IRQCTRL · PINMUX · SYSCTRL]
     MMIO --> UF[76 KiB User Flash 控制器]
   end
-  APP[客户 C/C++ 应用] --> IMG[独立 .omcu 镜像]
+  APP[客户 C 应用] --> IMG[独立 .omcu 镜像]
   IMG -->|UART0| BOOT[Bootloader]
   BOOT --> UF
   UF -->|验证并复制| SRAM

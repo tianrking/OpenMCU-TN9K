@@ -98,7 +98,7 @@ PSRAM、TF、RGB LCD 和“空闲 package pin”不因此成为可安全使用�
 ## 6. SDK 与应用开发
 
 SDK 已提供裸机启动代码、链接脚本、寄存器头、IRQ 包装、Bootloader 协议工具和下列应用示例：
-mcu_blink、UART1 回环、PWM1、TIMER1 编码器、GPIO 可靠输入、ALARM/PULSE、FAULT/WDT、
+mcu_hello、mcu_blink、UART1 回环、PWM1、TIMER1 编码器、GPIO 可靠输入、ALARM/PULSE、FAULT/WDT、
 Bootloader 请求以及 DS3231/AT24Cxx/TMP102/MCP3008/MCP4921/W5500 外置器件。
 
 ~~~powershell

@@ -48,8 +48,7 @@ SDK 构建同时产生不可变启动器和独立应用示例：
 | 文件 | 用途 |
 | --- | --- |
 | `build\sdk\omcu_bootloader.hex` | 进入产品 FPGA 的 4 KiB Boot ROM；不是客户更新包。 |
-| `build\sdk\omcu_mcu_blink.omcu` | 独立应用示例；可经 UART 更新。 |
-| 其他 `*.hex` | 旧 ROM/RTL bring-up 回归输入；不属于客户交付路径。 |
+| `build\sdk\omcu_mcu_hello.omcu` | 独立 Hello World 应用；可经 UART 更新。 |
 
 SDK 构建会自动把刚生成的 `omcu_bootloader.hex` 与产品顶层默认使用的已提交 Boot ROM 夹具逐项比对。若指令内容不一致，构建直接失败；这样平台升级时不会误把旧启动器固化进新的 FPGA 配置。
 
@@ -93,7 +92,9 @@ $fs = '.\build\tangnano9k-mcu\omcu_tn9k_mcu.fs'
 
 ## 4. 客户构建并烧录 MCU 应用
 
-客户应用必须通过 `omcu_add_application()` 生成 `.omcu`，详细写法见 [SDK README](../../sdk/README.md)。构建后的日常升级不再调用 FPGA 构建工具：
+客户应用必须通过 `omcu_add_application()` 生成 `.omcu`。从环境安装、Hello World、自己的应用目标到
+串口恢复的完整步骤见[《从零开发与烧录 OpenMCU 应用》](mcu-application-development.md)；构建后的
+日常升级不再调用 FPGA 构建工具：
 
 ```powershell
 python -m pip install pyserial
@@ -124,9 +125,3 @@ python -m unittest `
 ```
 
 随后保存 Git commit、SDK 构建记录、`omcu_tn9k_mcu_manifest.json`、`.omcu` 哈希、下载器版本、串口日志和实板记录。实板必须覆盖首次固化、冷启动、空白恢复、正常升级、丢包/重复包、错误 CRC/ABI、多个断电时点和外设电气检查。
-
-## 旧式 bring-up 流程（仅回归用途）
-
-`omcu_add_firmware()` 生成的 `.hex` 与 `omcu_tn9k_bringup_top` 仍用于已有 RTL、编译器和 FPGA P&R 回归。只有在维护这些测试时才提供 `-RomInitFile`，并且必须为改变后的 ROM/SRAM 几何同步创建匹配链接脚本。
-
-此路径不能用于已交付客户的应用更新；产品必须使用 `.omcu → UART → User Flash`。

@@ -27,7 +27,7 @@ flowchart TB
     MMIO --> UF[76 KiB GW1NR User Flash 控制器]
   end
   subgraph 客户层[可反复更新的客户 MCU 应用]
-    APP[C/C++ 裸机程序] --> ELF[RV32IM ELF]
+    APP[C 裸机程序] --> ELF[RV32IM ELF]
     ELF --> IMG[.omcu 镜像]
     IMG -->|UART0| UF
     UF -->|验证后复制| RAM
@@ -64,7 +64,8 @@ sequenceDiagram
   Boot->>Ram: 跳转到应用复位向量
 ```
 
-完整协议、掉电回退、产物命名和恢复步骤见 [独立 MCU 固件开发与升级](docs/zh-CN/mcu-firmware-update.md)。
+从安装工具链、编译 Hello World 到 UART0 烧录、日志和恢复的完整客户流程见
+[从零开发与烧录 OpenMCU 应用](docs/zh-CN/mcu-application-development.md)。
 
 ## 快速开始
 
@@ -96,15 +97,19 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
 ### 2. 客户开发并更新 MCU 应用
 
 ```powershell
-# 构建自己的 omcu_add_application() 目标后：
+# `omcu_mcu_hello` 是独立的产品应用，不需要改 FPGA 位流。
+.\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
 python -m pip install pyserial
-python .\tools\omcu_image.py validate --image .\build\sdk\my_product_app.omcu
-python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
+python .\tools\omcu_flash.py --port COM5 `
+  --image .\build\sdk\omcu_mcu_hello.omcu
 ```
 
-工具默认在 8 秒内寻找启动器。若设备已经运行旧应用，先启动工具，再按一次复位键；串口使用 `115200 / 8N1`、3.3 V TTL 电平、TX/RX 交叉并共地。
+工具默认在 8 秒内寻找启动器。若设备已经运行应用，先启动工具，再按一次复位键；串口使用 `115200 / 8N1`、3.3 V TTL 电平、TX/RX 交叉并共地。
 
 若业务应用复用了 UART0，应用先结束关键写入并调用 `omcu_tn9k_request_bootloader()`；平台会记录软件原因、复位进入 Bootloader，并保持 UART0 更新会话，无需抢启动窗口。该机制仍需要本板实机 HIL；外部复位始终保留为独立恢复路径。
+
+复制 Hello World 为自己的 C 应用、声明 `omcu_add_application()` 目标、Windows/Linux 环境和排错步骤，
+统一见[客户应用开发指南](docs/zh-CN/mcu-application-development.md)。
 
 ## 产品级应用存储模型
 
@@ -128,7 +133,7 @@ python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
 ```text
 rtl/                         可综合 SoC、外围设备和 Tang Nano 9K 平台封装
 rtl/peripherals/omcu_user_flash.sv  GW1NR User Flash 控制器
-sdk/                         C/C++ SDK、启动代码、链接脚本和示例
+sdk/                         C SDK、启动代码、链接脚本和产品应用示例
 sdk/bootloader/              独立应用 A/B 启动与 UART 更新器
 tools/omcu_image.py          .omcu 打包、检查和校验
 tools/omcu_flash.py          PC 端 UART 更新客户端
@@ -144,6 +149,7 @@ arm/                         ARM 后端授权边界（不含 ARM IP）
 - [工程数据手册总览（中文）](docs/zh-CN/datasheet.md)
 - [资源与外设扩展路线图（中文）](docs/zh-CN/resource-expansion-roadmap.md)
 - [中文开发总览](docs/zh-CN/README.md)
+- [从零开发与烧录 OpenMCU 应用](docs/zh-CN/mcu-application-development.md)
 - [独立 MCU 固件开发与升级](docs/zh-CN/mcu-firmware-update.md)
 - [构建与烧录](docs/zh-CN/build-and-program.md)
 - [硬件与引脚](docs/zh-CN/hardware-and-pins.md)
@@ -152,15 +158,6 @@ arm/                         ARM 后端授权边界（不含 ARM IP）
 - [中断开发约定](docs/zh-CN/interrupts.md)
 - [测试计划](tests/README.md)
 - [ASIC 交接边界](asic/README.md)
-
-## 两个使用模式，请不要混淆
-
-| 模式 | 顶层 | 适用场景 | 应用如何放入系统 |
-| --- | --- | --- | --- |
-| `bringup` | `omcu_tn9k_bringup_top` | RTL、外设、FPGA bring-up 回归 | 旧式 `.hex` 作为 FPGA ROM 初始化；不面向客户升级 |
-| `MCU 产品模式` | `omcu_tn9k_mcu_top` | 已固化后持续交付软件的设备 | 独立 `.omcu` 经 UART 写入 User Flash；推荐客户路径 |
-
-旧 `.hex → FPGA .fs` 流程仍保留，是为了已有的 RTL/编译器/P&R 回归，而不是产品应用更新接口。不要将 `omcu_add_firmware()` 生成的 `.hex` 当作客户可烧录固件。
 
 ## 证据边界
 
