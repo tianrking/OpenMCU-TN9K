@@ -28,7 +28,7 @@ module omcu_picorv32_system #(
   parameter integer USER_FLASH_PRESENT = 0,
   parameter integer USER_FLASH_USE_GOWIN_PRIMITIVE = 0,
   parameter integer CLOCK_HZ = 27000000,
-  parameter logic [15:0] ABI_MINOR = 16'h0008,
+  parameter logic [15:0] ABI_MINOR = 16'h0009,
   parameter logic [31:0] FEATURE_BITS = 32'h0008_80ff,
   parameter integer GPIO_EXPANSION_PRESENT = 0,
   parameter integer UART1_PRESENT = 0,

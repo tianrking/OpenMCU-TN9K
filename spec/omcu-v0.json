@@ -3,7 +3,7 @@
   "device": {
     "name": "OpenMCU",
     "abi_major": 0,
-    "abi_minor": 8
+    "abi_minor": 9
   },
   "memory": [
     { "macro": "OMCU_ROM_BASE", "address": "0x00000000" },
@@ -50,8 +50,8 @@
         { "name": "rise_en", "offset": "0x24", "access": "rw", "comment": "rising-edge interrupt enable" },
         { "name": "fall_en", "offset": "0x28", "access": "rw", "comment": "falling-edge interrupt enable" },
         { "name": "irq_status", "offset": "0x2c", "access": "rw", "comment": "write-one-to-clear" },
-        { "name": "filter_mask", "offset": "0x30", "access": "ro", "comment": "static scope: all implemented GPIO inputs use the common synchronizer/filter path; writes ignored" },
-        { "name": "filter_cycles", "offset": "0x34", "access": "rw", "comment": "low 8 bits: whole-GPIO-port filter; N accepts after N+1 unchanged synchronized port samples" },
+        { "name": "filter_mask", "offset": "0x30", "access": "rw", "comment": "selected GPIO inputs use FILTER_CTRL independent mode; unselected inputs remain two-flop synchronized without extra delay" },
+        { "name": "filter_cycles", "offset": "0x34", "access": "rw", "comment": "low 8 bits: legacy shared-port period; N accepts after N+1 unchanged synchronized port samples when FILTER_CTRL.INDEPENDENT_ENABLE=0" },
         { "name": "snapshot_ctrl", "offset": "0x38", "access": "rw", "comment": "enable, GPIO0 IRQ enable and first-event/overwrite policy" },
         { "name": "snapshot_rise_en", "offset": "0x3c", "access": "rw", "comment": "alias of RISE_EN: coherent rising GPIO IRQ and snapshot trigger mask" },
         { "name": "snapshot_fall_en", "offset": "0x40", "access": "rw", "comment": "alias of FALL_EN: coherent falling GPIO IRQ and snapshot trigger mask" },
@@ -60,7 +60,8 @@
         { "name": "snapshot_input", "offset": "0x4c", "access": "ro", "comment": "filtered GPIO input level captured with the snapshot" },
         { "name": "snapshot_irq", "offset": "0x50", "access": "ro", "comment": "IRQCTRL active CPU IRQ mask captured with the snapshot" },
         { "name": "snapshot_reset", "offset": "0x54", "access": "ro", "comment": "retained reset-cause value captured with the snapshot" },
-        { "name": "snapshot_ticks", "offset": "0x58", "access": "ro", "comment": "low 32 bits of SYSCTRL run ticks captured with the snapshot" }
+        { "name": "snapshot_ticks", "offset": "0x58", "access": "ro", "comment": "low 32 bits of SYSCTRL run ticks captured with the snapshot" },
+        { "name": "filter_ctrl", "offset": "0x5c", "access": "rw", "comment": "bit0 selects independent FILTER_MASK mode; bits2:1 select 2/4/8 sample unanimity depth; full 32-bit writes only" }
       ]
     },
     {
@@ -320,6 +321,11 @@
     { "name": "OMCU_PINMUX_CTRL_PULSE0_ENABLE", "value": "1u << 3" },
     { "name": "OMCU_PINMUX_CTRL_FAULT0_ENABLE", "value": "1u << 4" },
     { "name": "OMCU_GPIO_FILTER_CYCLES_MASK", "value": "UINT32_C(0x000000FF)" },
+    { "name": "OMCU_GPIO_FILTER_CTRL_INDEPENDENT_ENABLE", "value": "1u << 0" },
+    { "name": "OMCU_GPIO_FILTER_CTRL_DEPTH_MASK", "value": "3u << 1" },
+    { "name": "OMCU_GPIO_FILTER_CTRL_DEPTH_2", "value": "0u << 1" },
+    { "name": "OMCU_GPIO_FILTER_CTRL_DEPTH_4", "value": "1u << 1" },
+    { "name": "OMCU_GPIO_FILTER_CTRL_DEPTH_8", "value": "2u << 1" },
     { "name": "OMCU_GPIO_SNAPSHOT_CTRL_ENABLE", "value": "1u << 0" },
     { "name": "OMCU_GPIO_SNAPSHOT_CTRL_IRQ_ENABLE", "value": "1u << 1" },
     { "name": "OMCU_GPIO_SNAPSHOT_CTRL_OVERWRITE", "value": "1u << 2" },

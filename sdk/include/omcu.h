@@ -180,19 +180,64 @@ static inline void omcu_gpio_toggle(uint32_t mask) {
 }
 
 /*
- * GPIO reliable-input profile. Every input is two-flop synchronized.
- * FILTER_CYCLES=N then accepts the whole GPIO port only after N+1 unchanged
- * synchronized samples. A change on any GPIO pin restarts that one shared
- * window. It is intended for buttons, slow sensors and industrial dry-contact
- * style inputs, not signals whose timing must be measured above the system
- * clock.
+ * GPIO reliable-input profiles. Every input is always two-flop synchronized.
+ * The reset-compatible legacy profile qualifies the whole GPIO port after
+ * FILTER_CYCLES + 1 unchanged synchronized samples. It is compact, but a
+ * change on any pin restarts that shared window.
+ *
+ * For unrelated slow inputs, use omcu_gpio_configure_independent_filter().
+ * Its selected pins are qualified independently by 2, 4 or 8 consecutive
+ * equal samples; an unselected pin stays synchronized with no added filter
+ * delay. Neither profile is an asynchronous high-speed capture path.
  */
+static inline bool omcu_gpio_set_filter_mask(uint32_t mask) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY)) {
+    return false;
+  }
+  OMCU_GPIO0->filter_mask = mask;
+  return true;
+}
+
 static inline bool omcu_gpio_configure_filter(uint8_t filter_cycles) {
   if (!omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY)) {
     return false;
   }
+  /* Restore the ABI 0.8 shared-port profile before updating its period. */
+  OMCU_GPIO0->filter_ctrl = 0u;
   OMCU_GPIO0->filter_cycles = (uint32_t)filter_cycles;
   return true;
+}
+
+static inline bool omcu_gpio_configure_independent_filter(
+  uint32_t mask,
+  uint32_t depth
+) {
+  if (!omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY) ||
+      (depth & ~OMCU_GPIO_FILTER_CTRL_DEPTH_MASK) != 0u) {
+    return false;
+  }
+
+  /*
+   * Each full-word configuration write starts a new filter epoch in hardware.
+   * Keep the established profile disabled while replacing the pin scope, then
+   * select the requested depth in one final write.
+   */
+  OMCU_GPIO0->filter_ctrl = 0u;
+  OMCU_GPIO0->filter_mask = mask;
+  OMCU_GPIO0->filter_ctrl =
+    OMCU_GPIO_FILTER_CTRL_INDEPENDENT_ENABLE |
+    (depth & OMCU_GPIO_FILTER_CTRL_DEPTH_MASK);
+  return true;
+}
+
+static inline uint32_t omcu_gpio_filter_mask(void) {
+  return omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY) ?
+    OMCU_GPIO0->filter_mask : 0u;
+}
+
+static inline uint32_t omcu_gpio_filter_ctrl(void) {
+  return omcu_hw_has_feature(OMCU_FEATURE_GPIO_RELIABILITY) ?
+    OMCU_GPIO0->filter_ctrl : 0u;
 }
 
 typedef struct {

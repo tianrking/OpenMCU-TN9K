@@ -2,13 +2,12 @@
 
 // Portable GPIO block for the OpenMCU single-master MMIO contract.
 //
-// Every input first crosses a two-flop synchronizer, then passes through one
-// programmable shared stability filter before it reaches GPIO.IN, edge
-// detection, GPIO IRQ status, or the event snapshot. FILTER_CYCLES=N requires
-// N+1 unchanged synchronized samples across the whole GPIO port; N=0 bypasses
-// the extra settling delay. A change on any input restarts that shared window,
-// which trades documented cross-channel latency for far less LUT cost than a
-// counter on every pin.
+// Every input first crosses a two-flop synchronizer, then reaches GPIO.IN,
+// edge detection, GPIO IRQ status and the event snapshot through one of two
+// explicit filter profiles. The reset-compatible profile is the historic
+// programmable shared stability filter. FILTER_CTRL can instead select an
+// independent 2/4/8-sample unanimity filter for selected pins, so an unrelated
+// input transition never restarts a qualified pin's window.
 // This is deliberately a clock-domain-local slow-input conditioner, not an
 // asynchronous high-speed capture path.
 module omcu_gpio #(
@@ -68,6 +67,7 @@ module omcu_gpio #(
   localparam logic [5:0] REG_SNAPSHOT_IRQ      = 6'h14;
   localparam logic [5:0] REG_SNAPSHOT_RESET    = 6'h15;
   localparam logic [5:0] REG_SNAPSHOT_TICKS    = 6'h16;
+  localparam logic [5:0] REG_FILTER_CTRL       = 6'h17;
 
   logic [GPIO_COUNT-1:0] gpio_out_q;
   logic [GPIO_COUNT-1:0] gpio_oe_q;
@@ -76,6 +76,9 @@ module omcu_gpio #(
   logic [GPIO_COUNT-1:0] gpio_filtered_q;
   logic [GPIO_COUNT-1:0] gpio_filter_sample_q;
   logic [7:0] filter_stable_count_q;
+  logic [GPIO_COUNT*8-1:0] gpio_filter_history_q;
+  logic [GPIO_COUNT-1:0] filter_mask_q;
+  logic [2:0] filter_ctrl_q;
   logic [GPIO_COUNT-1:0] gpio_in_previous_q;
   logic [GPIO_COUNT-1:0] rise_enable_q;
   logic [GPIO_COUNT-1:0] fall_enable_q;
@@ -106,8 +109,8 @@ module omcu_gpio #(
   logic snapshot_normal_event;
   logic snapshot_capture_event;
   logic snapshot_overflow_event;
-  logic filtered_input_changed;
-  logic filter_settled;
+  logic filter_configuration_write;
+  logic [7:0] filter_history_mask;
 
   logic [31:0] gpio_out_ext;
   logic [31:0] gpio_oe_ext;
@@ -121,6 +124,7 @@ module omcu_gpio #(
   logic        full_word_write;
   logic [31:0] snapshot_ctrl_read;
   logic [31:0] snapshot_status_read;
+  logic [31:0] filter_ctrl_read;
 
   assign ready_o = req_i;
   assign error_o = 1'b0;
@@ -139,11 +143,13 @@ module omcu_gpio #(
   // this also avoids four wide byte-lane merge networks in the 9K profile.
   assign full_word_write = write_strobe_i == 4'b1111;
 
-  assign gpio_sampled = gpio_filtered_q;
-  assign filtered_input_changed = |(gpio_sync_q ^ gpio_filter_sample_q);
-  assign filter_settled = !filtered_input_changed &&
-                          ((filter_cycles_q == 8'h00) ||
-                           (filter_stable_count_q == filter_cycles_q));
+  assign gpio_sampled = filter_ctrl_q[0] ?
+                        ((gpio_filtered_q & filter_mask_q) |
+                         (gpio_sync_q & ~filter_mask_q)) : gpio_filtered_q;
+  assign filter_configuration_write = req_i && write_i && full_word_write &&
+                                      ((addr_i[7:2] == REG_FILTER_MASK) ||
+                                       (addr_i[7:2] == REG_FILTER_CYCLES) ||
+                                       (addr_i[7:2] == REG_FILTER_CTRL));
 
   assign rise_events = gpio_sampled & ~gpio_in_previous_q;
   assign fall_events = ~gpio_sampled & gpio_in_previous_q;
@@ -181,7 +187,7 @@ module omcu_gpio #(
     rise_enable_ext[GPIO_COUNT-1:0] = rise_enable_q;
     fall_enable_ext[GPIO_COUNT-1:0] = fall_enable_q;
     irq_status_ext[GPIO_COUNT-1:0] = irq_status_q;
-    filter_scope_ext[GPIO_COUNT-1:0] = {GPIO_COUNT{1'b1}};
+    filter_scope_ext[GPIO_COUNT-1:0] = filter_mask_q;
     snapshot_event_ext[GPIO_COUNT-1:0] = snapshot_event_q;
     snapshot_input_ext[GPIO_COUNT-1:0] = snapshot_input_q;
     snapshot_gpio_o = snapshot_input_ext;
@@ -196,6 +202,18 @@ module omcu_gpio #(
     snapshot_status_read[0] = snapshot_valid_q;
     snapshot_status_read[1] = snapshot_overflow_q;
     snapshot_status_read[2] = snapshot_forced_q;
+  end
+
+  always_comb begin
+    // FILTER_CTRL[2:1] selects the independent filter unanimity depth.
+    // 00=two samples, 01=four samples and 10/11=eight samples.
+    unique case (filter_ctrl_q[2:1])
+      2'b00: filter_history_mask = 8'h03;
+      2'b01: filter_history_mask = 8'h0f;
+      default: filter_history_mask = 8'hff;
+    endcase
+    filter_ctrl_read = '0;
+    filter_ctrl_read[2:0] = filter_ctrl_q;
   end
 
   always_comb begin
@@ -223,6 +241,7 @@ module omcu_gpio #(
       REG_SNAPSHOT_IRQ:       read_data_o = snapshot_irq_o;
       REG_SNAPSHOT_RESET:     read_data_o = snapshot_reset_o;
       REG_SNAPSHOT_TICKS:     read_data_o = snapshot_ticks_q;
+      REG_FILTER_CTRL:        read_data_o = filter_ctrl_read;
       default:                 read_data_o = '0;
     endcase
   end
@@ -236,6 +255,9 @@ module omcu_gpio #(
       gpio_filtered_q <= '0;
       gpio_filter_sample_q <= '0;
       filter_stable_count_q <= 8'h00;
+      gpio_filter_history_q <= '0;
+      filter_mask_q <= {GPIO_COUNT{1'b1}};
+      filter_ctrl_q <= 3'b000;
       gpio_in_previous_q <= '0;
       rise_enable_q <= '0;
       fall_enable_q <= '0;
@@ -259,14 +281,41 @@ module omcu_gpio #(
       gpio_in_previous_q <= gpio_sampled;
       irq_status_q <= irq_status_q | irq_events;
 
-      if (filter_cycles_q == 8'h00) begin
+      if (filter_configuration_write) begin
+        // A configuration boundary starts a fresh filter epoch. Retain the
+        // already accepted output until the newly selected profile qualifies
+        // a stable replacement.
+        gpio_filter_sample_q <= gpio_sync_q;
+        filter_stable_count_q <= 8'h00;
+        gpio_filter_history_q <= '0;
+      end else if (filter_ctrl_q[0]) begin
+        for (integer filter_pin = 0;
+             filter_pin < GPIO_COUNT;
+             filter_pin = filter_pin + 1) begin
+          gpio_filter_history_q[(filter_pin * 8) +: 8] <= {
+            gpio_filter_history_q[(filter_pin * 8) +: 7],
+            gpio_sync_q[filter_pin]
+          };
+          if (!filter_mask_q[filter_pin]) begin
+            gpio_filtered_q[filter_pin] <= gpio_sync_q[filter_pin];
+          end else if (({gpio_filter_history_q[(filter_pin * 8) +: 7],
+                         gpio_sync_q[filter_pin]} & filter_history_mask) ==
+                       filter_history_mask) begin
+            gpio_filtered_q[filter_pin] <= 1'b1;
+          end else if (({gpio_filter_history_q[(filter_pin * 8) +: 7],
+                          gpio_sync_q[filter_pin]} & filter_history_mask) ==
+                       8'h00) begin
+            gpio_filtered_q[filter_pin] <= 1'b0;
+          end
+        end
+      end else if (filter_cycles_q == 8'h00) begin
         gpio_filtered_q <= gpio_sync_q;
         gpio_filter_sample_q <= gpio_sync_q;
         filter_stable_count_q <= 8'h00;
-      end else if (filtered_input_changed) begin
+      end else if (|(gpio_sync_q ^ gpio_filter_sample_q)) begin
         gpio_filter_sample_q <= gpio_sync_q;
         filter_stable_count_q <= 8'h00;
-      end else if (!filter_settled) begin
+      end else if (filter_stable_count_q != filter_cycles_q) begin
         filter_stable_count_q <= filter_stable_count_q + 8'd1;
       end else begin
         gpio_filtered_q <= gpio_sync_q;
@@ -306,10 +355,14 @@ module omcu_gpio #(
             irq_status_q <= (irq_status_q & ~write_data_i[GPIO_COUNT-1:0]) |
                             irq_events;
           end
+          REG_FILTER_MASK: begin
+            filter_mask_q <= write_data_i[GPIO_COUNT-1:0];
+          end
           REG_FILTER_CYCLES: begin
             filter_cycles_q <= write_data_i[7:0];
-            gpio_filter_sample_q <= gpio_sync_q;
-            filter_stable_count_q <= 8'h00;
+          end
+          REG_FILTER_CTRL: begin
+            filter_ctrl_q <= write_data_i[2:0];
           end
           REG_SNAPSHOT_CTRL: begin
             snapshot_enable_q <= write_data_i[0];

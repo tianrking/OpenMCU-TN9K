@@ -158,13 +158,41 @@ module omcu_gpio_tb;
     @(negedge clk);
     check(!irq, "GPIO W1C must clear a latched interrupt");
 
-    // GPIO1 uses a three-sample whole-port stability filter
-    // (FILTER_CYCLES=2). GPIO2 is deliberately changed so the test can verify
-    // that a change on any input restarts the shared window.
+    // ABI 0.9 keeps the reset-compatible whole-port profile. It must not
+    // accept a changed pin until the legacy shared stability interval has
+    // elapsed, even though independent filtering is also available.
+    mmio_write(32'h0000_0024, 32'h0000_0008);
+    mmio_write(32'h0000_005c, 32'h0000_0000);
+    mmio_write(32'h0000_0034, 32'h0000_0002);
+    gpio_in = 4'b0000;
+    repeat (9) @(negedge clk);
+    gpio_in = 4'b1000;
+    repeat (2) @(negedge clk);
+    check(!irq && !dut.gpio_filtered_q[3],
+          "legacy GPIO filter must wait for its shared stability interval");
+    repeat (8) @(negedge clk);
+    check(irq && dut.gpio_filtered_q[3],
+          "legacy GPIO filter must remain available after ABI 0.9 extension");
+    mmio_write(32'h0000_002c, 32'h0000_0008);
+    @(negedge clk);
+    check(!irq, "legacy GPIO filter IRQ must retain ordinary W1C semantics");
+
+    // GPIO1 uses the independent four-sample unanimity profile. GPIO2 is
+    // deliberately left outside FILTER_MASK so the test can prove that
+    // another pin never restarts GPIO1's window.
     // A short synchronized GPIO1 pulse must not reach either the IRQ edge
     // detector or the first-event snapshot.
     mmio_write(32'h0000_0024, 32'h0000_0002);
+    mmio_write(32'h0000_0030, 32'h0000_0002);
+    mmio_read(32'h0000_0030, snapshot_event);
+    check(snapshot_event == 32'h0000_0002,
+          "FILTER_MASK must expose the independently filtered GPIO scope");
     mmio_write(32'h0000_0034, 32'h0000_0002);
+    mmio_write_strobe(32'h0000_005c, 32'h0000_0003, 4'b0001);
+    mmio_read(32'h0000_005c, snapshot_event);
+    check(snapshot_event == 32'h0000_0000,
+          "FILTER_CTRL must reject partial configuration writes");
+    mmio_write(32'h0000_005c, 32'h0000_0003);
     mmio_write(32'h0000_003c, 32'h0000_0002);
     mmio_write(32'h0000_0040, 32'h0000_0000);
     mmio_write(32'h0000_0038, 32'h0000_0003);
@@ -175,17 +203,17 @@ module omcu_gpio_tb;
     check(!irq && !dut.snapshot_valid_q,
           "a pulse shorter than the selected digital filter must be rejected");
 
-    // GPIO1 stays high, but a change on another GPIO must restart the one
-    // shared settling window instead of accepting GPIO1 independently.
+    // GPIO1 stays high while GPIO2 changes. Its private candidate/counter
+    // must continue settling independently of that unrelated transition.
     gpio_in = 4'b0110;
     repeat (2) @(negedge clk);
     gpio_in = 4'b0010;
-    repeat (4) @(negedge clk);
-    check(!irq && !dut.snapshot_valid_q && !dut.gpio_filtered_q[1],
-          "any selected GPIO change must restart the shared filter window");
+    repeat (5) @(negedge clk);
+    check(irq && dut.snapshot_valid_q && dut.gpio_filtered_q[1],
+          "an unrelated GPIO transition must not restart GPIO1's filter window");
 
-    // A stable selected group is accepted after synchronizer plus filter
-    // latency. GPIO2 does not have its edge enabled, so only GPIO1 produces
+    // A stable selected input remains accepted after synchronizer plus its
+    // own filter latency. GPIO2 has no edge enabled, so only GPIO1 produces
     // the IRQ and diagnostic snapshot.
     gpio_in = 4'b0110;
     repeat (9) @(negedge clk);

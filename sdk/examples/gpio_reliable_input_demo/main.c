@@ -3,8 +3,9 @@
 /*
  * Customer-style input-conditioning and first-event-diagnosis demo.
  * GPIO0/J5.8 is released as a slow input; LED0 reflects the level captured at
- * the first filtered transition.  It deliberately polls instead of taking the
- * shared GPIO0 IRQ so the same image also demonstrates the no-ISR workflow.
+ * the first independently filtered transition. It deliberately polls instead
+ * of taking the shared GPIO0 IRQ so the same image also demonstrates the
+ * no-ISR workflow.
  */
 int main(void) {
   const uint32_t input = OMCU_TN9K_GPIO0;
@@ -15,7 +16,10 @@ int main(void) {
 
   if (!omcu_hw_abi_is_compatible(OMCU_HW_ABI_MAJOR) ||
       !omcu_hw_has_feature(required) ||
-      !omcu_gpio_configure_filter(8u) ||
+      !omcu_gpio_configure_independent_filter(
+        input,
+        OMCU_GPIO_FILTER_CTRL_DEPTH_8
+      ) ||
       !omcu_gpio_snapshot_arm(input, input, false, false)) {
     for (;;) {
     }

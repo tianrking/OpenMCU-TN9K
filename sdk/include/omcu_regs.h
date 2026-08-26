@@ -32,7 +32,7 @@
 #define OMCU_SYSCTRL_BASE        UINT32_C(0x4000F000)
 
 #define OMCU_HW_ABI_MAJOR      0u
-#define OMCU_HW_ABI_MINOR      8u
+#define OMCU_HW_ABI_MINOR      9u
 
 #define OMCU_CHIP_ID             UINT32_C(0x4F4D4355)
 #define OMCU_SYSCTRL_ABI_MAJOR_SHIFT 16u
@@ -52,8 +52,8 @@ typedef struct {
   volatile uint32_t rise_en; /* +0x24: rising-edge interrupt enable */
   volatile uint32_t fall_en; /* +0x28: falling-edge interrupt enable */
   volatile uint32_t irq_status; /* +0x2c: write-one-to-clear */
-  volatile const uint32_t filter_mask; /* +0x30: static scope: all implemented GPIO inputs use the common synchronizer/filter path; writes ignored */
-  volatile uint32_t filter_cycles; /* +0x34: low 8 bits: whole-GPIO-port filter; N accepts after N+1 unchanged synchronized port samples */
+  volatile uint32_t filter_mask; /* +0x30: selected GPIO inputs use FILTER_CTRL independent mode; unselected inputs remain two-flop synchronized without extra delay */
+  volatile uint32_t filter_cycles; /* +0x34: low 8 bits: legacy shared-port period; N accepts after N+1 unchanged synchronized port samples when FILTER_CTRL.INDEPENDENT_ENABLE=0 */
   volatile uint32_t snapshot_ctrl; /* +0x38: enable, GPIO0 IRQ enable and first-event/overwrite policy */
   volatile uint32_t snapshot_rise_en; /* +0x3c: alias of RISE_EN: coherent rising GPIO IRQ and snapshot trigger mask */
   volatile uint32_t snapshot_fall_en; /* +0x40: alias of FALL_EN: coherent falling GPIO IRQ and snapshot trigger mask */
@@ -63,6 +63,7 @@ typedef struct {
   volatile const uint32_t snapshot_irq; /* +0x50: IRQCTRL active CPU IRQ mask captured with the snapshot */
   volatile const uint32_t snapshot_reset; /* +0x54: retained reset-cause value captured with the snapshot */
   volatile const uint32_t snapshot_ticks; /* +0x58: low 32 bits of SYSCTRL run ticks captured with the snapshot */
+  volatile uint32_t filter_ctrl; /* +0x5c: bit0 selects independent FILTER_MASK mode; bits2:1 select 2/4/8 sample unanimity depth; full 32-bit writes only */
 } omcu_gpio_regs_t;
 
 typedef struct {
@@ -278,6 +279,11 @@ enum {
   OMCU_PINMUX_CTRL_PULSE0_ENABLE   = 1u << 3,
   OMCU_PINMUX_CTRL_FAULT0_ENABLE   = 1u << 4,
   OMCU_GPIO_FILTER_CYCLES_MASK     = UINT32_C(0x000000FF),
+  OMCU_GPIO_FILTER_CTRL_INDEPENDENT_ENABLE = 1u << 0,
+  OMCU_GPIO_FILTER_CTRL_DEPTH_MASK = 3u << 1,
+  OMCU_GPIO_FILTER_CTRL_DEPTH_2    = 0u << 1,
+  OMCU_GPIO_FILTER_CTRL_DEPTH_4    = 1u << 1,
+  OMCU_GPIO_FILTER_CTRL_DEPTH_8    = 2u << 1,
   OMCU_GPIO_SNAPSHOT_CTRL_ENABLE   = 1u << 0,
   OMCU_GPIO_SNAPSHOT_CTRL_IRQ_ENABLE = 1u << 1,
   OMCU_GPIO_SNAPSHOT_CTRL_OVERWRITE = 1u << 2,
