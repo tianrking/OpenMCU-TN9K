@@ -67,7 +67,7 @@
     <rect x="814" y="445" width="174" height="76" rx="12" fill="url(#mcu)"/>
     <rect x="1061" y="445" width="64" height="76" rx="12" fill="url(#mcu)"/>
   </g>
-  <text x="94" y="474" class="cardtitle">C/C++ 应用</text>
+  <text x="94" y="474" class="cardtitle">C 裸机应用</text>
   <text x="93" y="497" class="cardbody">编译为 .omcu</text>
   <text x="347" y="474" class="cardtitle">UART0</text>
   <text x="337" y="497" class="cardbody">115200 / 8N1</text>
