@@ -55,7 +55,7 @@ macOS/Linux 执行 `./build.sh` 与 `./flash.sh <串口>`；Windows 执行 `./bu
 | `omcu_mcu_blink` | 板载 LED0 闪烁；最小 GPIO 输出应用。 |
 | `omcu_mcu_selftest` | 无外接夹具板测：真实 WDT 复位、SRAM/RV32IM、UART0 双向及片内/空载 pad 路径。 |
 | `omcu_mcu_loopback_selftest` | 按固定跳线夹具自动验收 UART1/SPI/PWM/TIMER1/PULSE/FAULT 的外部闭环。 |
-| `omcu_uart1_loopback` | UART1 回显模板；UART0 保留给升级，UART1 使用 J5.18/J5.19。 |
+| `omcu_uart1_loopback` | UART1 非阻塞队列回显；UART0 保留给升级，UART1 使用 L18/L19；可配合 `tools/omcu_uart_echo_test.py` 做全字节与连续块验收。 |
 | `omcu_pwm1_demo` | 四路共享计数器 PWM 模板。 |
 | `omcu_timer1_encoder_demo` | TIMER1 捕获与正交编码器模板。 |
 | `omcu_gpio_reliable_input_demo` | GPIO 两级同步、独立滤波、边沿 IRQ 和事件快照。 |

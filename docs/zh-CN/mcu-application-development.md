@@ -294,7 +294,7 @@ if (omcu_tn9k_request_bootloader()) {
 - 单个应用最多 36,800 B，且运行时的代码、全局数据、栈和中断帧共同占用 40 KiB SRAM。
 - CRC32 用于防传输损坏与断电一致性，不是签名安全启动。
 - 用户应用只能通过 Bootloader 管理 A/B 槽；不要直接改写 active/fallback 槽。
-- 当前仓库的 SDK、镜像协议和 P&R 已有自动化验证；本次单板的板载 UART0、User Flash 正常 A/B 更新、应用启动和六线数字回环已完成 HIL。分阶段断电、电气波形、外置目标、多板和长期可靠性仍须继续验收。
+- 当前仓库的 SDK、镜像协议和 P&R 已有自动化验证；本次单板的板载 UART0、User Flash 正常 A/B 更新、应用启动、六线数字回环及 UART1 外置 FT232R 64 KiB 无错回显已完成 HIL。分阶段断电、电气波形、外置 I2C/SPI 目标、多板和长期可靠性仍须继续验收。
 
 下一步按需阅读：[外设与 SDK](peripherals-and-sdk.md)、[硬件与引脚](hardware-and-pins.md)、
 [中断开发约定](interrupts.md)和[完整外设与引脚规格书](peripheral-pin-specification.md)。

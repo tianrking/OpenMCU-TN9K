@@ -6,7 +6,7 @@
 > **产品顶层：** `omcu_tn9k_mcu_top`<br>
 > **硬件 ABI：** `0x0000_0009`（0.9）<br>
 > **定位：** 一次固化 FPGA 平台，之后以独立 MCU 固件持续升级应用<br>
-> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化、User Flash A/B 连续更新、无夹具核心自检、UART0 双向回显和六线固定回环已完成；外置目标、仪器、多板及长期可靠性 HIL 尚待执行。
+> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化、User Flash A/B 连续更新、无夹具核心自检、UART0 双向回显、六线固定回环及 UART1 外置 FT232R 64 KiB 无错回显已完成；外置 I2C/SPI 目标、仪器、多板及长期可靠性 HIL 尚待执行。
 
 本文档是当前 OpenMCU-TN9K 的**中文产品主规格书**，面向应用开发、硬件接线和测试验收，集中给出
 CPU、时钟、存储、外设、中断、开发流程，以及 Tang Nano 9K 实物排针的逐针定义。寄存器每一位的
@@ -82,7 +82,7 @@ flowchart TB
 | 层级 | 结论 | 证据边界 |
 | --- | --- | --- |
 | P0 外置器件 SDK | 已实现 | DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 驱动和编译回归；目标器件总线 HIL 待做。 |
-| P1 GPIO/UART/PWM/TIMER | 已实现 + 单板回环 HIL | 12 路 GPIO、UART1 TX、四路 PWM1 及自时基已做 pad 回读；六线夹具的 UART1 RX、SPI0、TIMER1、PWM0/1、PULSE0、FAULT0 数字闭环 8/8 通过；仪器波形/速率/负载待做。 |
+| P1 GPIO/UART/PWM/TIMER | 已实现 + 单板回环 HIL | 12 路 GPIO、UART1 TX、四路 PWM1 及自时基已做 pad 回读；六线夹具数字闭环 8/8；UART1 在 L18/L19 接 FT232R 后完成全字节及 64 KiB、115200 8N1 无错回显；仪器波形、最大速率、线长和负载待做。 |
 | 可靠性与诊断扩展 | 已实现 + 单板回环 HIL | GPIO 同步/滤波/快照、ALARM0、PULSE0、FAULT0 和增强 WDT 已覆盖 RTL/SDK；真实 WDT 整机复位、PULSE0 与 FAULT0 外部闭环通过，仪器和边界待做。 |
 | P1 诊断与返 Bootloader | 已实现 + 单板 HIL | RESET_CAUSE、RUN_TICKS、RESET_COUNT、软件请求/确认与 UART 更新会话已在单板验证。 |
 | FPGA 产品版 | 已完成 P&R + 单板 HIL | 精确目标构建、SRAM 下载、配置 Flash 固化、CRC 和固化后启动已通过；多板、冷启动矩阵和长期可靠性待做。 |
@@ -283,6 +283,10 @@ SDK 中 `OMCU_TN9K_GPIO0..11` 分别对应寄存器 bit0..11；为了接线审�
 外置 3.3 V USB-TTL 测试 UART1 时：适配器 `RXD → L18`、`TXD → L19`、`GND → R23`；
 `VCC/5V/3V3` 不连接。接线前完全断开板上 USB-C，拆掉 L18→L19 回环线。禁止使用 5 V TTL 或
 RS-232 电平，也不要把外置 USB-TTL TX 并接到已经由 BL702 驱动的 UART0 RX。
+
+当前单板已用 FT232R 在 115200 8N1 下完成四轮全字节域及 64 KiB 连续块无错回显；可复现命令、
+首次阻塞式示例的 overrun 根因和修正镜像哈希见
+[UART1 / USB-TTL 实板记录](evidence/tangnano9k-uart1-usbttl-2026-08-27.md)。
 
 ### 5.6 未公开孔位、电源与禁止使用范围
 

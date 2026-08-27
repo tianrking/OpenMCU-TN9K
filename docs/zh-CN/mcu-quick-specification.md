@@ -150,7 +150,7 @@ LUT/BSRAM/局部路由共同受限的产品；没有功能收益的 dummy DFF �
 | 层级 | 当前结论 |
 | --- | --- |
 | 规格、SDK、Boot ROM | 已自动化检查。 |
-| RTL / 编译固件仿真 | 36/36 smoke 目标通过；Python 镜像/协议/自检转录测试 17/17 通过。 |
+| RTL / 编译固件仿真 | 36/36 smoke 目标通过；Python 镜像/协议/自检/主机 UART 工具测试 19/19 通过。 |
 | FPGA 产品 P&R / packing | 同一 ABI 0.9 源码已通过精确 GW1NR 目标器件；27 MHz 约束下报告 43.050 MHz、13.808 ns 裕量。 |
 | GitHub Actions | 每次 push/PR 会执行规格、全部 RTL、全 SDK、已编译固件仿真、工具协议测试、跨主机 SDK 构建，以及 Windows 上的 YoWASP 产品 P&R/packing 并上传 manifest/报告/位流。 |
 | 实体板 HIL / 量产 | 一块 Tang Nano 9K 的配置固化、板载 UART0 289/289 双向回显、User Flash A/B、仓库外模板应用、无夹具核心自检 24/24 和最终位流六线回环 8/8 已通过；目标模块、多板、分阶段断电、寿命、EMC/ESD 与安全认证仍未完成。 |

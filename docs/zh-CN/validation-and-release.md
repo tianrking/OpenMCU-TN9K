@@ -2,7 +2,7 @@
 
 > **当前产品基线：** ABI `0.9`、`rv32im` / `ilp32`、4 KiB Boot ROM、44 KiB SRAM、76 KiB User Flash A/B。<br>
 > **可追溯 FPGA 构建：** `build/tangnano9k-mcu-release-v11-final/`。<br>
-> **结论：** RTL、SDK、独立客户工程、镜像工具、精确目标 P&R/packing、配置固化、User Flash A/B 连续更新、板载 UART0、无夹具核心自检和六线固定回环已在当前单板通过；外置 I2C/ADC/DAC/网络目标、仪器、多板/长期可靠性、安全启动和量产资格尚未完成。先前已有应用时的 `BEGIN` 超时已定位为响应后的冗余 Flash 扫描阻塞单字节 UART RX，并在最终 Boot ROM 中关闭。
+> **结论：** RTL、SDK、独立客户工程、镜像工具、精确目标 P&R/packing、配置固化、User Flash A/B 连续更新、板载 UART0、无夹具核心自检、六线固定回环及 UART1 外置 FT232R 64 KiB 无错回显已在当前单板通过；外置 I2C/ADC/DAC/网络目标、仪器、多板/长期可靠性、安全启动和量产资格尚未完成。先前已有应用时的 `BEGIN` 超时已定位为响应后的冗余 Flash 扫描阻塞单字节 UART RX，并在最终 Boot ROM 中关闭。
 
 本页明确区分“源码存在”“数字仿真通过”“已生成目标位流”“实体板通过”和“可量产”。它们不能互相替代。对外发布时必须保存对应 Git commit、`.fs`、manifest、`.omcu`、工具版本与真实板记录。
 
@@ -13,10 +13,10 @@
 | 规格 / SDK 同步 | 已通过 + 仓库外构建/HIL | `generate-sdk.ps1 -Check`；独立模板从仓库外引用 `OpenMCUSDK.cmake`，生成/校验/实板烧录并运行 | 更多客户工程、IDE 与第三方工具链组合 |
 | SDK / Boot ROM | 已通过 + 单板 HIL | 全量 SDK 以 `rv32im` 构建；已提交 Boot ROM fixture 与生成 `.hex` 逐 word 一致；2026-08-27 在一块 Tang Nano 9K 上从固化配置启动并完成 UART 更新 | 多板、反复冷启动与长期可靠性 |
 | RTL / 集成仿真 | 已通过 | 36 个 smoke 目标，覆盖全部公开外设、CPU、SDK、User Flash 模型、Tang 顶层及新原子 MMIO 合同 | 真实电平、异步噪声、功率级和真实 Flash |
-| 镜像 / 下载协议 | 已通过 + 正常路径 HIL | Python 单元测试 17/17；实体 UART 连续完成 A→B→A 和固化后空白→A→B 更新、逐字回读、CRC、原子提交和 BOOT ACK | 丢包注入、各阶段断电和跨设备互操作 |
+| 镜像 / 下载协议 | 已通过 + 正常路径 HIL | Python 单元测试 19/19；实体 UART 连续完成 A→B→A 和固化后空白→A→B 更新、逐字回读、CRC、原子提交和 BOOT ACK | 丢包注入、各阶段断电和跨设备互操作 |
 | FPGA 产品构建 | 已通过 + 单板 HIL | `GW1NR-LV9QN88PC6/I5` 综合、P&R、packing、ROM BSRAM 指纹和 manifest；SRAM 与配置 Flash 下载 CRC 均成功 | 至少 10 次断电冷启动、多板、电气与长期可靠性 |
 | User Flash A/B | 单板正常路径通过 | 实测擦除态 `0x00000000`、编程 `0→1`；空白恢复、A/B 双向轮换、回读 CRC 和应用启动通过；旧 `BEGIN` 超时根因已修复并复测 | 四阶段断电、擦写寿命、温度和损坏槽故障注入 |
-| 核心/数字回环 HIL | 单板 24/24 + 8/8 + UART0 289/289 通过 | WDT 真实复位、16 KiB SRAM、RV32IM；UART0 PING/PONG 及全字节范围回显；六线闭环 GPIO、UART1、SPI0、TIMER1、PWM0/1、PULSE0、FAULT0 | I2C/SPI 目标器件、仪器波形、速率/负载、多板 |
+| 核心/数字回环 HIL | 单板 24/24 + 8/8 + UART0 289/289 + UART1 64 KiB 通过 | WDT 真实复位、16 KiB SRAM、RV32IM；UART0 全字节范围回显；六线闭环 GPIO/UART1/SPI0/TIMER1/PWM/PULSE/FAULT；UART1 外置 FT232R 全字节与连续块无错 | I2C/SPI 目标器件、仪器波形、最大速率/线长/负载、多板 |
 | 安全启动 | 未实现 | CRC32 损坏检测、A/B 回退 | 签名、密钥、调试锁定、反回滚和安全生产 |
 
 ## 2. 本次自动化检查
@@ -30,7 +30,7 @@ python -m unittest discover -s tools\tests -p 'test_*.py' -v
 ```
 
 结果：生成头与规范一致；SDK 全量构建完成，所有 `.omcu` 镜像使用硬件 ABI `0x00000009`；
-Boot ROM fixture 检查通过；Python 测试 **17/17** 通过。
+Boot ROM fixture 检查通过；Python 测试 **19/19** 通过。
 
 ### RTL、CPU、外设与产品顶层
 
@@ -106,10 +106,16 @@ TIMER1 encoder/capture、PWM0/1、PULSE0 和 FAULT0。最后编译并烧录 676 
 测试文字与 `0x00..0xFF` 后得到 289/289 完整回传。原始结果、哈希和首轮测试固件修正见
 [2026-08-27 六线回环实板记录](evidence/tangnano9k-loopback-2026-08-27.md)。
 
+随后在 L18/L19 接入外置 3.3 V FT232R。原始阻塞式 UART1 回显应用的停等全字节测试通过，但
+连续 2,048 B 发生 31 B 丢失；改为 256 B 软件队列、独立非阻塞 RX/TX 后，同一负载 2,048/2,048
+通过，最终 32 × 2,048 B 共 65,536 B 的发送与回传 SHA-256 完全一致。接线、根因、镜像和转录见
+[UART1 / USB-TTL 实板记录](evidence/tangnano9k-uart1-usbttl-2026-08-27.md)。
+
 旧版在已有应用时出现的 `BEGIN` 无 ACK 已关闭：HELLO 响应后主循环又做一次完整 Flash/CRC 扫描，
 而 UART0 只有单字节 RX 寄存器，主机紧随 HELLO 发出的 BEGIN 因 overrun 丢失。最终 Boot ROM 把必要扫描
 移到响应之前并缓存槽状态；END/BOOT 也在响应前刷新缓存。最终 `.fs` 已实测连续 A→B→A，固化并清空
-User Flash 后又完成空白→A→B；随后从 B 槽模板更新到 A 槽序号 3 的 UART0 回显应用，当前板正在运行该应用。
+User Flash 后又完成空白→A→B；随后从 B 槽模板更新到 A 槽序号 3 的 UART0 回显应用。
+在本页记录的 UART1 USB-TTL 复测后，当前板已改为运行修正后的 `omcu_uart1_loopback`；FPGA 配置仍是同一正式 `.fs`。
 
 剩余门禁：
 
