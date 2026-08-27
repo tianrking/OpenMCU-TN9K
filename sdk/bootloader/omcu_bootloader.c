@@ -14,18 +14,27 @@
 #define OMCU_BOOT_FRAME_MAX_PAYLOAD    128u
 #define OMCU_BOOT_LISTEN_US            750000u
 #define OMCU_BOOT_SESSION_TIMEOUT_US   10000000u
+#define OMCU_BOOT_UART_DRAIN_US         20000u
+
+/* TIMER0 is also the resource-efficient FLASH608K phase timebase. The normal
+ * divide-by-27 setting is 1 MHz. Destructive operations temporarily select
+ * prescalers that keep the fixed hardware deadlines inside every UG295 timing
+ * window: program ~=15.6 us and page erase ~=115.6 ms. */
+#define OMCU_BOOT_TIMER_PRESCALE_US     26u
+#define OMCU_BOOT_TIMER_PRESCALE_PROGRAM 20u
+#define OMCU_BOOT_TIMER_PRESCALE_ERASE  25u
 
 #define OMCU_BOOT_CMD_HELLO            0x01u
 #define OMCU_BOOT_CMD_BEGIN            0x02u
 #define OMCU_BOOT_CMD_DATA             0x03u
 #define OMCU_BOOT_CMD_END              0x04u
 #define OMCU_BOOT_CMD_BOOT              0x05u
-
 #define OMCU_BOOT_RESP_HELLO           0x81u
 #define OMCU_BOOT_RESP_ACK             0x82u
 #define OMCU_BOOT_RESP_NACK            0x83u
 
 enum omcu_boot_error {
+  OMCU_BOOT_ERROR_NONE = 0,
   OMCU_BOOT_ERROR_BAD_FRAME = 1,
   OMCU_BOOT_ERROR_BAD_COMMAND = 2,
   OMCU_BOOT_ERROR_BAD_HEADER = 3,
@@ -35,6 +44,23 @@ enum omcu_boot_error {
   OMCU_BOOT_ERROR_FLASH_VERIFY = 7,
   OMCU_BOOT_ERROR_INCOMPLETE_IMAGE = 8,
   OMCU_BOOT_ERROR_IMAGE_VERIFY = 9,
+  /* Detailed BEGIN diagnostics. Keep the original low-numbered protocol
+   * errors stable while making a real-board header mismatch actionable. */
+  OMCU_BOOT_ERROR_HEADER_MAGIC = 0x31,
+  OMCU_BOOT_ERROR_HEADER_FORMAT = 0x32,
+  OMCU_BOOT_ERROR_HEADER_SIZE = 0x33,
+  OMCU_BOOT_ERROR_HEADER_ABI = 0x34,
+  OMCU_BOOT_ERROR_HEADER_LOAD = 0x35,
+  OMCU_BOOT_ERROR_HEADER_ENTRY = 0x36,
+  OMCU_BOOT_ERROR_HEADER_PAYLOAD = 0x37,
+  OMCU_BOOT_ERROR_HEADER_ALIGNMENT = 0x38,
+  OMCU_BOOT_ERROR_HEADER_STATE = 0x39,
+  OMCU_BOOT_ERROR_HEADER_CRC = 0x3a,
+  OMCU_BOOT_ERROR_HEADER_RESERVED = 0x3b,
+  OMCU_BOOT_ERROR_PAYLOAD_VERIFY = 0x41,
+  OMCU_BOOT_ERROR_COMMIT_WRITE = 0x42,
+  OMCU_BOOT_ERROR_COMMIT_DISCOVERY = 0x43,
+  OMCU_BOOT_ERROR_ERASE_VERIFY = 0x44,
 };
 
 enum omcu_boot_frame_result {
@@ -93,13 +119,17 @@ static void omcu_boot_write_le32(uint8_t *bytes, uint32_t value) {
   bytes[3] = (uint8_t)((value >> 24u) & 0xffu);
 }
 
-static void omcu_boot_timer_start(void) {
+static void omcu_boot_timer_configure(uint32_t prescale) {
   OMCU_TIMER0->ctrl = 0u;
-  OMCU_TIMER0->prescale = 26u;  /* 27 MHz / 27 = 1 MHz. */
+  OMCU_TIMER0->prescale = prescale;
   OMCU_TIMER0->count = 0u;
   OMCU_TIMER0->compare = UINT32_MAX;
   OMCU_TIMER0->status = OMCU_TIMER_STATUS_PENDING;
   OMCU_TIMER0->ctrl = OMCU_TIMER_CTRL_ENABLE;
+}
+
+static void omcu_boot_timer_start(void) {
+  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_US);
 }
 
 static uint32_t omcu_boot_time_us(void) {
@@ -265,13 +295,30 @@ static uint32_t omcu_boot_flash_read_word(uint32_t offset) {
 }
 
 static void omcu_boot_flash_program_word(uint32_t offset, uint32_t value) {
+  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_PROGRAM);
   *omcu_boot_flash_word(offset) = value;
+  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_US);
 }
 
 static void omcu_boot_flash_erase_page(uint32_t offset) {
   volatile uint8_t *page =
     (volatile uint8_t *)(uintptr_t)(OMCU_USER_FLASH_BASE + offset);
+  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_ERASE);
   *page = 0u;
+  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_US);
+}
+
+static bool omcu_boot_flash_page_is_erased(uint32_t offset) {
+  uint32_t word_offset;
+
+  for (word_offset = 0u; word_offset < OMCU_USER_FLASH_PAGE_BYTES;
+       word_offset += 4u) {
+    if (omcu_boot_flash_read_word(offset + word_offset) !=
+        OMCU_IMAGE_STATE_ERASED) {
+      return false;
+    }
+  }
+  return true;
 }
 
 static void omcu_boot_flash_read_header(uint32_t slot_offset,
@@ -290,7 +337,11 @@ static bool omcu_boot_flash_header_matches(uint32_t slot_offset,
   uint32_t index;
 
   for (index = 0u; index < OMCU_IMAGE_HEADER_BYTES / 4u; ++index) {
-    if (omcu_boot_flash_read_word(slot_offset + index * 4u) != words[index]) {
+    uint32_t expected =
+      index == OMCU_IMAGE_HEADER_STATE_OFFSET / 4u
+        ? OMCU_IMAGE_STATE_ERASED
+        : words[index];
+    if (omcu_boot_flash_read_word(slot_offset + index * 4u) != expected) {
       return false;
     }
   }
@@ -303,7 +354,13 @@ static void omcu_boot_flash_write_header(uint32_t slot_offset,
   uint32_t index;
 
   for (index = 0u; index < OMCU_IMAGE_HEADER_BYTES / 4u; ++index) {
-    omcu_boot_flash_program_word(slot_offset + index * 4u, words[index]);
+    /* FLASH608K cannot reliably program the same word twice after one erase.
+     * Leave STATE erased while staging, then program COMMITTED exactly once
+     * after the complete payload has passed its readback CRC. */
+    if (index != OMCU_IMAGE_HEADER_STATE_OFFSET / 4u &&
+        words[index] != OMCU_IMAGE_STATE_ERASED) {
+      omcu_boot_flash_program_word(slot_offset + index * 4u, words[index]);
+    }
   }
 }
 
@@ -323,28 +380,54 @@ static uint32_t omcu_boot_header_crc32(const omcu_image_header_t *header) {
   return ~crc;
 }
 
-static bool omcu_boot_header_is_valid(const omcu_image_header_t *header,
-                                      uint32_t expected_state) {
+static enum omcu_boot_error omcu_boot_header_error(
+  const omcu_image_header_t *header, uint32_t expected_state
+) {
   uint32_t index;
 
-  if (header->magic != OMCU_IMAGE_MAGIC ||
-      header->format_version != OMCU_IMAGE_FORMAT_VERSION ||
-      header->header_bytes != OMCU_IMAGE_HEADER_BYTES ||
-      header->hardware_abi != OMCU_IMAGE_HARDWARE_ABI ||
-      header->load_address != OMCU_APPLICATION_LOAD_ADDRESS ||
-      header->entry_address != OMCU_APPLICATION_LOAD_ADDRESS ||
-      header->payload_bytes == 0u ||
-      header->payload_bytes > OMCU_IMAGE_PAYLOAD_MAX_BYTES ||
-      (header->payload_bytes & 3u) != 0u || header->state != expected_state ||
-      header->header_crc32 != omcu_boot_header_crc32(header)) {
-    return false;
+  if (header->magic != OMCU_IMAGE_MAGIC) {
+    return OMCU_BOOT_ERROR_HEADER_MAGIC;
+  }
+  if (header->format_version != OMCU_IMAGE_FORMAT_VERSION) {
+    return OMCU_BOOT_ERROR_HEADER_FORMAT;
+  }
+  if (header->header_bytes != OMCU_IMAGE_HEADER_BYTES) {
+    return OMCU_BOOT_ERROR_HEADER_SIZE;
+  }
+  if (header->hardware_abi != OMCU_IMAGE_HARDWARE_ABI) {
+    return OMCU_BOOT_ERROR_HEADER_ABI;
+  }
+  if (header->load_address != OMCU_APPLICATION_LOAD_ADDRESS) {
+    return OMCU_BOOT_ERROR_HEADER_LOAD;
+  }
+  if (header->entry_address != OMCU_APPLICATION_LOAD_ADDRESS) {
+    return OMCU_BOOT_ERROR_HEADER_ENTRY;
+  }
+  if (header->payload_bytes == 0u ||
+      header->payload_bytes > OMCU_IMAGE_PAYLOAD_MAX_BYTES) {
+    return OMCU_BOOT_ERROR_HEADER_PAYLOAD;
+  }
+  if ((header->payload_bytes & 3u) != 0u) {
+    return OMCU_BOOT_ERROR_HEADER_ALIGNMENT;
+  }
+  if (header->state != expected_state) {
+    return OMCU_BOOT_ERROR_HEADER_STATE;
+  }
+  if (header->header_crc32 != omcu_boot_header_crc32(header)) {
+    return OMCU_BOOT_ERROR_HEADER_CRC;
   }
   for (index = 0u; index < 6u; ++index) {
     if (header->reserved[index] != 0u) {
-      return false;
+      return OMCU_BOOT_ERROR_HEADER_RESERVED;
     }
   }
-  return true;
+  return OMCU_BOOT_ERROR_NONE;
+}
+
+static bool omcu_boot_header_is_valid(const omcu_image_header_t *header,
+                                      uint32_t expected_state) {
+  return omcu_boot_header_error(header, expected_state) ==
+         OMCU_BOOT_ERROR_NONE;
 }
 
 static uint32_t omcu_boot_payload_crc32(uint32_t slot_offset,
@@ -408,22 +491,27 @@ static void omcu_boot_send_hello(uint16_t sequence) {
                        (uint16_t)sizeof(response));
 }
 
-static bool omcu_boot_begin_update(const omcu_boot_frame_t *frame,
-                                   omcu_boot_session_t *session) {
+static enum omcu_boot_error omcu_boot_begin_update(
+  const omcu_boot_frame_t *frame, omcu_boot_session_t *session
+) {
   omcu_boot_image_t selected;
   uint8_t *header_bytes = (uint8_t *)(void *)&session->header;
+  enum omcu_boot_error header_error;
   uint32_t page_index;
   uint32_t index;
   bool has_current;
 
   if (frame->length != OMCU_IMAGE_HEADER_BYTES) {
-    return false;
+    return OMCU_BOOT_ERROR_BAD_HEADER;
   }
   for (index = 0u; index < OMCU_IMAGE_HEADER_BYTES; ++index) {
     header_bytes[index] = frame->payload[index];
   }
-  if (!omcu_boot_header_is_valid(&session->header, OMCU_IMAGE_STATE_STAGING)) {
-    return false;
+  header_error = omcu_boot_header_error(
+    &session->header, OMCU_IMAGE_STATE_STAGING
+  );
+  if (header_error != OMCU_BOOT_ERROR_NONE) {
+    return header_error;
   }
 
   has_current = omcu_boot_find_valid_image(&selected);
@@ -436,18 +524,21 @@ static bool omcu_boot_begin_update(const omcu_boot_frame_t *frame,
   session->header.header_crc32 = omcu_boot_header_crc32(&session->header);
 
   for (page_index = 0u; page_index < OMCU_IMAGE_SLOT_PAGES; ++page_index) {
-    omcu_boot_flash_erase_page(
-      session->slot_offset + page_index * OMCU_USER_FLASH_PAGE_BYTES
-    );
+    uint32_t page_offset =
+      session->slot_offset + page_index * OMCU_USER_FLASH_PAGE_BYTES;
+    omcu_boot_flash_erase_page(page_offset);
+    if (!omcu_boot_flash_page_is_erased(page_offset)) {
+      return OMCU_BOOT_ERROR_ERASE_VERIFY;
+    }
   }
   omcu_boot_flash_write_header(session->slot_offset, &session->header);
   if (!omcu_boot_flash_header_matches(session->slot_offset, &session->header)) {
-    return false;
+    return OMCU_BOOT_ERROR_FLASH_VERIFY;
   }
 
   session->next_payload_offset = 0u;
   session->active = true;
-  return true;
+  return OMCU_BOOT_ERROR_NONE;
 }
 
 static bool omcu_boot_write_data(const omcu_boot_frame_t *frame,
@@ -491,7 +582,9 @@ static bool omcu_boot_write_data(const omcu_boot_frame_t *frame,
     uint32_t word = omcu_boot_read_le32(&frame->payload[4u + index]);
     uint32_t flash_offset = session->slot_offset + OMCU_IMAGE_HEADER_BYTES +
                             offset + index;
-    omcu_boot_flash_program_word(flash_offset, word);
+    if (word != OMCU_IMAGE_STATE_ERASED) {
+      omcu_boot_flash_program_word(flash_offset, word);
+    }
     if (omcu_boot_flash_read_word(flash_offset) != word) {
       return false;
     }
@@ -500,15 +593,19 @@ static bool omcu_boot_write_data(const omcu_boot_frame_t *frame,
   return true;
 }
 
-static bool omcu_boot_finish_update(omcu_boot_session_t *session) {
+static enum omcu_boot_error omcu_boot_finish_update(
+  omcu_boot_session_t *session
+) {
   omcu_boot_image_t verified;
 
   if (!session->active ||
-      session->next_payload_offset != session->header.payload_bytes ||
-      omcu_boot_payload_crc32(session->slot_offset,
+      session->next_payload_offset != session->header.payload_bytes) {
+    return OMCU_BOOT_ERROR_INCOMPLETE_IMAGE;
+  }
+  if (omcu_boot_payload_crc32(session->slot_offset,
                               session->header.payload_bytes) !=
-        session->header.payload_crc32) {
-    return false;
+      session->header.payload_crc32) {
+    return OMCU_BOOT_ERROR_PAYLOAD_VERIFY;
   }
 
   /* This is the only irreversible commit point. A power loss before it leaves
@@ -519,11 +616,14 @@ static bool omcu_boot_finish_update(omcu_boot_session_t *session) {
   if (omcu_boot_flash_read_word(session->slot_offset +
                                 OMCU_IMAGE_HEADER_STATE_OFFSET) !=
       OMCU_IMAGE_STATE_COMMITTED) {
-    return false;
+    return OMCU_BOOT_ERROR_COMMIT_WRITE;
   }
   session->active = false;
-  return omcu_boot_find_valid_image(&verified) &&
-         verified.slot_offset == session->slot_offset;
+  if (!omcu_boot_find_valid_image(&verified) ||
+      verified.slot_offset != session->slot_offset) {
+    return OMCU_BOOT_ERROR_COMMIT_DISCOVERY;
+  }
+  return OMCU_BOOT_ERROR_NONE;
 }
 
 static bool omcu_boot_session_is_committed(const omcu_boot_session_t *session) {
@@ -564,10 +664,13 @@ static bool omcu_boot_handle_frame(const omcu_boot_frame_t *frame,
       return false;
 
     case OMCU_BOOT_CMD_BEGIN:
-      if (omcu_boot_begin_update(frame, session)) {
-        omcu_boot_send_ack(frame->sequence);
-      } else {
-        omcu_boot_send_nack(frame->sequence, OMCU_BOOT_ERROR_BAD_HEADER);
+      {
+        enum omcu_boot_error begin_error = omcu_boot_begin_update(frame, session);
+        if (begin_error == OMCU_BOOT_ERROR_NONE) {
+          omcu_boot_send_ack(frame->sequence);
+        } else {
+          omcu_boot_send_nack(frame->sequence, begin_error);
+        }
       }
       return false;
 
@@ -591,10 +694,13 @@ static bool omcu_boot_handle_frame(const omcu_boot_frame_t *frame,
         omcu_boot_send_nack(frame->sequence, OMCU_BOOT_ERROR_NO_SESSION);
       } else if (session->next_payload_offset != session->header.payload_bytes) {
         omcu_boot_send_nack(frame->sequence, OMCU_BOOT_ERROR_INCOMPLETE_IMAGE);
-      } else if (omcu_boot_finish_update(session)) {
-        omcu_boot_send_ack(frame->sequence);
       } else {
-        omcu_boot_send_nack(frame->sequence, OMCU_BOOT_ERROR_IMAGE_VERIFY);
+        enum omcu_boot_error finish_error = omcu_boot_finish_update(session);
+        if (finish_error == OMCU_BOOT_ERROR_NONE) {
+          omcu_boot_send_ack(frame->sequence);
+        } else {
+          omcu_boot_send_nack(frame->sequence, finish_error);
+        }
       }
       return false;
 
@@ -661,7 +767,16 @@ void omcu_bootloader_main(void) {
 
     saw_valid_frame = true;
     if (omcu_boot_handle_frame(&frame, &session)) {
+      uint32_t drain_start_us;
+
       omcu_boot_uart_wait_tx_idle();
+      /* The UART pin is idle here, but an FTDI-class USB bridge may still hold
+       * the final ACK in its latency buffer. Keep the bootloader UART ownership
+       * long enough for that frame to reach the host before application init. */
+      drain_start_us = omcu_boot_time_us();
+      while (!omcu_boot_timeout_elapsed(drain_start_us,
+                                        OMCU_BOOT_UART_DRAIN_US)) {
+      }
       if (omcu_boot_find_valid_image(&selected)) {
         omcu_boot_start_application(&selected);
       }

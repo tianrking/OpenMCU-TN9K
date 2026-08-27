@@ -154,6 +154,8 @@ module omcu_picorv32_system #(
   logic mmio_ready;
   logic [31:0] mmio_read_data;
   logic mmio_error;
+  logic timer0_tick;
+  logic [16:0] timer0_count_low;
   logic user_flash_ready;
   logic [31:0] user_flash_read_data;
   logic user_flash_error;
@@ -272,6 +274,8 @@ module omcu_picorv32_system #(
     .uart1_tx_o(uart1_tx_o),
     .uart1_irq_o(uart1_irq_o),
     .timer_irq_o(timer_irq_o),
+    .timer0_tick_o(timer0_tick),
+    .timer0_count_low_o(timer0_count_low),
     .timer1_capture_a_i(timer1_capture_a_i),
     .timer1_capture_b_i(timer1_capture_b_i),
     .timer1_irq_o(timer1_irq_o),
@@ -317,6 +321,8 @@ module omcu_picorv32_system #(
   ) user_flash (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
+    .timebase_tick_i(timer0_tick),
+    .timebase_count_i(timer0_count_low),
     .req_i(user_flash_select),
     .write_i(|cpu_mem_wstrb),
     .addr_i(cpu_mem_addr - USER_FLASH_BASE),

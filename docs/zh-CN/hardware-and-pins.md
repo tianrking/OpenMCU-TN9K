@@ -1,6 +1,6 @@
 # Tang Nano 9K 硬件与引脚
 
-> **主规格书入口：**所有已约束 package pad、J5 逻辑映射、PINMUX 所有权、外设寄存器和不支持能力以
+> **主规格书入口：**所有已约束 package pad、原理图 J5 逻辑映射、PINMUX 所有权、外设寄存器和不支持能力以
 > [《OpenMCU-TN9K 外设与引脚完整规格书》](peripheral-pin-specification.md)为准。
 > 本页专注于接线、电气注意事项、实验步骤和实体板 HIL，不重复维护另一份引脚真相源。
 
@@ -13,8 +13,14 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 
 本仓库的约束文件是
 [`rtl/platform/tangnano9k/project/omcu_tn9k_bringup.cst`](../../rtl/platform/tangnano9k/project/omcu_tn9k_bringup.cst)。
-下表的 package pad 已通过 P&R 解析；**尚未在当前实体板上验证**。生产前必须对照
-你手中的板卡 revision 原理图、测量电平，并执行后文的板级清单。
+下表同时按 [Sipeed 官方 6202 原理图](https://dl.sipeed.com/fileList/TANG/Nano%209K/2_Schematic/Tang_Nano_9k_3672_Schematic.pdf)
+核对了 J5 网络与 package pad；2026-08-27 的单板无夹具自检还通过 UART0、12 路 GPIO pad 回读、
+PWM1 pad 回读、UART1 TX pad、SPI 空载与 I2C 空载 START/STOP。生产前仍必须确认手中板卡 revision、
+测量真实电平，并完成外部回环/目标器件验收。
+
+接线时不要寻找 PCB 上未逐针印出的 `J5.x`。本文把**元件面朝上、USB-C 在顶部**时的左侧排针
+从上向下命名为 `L1..L24`；它与原理图 `J5.1..24` 一一对应。Sipeed 官方 Pinmap 在孔位旁显示的是
+FPGA package pin，完整实物图与回环位置见[《MCU 外设实体板验收》](mcu-peripheral-qualification.md)。
 
 | OpenMCU 功能 | 顶层端口/逻辑 GPIO | package pad | 用途和注意事项 |
 | --- | --- | ---: | --- |
@@ -22,27 +28,28 @@ GW1NR-9、6 个 LED、2 个按键、32 Mbit SPI Flash、64 Mbit PSRAM、USB 下�
 | 外部复位 | `resetn_i` | 4 | 低有效；顶层异步断言、同步释放。 |
 | UART0 TX/RX | `uart_tx_o` / `uart_rx_i` | 17 / 18 | 3.3 V 逻辑，默认 SDK 115200 8-N-1。 |
 | LED0..5 | GPIO0[0..5] / `led_n_o[0..5]` | 10,11,13,14,15,16 | 板上 LED 为低电平点亮；SDK 逻辑 GPIO 为高表示“点亮”。 |
-| SPI0 CS/MOSI/SCK/MISO | `spi0_*` | 38/37/36/39 | 来自 J5/TF-card 信号组；SPI0 使用时不得同时插入或访问 microSD。 |
-| I2C0 SCL/SDA | `i2c0_scl_io` / `i2c0_sda_io` | 26 / 27 | 真正开漏；外部必须提供合适的 3.3 V 上拉。 |
-| PWM0 | `pwm0_o` | 25 | 单路边沿对齐 PWM。 |
+| SPI0 CS/MOSI/SCK/MISO | `spi0_*` | 38/37/36/39 | 左排 L1/L2/L3/L4（原理图 J5.1..4），与 TF-card 信号共享；使用时不得同时插入或访问 microSD。 |
+| I2C0 SCL/SDA | `i2c0_scl_io` / `i2c0_sda_io` | 26 / 27 | 左排 L6/L7（原理图 J5.6/7），真正开漏；外部必须提供合适的 3.3 V 上拉。 |
+| PWM0 | `pwm0_o` | 25 | 左排 L5（原理图 J5.5），单路边沿对齐 PWM。 |
 | PULSE0 输入（复用） | GPIO0..2 / `gpio_io[0:2]` | 28 / 29 / 30 | `PINMUX.CTRL.PULSE0_ENABLE=1` 后三根 GPIO 输出全被释放，PULSE0 一次只测一路。 |
 | FAULT0 输入（复用） | GPIO3 / `gpio_io[3]` | 33 | `PINMUX.CTRL.FAULT0_ENABLE=1` 后作为 FAULT0 输入；可门控 PWM/GPIO，但不是安全认证急停。 |
-| PWM1 CH0..3（复用） | GPIO4..7 / `gpio_io[4:7]` | 34 / 40 / 35 / 41 | 默认仍是 GPIO；`PINMUX.CTRL.PWM1_ENABLE=1` 后为四路共享计数器 PWM，对应 J5.12..15。 |
-| TIMER1 A/B 输入（复用） | GPIO8/9 / `gpio_io[8:9]` | 42 / 51 | 默认仍是 GPIO；`PINMUX.CTRL.TIMER1_ENABLE=1` 后两根 pad 被释放为输入，对应 J5.16/J5.17，可作同步滤波捕获或正交编码器 A/B。 |
+| PWM1 CH0..3（复用） | GPIO4..7 / `gpio_io[4:7]` | 34 / 40 / 35 / 41 | 默认仍是 GPIO；`PINMUX.CTRL.PWM1_ENABLE=1` 后为四路共享计数器 PWM，对应左排 L12..L15（J5.12..15）。 |
+| TIMER1 A/B 输入（复用） | GPIO8/9 / `gpio_io[8:9]` | 42 / 51 | 默认仍是 GPIO；`PINMUX.CTRL.TIMER1_ENABLE=1` 后两根 pad 被释放为输入，对应左排 L16/L17（J5.16/17），可作同步滤波捕获或正交编码器 A/B。 |
 | 扩展 GPIO 档案 | GPIO0[0..11] / `gpio_io[0..11]` | 28,29,30,33,34,40,35,41,42,51,53,54 | 12 路可输入、输出或高阻；GPIO0[0..5] 同时镜像 LED0..5，`gpio_io[3..11]` 与 RGB LCD 共线。 |
-| UART1 TX/RX（复用） | GPIO10/11 / `gpio_io[10:11]` | 53 / 54 | 默认仍是 GPIO；`PINMUX.CTRL.UART1_ENABLE=1` 后为 UART1 TX/RX，对应 J5.18/J5.19。 |
+| UART1 TX/RX（复用） | GPIO10/11 / `gpio_io[10:11]` | 53 / 54 | 默认仍是 GPIO；`PINMUX.CTRL.UART1_ENABLE=1` 后为 UART1 TX/RX，对应左排 L18/L19（J5.18/19）。 |
 
 `GPIO0[0..5]` 会镜像板载低有效 LED，但并非 LED 专用的私有寄存器位；SDK 中它们仍是
 `OMCU_TN9K_GPIO0` 至 `OMCU_TN9K_GPIO5`。全部 12 路逻辑 GPIO 均遵守 `OE`：软件清掉 `OE` 后，FPGA pad 会释放为
 高阻，而不是把“1”推到外部总线。
 
-| SDK GPIO | `gpio_io` | J5 针脚 | package pad | 复用边界 |
+| SDK GPIO | `gpio_io` | 实物左排（原理图 J5） | package pad | 复用边界 |
 | --- | ---: | ---: | ---: | --- |
-| GPIO0..2 | 0..2 | 8..10 | 28 / 29 / 30 | 现有公开的 3.3 V 数字组。 |
-| GPIO3..11 | 3..11 | 11..19 | 33 / 34 / 40 / 35 / 41 / 42 / 51 / 53 / 54 | 3.3 V，但与 RGB LCD FPC 的 DE/VS/HS/CLK/B 线共用；不能和 RGB LCD 同时使用。 |
+| GPIO0..2 | 0..2 | L8..L10（J5.8..10） | 28 / 29 / 30 | 现有公开的 3.3 V 数字组。 |
+| GPIO3..11 | 3..11 | L11..L19（J5.11..19） | 33 / 34 / 40 / 35 / 41 / 42 / 51 / 53 / 54 | 3.3 V，但与 RGB LCD FPC 的 DE/VS/HS/CLK/B 线共用；不能和 RGB LCD 同时使用。 |
 
-该档案已经具有 RTL 顶层、CST 和数字仿真覆盖，但尚未完成实体板电压、线缆、显示复用和
-目标外设 HIL。它不包含 J6 的 1.8 V 信号、HDMI 对、JTAG/MODE/DONE 或“所有未用 IOB”。
+该档案已经具有 RTL 顶层、CST、数字仿真和无负载实体 pad 自读覆盖，但尚未完成全部外部线缆、
+显示复用和目标器件 HIL。它不包含 J6 的 1.8 V 信号、HDMI 对、JTAG/MODE/DONE 或“所有未用 IOB”。
+固定回环夹具和逐项证据等级见[《MCU 外设实体板验收》](mcu-peripheral-qualification.md)。
 
 ## UART1、PWM1、TIMER1、PULSE0、FAULT0 与显式 pinmux
 

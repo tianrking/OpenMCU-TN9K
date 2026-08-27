@@ -302,17 +302,18 @@ pending 并持续保持 UART0 更新会话，直到主机完成常规 `BOOT` 命
 硬件复位替代品或安全边界，也不改变 A/B、CRC、外部复位和空白设备恢复合同。完整流程见
 [独立 MCU 固件开发与升级](mcu-firmware-update.md)。
 
-## 把应用加进 SDK
+## 在仓库外引用 SDK
 
-1. 新建 `sdk/examples/<name>/main.c`，只使用 `omcu.h` / `omcu_tn9k.h` 的公开 API。
-2. 在 `sdk/CMakeLists.txt` 增加：
+1. 复制 `templates/omcu-app` 到客户自己的仓库，源码只使用 `omcu.h` / `omcu_tn9k.h` 的公开 API。
+2. 在客户工程 `CMakeLists.txt` 引用 SDK：
 
    ```cmake
-   omcu_add_application(omcu_<name> examples/<name>/main.c)
+   include("${OMCU_SDK_PATH}/cmake/OpenMCUSDK.cmake")
+   omcu_add_application(my_omcu_app src/main.c)
    ```
 
-3. 在 Windows 执行 `scripts/build-sdk.ps1`，或在 Ubuntu/Linux/macOS 执行 `sh scripts/build-sdk.sh`，检查 `.elf`、`.map`、`.bin`、`.omcu`；三种主机的环境安装见[跨平台 FPGA / MCU 开发环境](cross-platform-fpga-development.md)。
-4. 使用 `tools/omcu_image.py validate` 核对 `.omcu`，再通过 `tools/omcu_flash.py` 写入已经固化的产品 FPGA。
+3. 设置 `OMCU_SDK_PATH=<OpenMCU-TN9K>/sdk`；Windows 执行 `build.ps1`，Ubuntu/Linux/macOS 执行 `./build.sh`，检查 `.elf`、`.map`、`.bin`、`.omcu`；三种主机的环境安装见[跨平台 FPGA / MCU 开发环境](cross-platform-fpga-development.md)。
+4. 模板会自动调用 `omcu_image.py validate`；再用 `flash.ps1` / `flash.sh` 写入已经固化的产品 FPGA。
 5. 为新外设事务补充 RTL testbench、串口更新回归和实体板清单，再发布。
 
 `omcu_add_application()` 专门匹配固定的 40 KiB 应用 SRAM 与 User Flash A/B 槽；它不会把客户程序编进 FPGA ROM。若实验性改变 ROM/SRAM 几何，必须创建独立平台与匹配链接脚本，不能混入已交付的产品 MCU 模式。

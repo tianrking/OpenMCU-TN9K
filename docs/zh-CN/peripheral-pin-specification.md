@@ -168,17 +168,22 @@ sequenceDiagram
 - 普通上电后 Bootloader 有短暂 UART0 监听窗口；PC 端先启动 `omcu_flash.py` 再按复位可进入升级。
 - 若业务程序复用了 UART0，先停掉关键业务并调用 `omcu_tn9k_request_bootloader()`。Boot ROM 会消费
   请求并持续保持 UART0 更新会话，PC 无需抢窗口。
-- 镜像使用头部 CRC32、载荷 CRC32、`STAGING → COMMITTED` 提交和 A/B 回退。它能发现损坏与半写入，
+- v2 镜像使用头部 CRC32、载荷 CRC32、逻辑 `STAGING → COMMITTED` 提交和 A/B 回退；物理状态字在传输期间保持擦除态 `0`，最终只编程一次 `COMMITTED`。它能发现损坏与半写入，
   **不是**签名验证、密钥管理或反回滚方案。
-- FPGA 配置 Flash 与 User Flash 是两块不同的非易失存储。客户日常更新只写 User Flash，不重烧 `.fs`。
+- FPGA 配置 Flash 与 User Flash 承担不同的非易失存储职责。客户日常更新只写 User Flash，不重烧 `.fs`；工厂使用 `openFPGALoader -f` 固化配置时实测会清空应用区，因此必须在 `.fs` 之后再写最终 `.omcu`。
 
 ## 4. 完整引脚与封装约束
 
 ### 4.1 引脚使用规则
 
 本节列出 `omcu_tn9k_mcu_top` 的全部 **29 个** `IO_LOC` 约束。`package pad` 是 Gowin 封装 pad
-编号，不是 MCU 逻辑 GPIO 编号。对于当前项目没有在本地原理图资料中断言具体连接器针号的信号，表中
-明确写为“J5/TF 信号组”或“板载专用”；不要把 package pad 误当成排针编号。
+编号，不是 MCU 逻辑 GPIO 编号。本表的连接器映射已与
+[Sipeed 官方 6202 原理图](https://dl.sipeed.com/fileList/TANG/Nano%209K/2_Schematic/Tang_Nano_9k_3672_Schematic.pdf)
+交叉核对；仍不要把 package pad 当成排针编号，且不同板卡 revision 必须复核。
+
+原理图 `J5.1..24` 通常不逐针印在 PCB 上。接线统一按实物定位：**元件面朝上、USB-C 在顶部**，
+左侧暴露排针从上向下为 `L1..L24`，并与 `J5.1..24` 一一对应；Sipeed 官方 Pinmap 在孔位旁显示
+FPGA package pin。官方图和六线回环位置见[《MCU 外设实体板验收》](mcu-peripheral-qualification.md)。
 
 以下对象**不属于公开 OpenMCU MCU 引脚合同**：J6 的 1.8 V 线路、HDMI 差分/高速线路、JTAG、
 MODE/DONE/配置相关引脚、板载配置 SPI Flash、PSRAM、RGB LCD 专用功能以及“未使用 IOB”。
@@ -207,36 +212,36 @@ MODE/DONE/配置相关引脚、板载配置 SPI Flash、PSRAM、RGB LCD 专用�
 
 | 外设 / 顶层信号 | 方向 | package pad | CST 约束 | 板级网络与限制 |
 | --- | --- | ---: | --- | --- |
-| SPI0 `spi0_cs_n_o` | 输出 | 38 | `LVCMOS33`、pull-up、drive 8 | J5/TF 共享信号组，低有效 CS；使用外置 SPI 时不得同时插入或访问 microSD。 |
-| SPI0 `spi0_mosi_o` | 输出 | 37 | `LVCMOS33`、pull-up、drive 8 | J5/TF 共享信号组，MCU → 外设。 |
-| SPI0 `spi0_sck_o` | 输出 | 36 | `LVCMOS33`、pull-up、drive 8 | J5/TF 共享信号组，mode 0 时钟。 |
-| SPI0 `spi0_miso_i` | 输入 | 39 | `LVCMOS33`、pull-up | J5/TF 共享信号组，外设 → MCU。 |
-| PWM0 `pwm0_o` | 输出 | 25 | `LVCMOS33`、pull-up、drive 8 | 单路 PWM 逻辑输出；不是功率级、栅极驱动器或互补输出。 |
-| I2C0 `i2c0_scl_io` | 双向开漏 | 26 | `LVCMOS33`、pull-up、drive 8 | 仅驱动低或高阻；外部必须提供正确的 3.3 V 上拉。 |
-| I2C0 `i2c0_sda_io` | 双向开漏 | 27 | `LVCMOS33`、pull-up、drive 8 | 仅驱动低或高阻；外部必须提供正确的 3.3 V 上拉。 |
+| SPI0 `spi0_cs_n_o` | 输出 | 38 | `LVCMOS33`、pull-up、drive 8 | 左排 L1（J5.1）/ TF DAT3，低有效 CS；使用外置 SPI 时不得同时插入或访问 microSD。 |
+| SPI0 `spi0_mosi_o` | 输出 | 37 | `LVCMOS33`、pull-up、drive 8 | 左排 L2（J5.2）/ TF CMD，MCU → 外设。 |
+| SPI0 `spi0_sck_o` | 输出 | 36 | `LVCMOS33`、pull-up、drive 8 | 左排 L3（J5.3）/ TF CLK，mode 0 时钟。 |
+| SPI0 `spi0_miso_i` | 输入 | 39 | `LVCMOS33`、pull-up | 左排 L4（J5.4）/ TF DAT0，外设 → MCU。 |
+| PWM0 `pwm0_o` | 输出 | 25 | `LVCMOS33`、pull-up、drive 8 | 左排 L5（J5.5）；单路 PWM 逻辑输出，不是功率级、栅极驱动器或互补输出。 |
+| I2C0 `i2c0_scl_io` | 双向开漏 | 26 | `LVCMOS33`、pull-up、drive 8 | 左排 L6（J5.6）；仅驱动低或高阻，外部必须提供正确的 3.3 V 上拉。 |
+| I2C0 `i2c0_sda_io` | 双向开漏 | 27 | `LVCMOS33`、pull-up、drive 8 | 左排 L7（J5.7）；仅驱动低或高阻，外部必须提供正确的 3.3 V 上拉。 |
 
-当前 CST 将这组总线 pad 置于公开的 3.3 V J5/TF 信号组，但本项目没有再把 SPI0、I2C0、PWM0
-断言为特定 J5 针号；接线时以当前 Tang Nano 9K 板卡原理图/丝印和本表 package pad 双重核对。
+上述 J5.1..7 映射来自官方原理图的 J5 网络名，并与当前 CST 双重核对。接线时仍需确认手中板卡
+revision 和丝印；I2C 内部弱 pull-up 不替代外部总线上拉。
 
 #### 4.1.3 12 路扩展 GPIO：完整映射
 
 GPIO 寄存器位 `0..11` 对应下表逻辑 GPIO `GPIO0..11`。所有扩展 pad 初始归 GPIO 所有；只有
 `PINMUX.CTRL` 的相应位为 1 时，替代外设才接管指定 pad。
 
-| GPIO 寄存器 bit | SDK 宏 | `gpio_io[]` | J5 针脚 | package pad | 默认功能 | 替代功能 / 互斥条件 |
+| GPIO 寄存器 bit | SDK 宏 | `gpio_io[]` | 实物左排（原理图 J5） | package pad | 默认功能 | 替代功能 / 互斥条件 |
 | ---: | --- | ---: | --- | ---: | --- | --- |
-| 0 | `OMCU_TN9K_GPIO0` / `LED0` | 0 | J5.8 | 28 | 三态 GPIO；LED0 镜像 | `PULSE0` 候选输入 0；启用后 pad 输入专用。 |
-| 1 | `OMCU_TN9K_GPIO1` / `LED1` | 1 | J5.9 | 29 | 三态 GPIO；LED1 镜像 | `PULSE0` 候选输入 1；启用后 pad 输入专用。 |
-| 2 | `OMCU_TN9K_GPIO2` / `LED2` | 2 | J5.10 | 30 | 三态 GPIO；LED2 镜像 | `PULSE0` 候选输入 2；启用后 pad 输入专用。 |
-| 3 | `OMCU_TN9K_GPIO3` / `LED3` | 3 | J5.11 | 33 | 三态 GPIO；LED3 镜像 | `FAULT0` 输入；启用后 pad 输入专用；与 RGB LCD 共线。 |
-| 4 | `OMCU_TN9K_GPIO4` / `LED4` | 4 | J5.12 | 34 | 三态 GPIO；LED4 镜像 | `PWM1 CH0`；与 RGB LCD 共线。 |
-| 5 | `OMCU_TN9K_GPIO5` / `LED5` | 5 | J5.13 | 40 | 三态 GPIO；LED5 镜像 | `PWM1 CH1`；与 RGB LCD 共线。 |
-| 6 | `OMCU_TN9K_GPIO6` | 6 | J5.14 | 35 | 三态 GPIO | `PWM1 CH2`；与 RGB LCD 共线。 |
-| 7 | `OMCU_TN9K_GPIO7` | 7 | J5.15 | 41 | 三态 GPIO | `PWM1 CH3`；与 RGB LCD 共线。 |
-| 8 | `OMCU_TN9K_GPIO8` | 8 | J5.16 | 42 | 三态 GPIO | `TIMER1 A` 输入；与 RGB LCD 共线。 |
-| 9 | `OMCU_TN9K_GPIO9` | 9 | J5.17 | 51 | 三态 GPIO | `TIMER1 B` 输入；与 RGB LCD 共线。 |
-| 10 | `OMCU_TN9K_GPIO10` | 10 | J5.18 | 53 | 三态 GPIO | `UART1 TX`；与 RGB LCD 共线。 |
-| 11 | `OMCU_TN9K_GPIO11` | 11 | J5.19 | 54 | 三态 GPIO | `UART1 RX`；与 RGB LCD 共线。 |
+| 0 | `OMCU_TN9K_GPIO0` / `LED0` | 0 | L8（J5.8） | 28 | 三态 GPIO；LED0 镜像 | `PULSE0` 候选输入 0；启用后 pad 输入专用。 |
+| 1 | `OMCU_TN9K_GPIO1` / `LED1` | 1 | L9（J5.9） | 29 | 三态 GPIO；LED1 镜像 | `PULSE0` 候选输入 1；启用后 pad 输入专用。 |
+| 2 | `OMCU_TN9K_GPIO2` / `LED2` | 2 | L10（J5.10） | 30 | 三态 GPIO；LED2 镜像 | `PULSE0` 候选输入 2；启用后 pad 输入专用。 |
+| 3 | `OMCU_TN9K_GPIO3` / `LED3` | 3 | L11（J5.11） | 33 | 三态 GPIO；LED3 镜像 | `FAULT0` 输入；启用后 pad 输入专用；与 RGB LCD 共线。 |
+| 4 | `OMCU_TN9K_GPIO4` / `LED4` | 4 | L12（J5.12） | 34 | 三态 GPIO；LED4 镜像 | `PWM1 CH0`；与 RGB LCD 共线。 |
+| 5 | `OMCU_TN9K_GPIO5` / `LED5` | 5 | L13（J5.13） | 40 | 三态 GPIO；LED5 镜像 | `PWM1 CH1`；与 RGB LCD 共线。 |
+| 6 | `OMCU_TN9K_GPIO6` | 6 | L14（J5.14） | 35 | 三态 GPIO | `PWM1 CH2`；与 RGB LCD 共线。 |
+| 7 | `OMCU_TN9K_GPIO7` | 7 | L15（J5.15） | 41 | 三态 GPIO | `PWM1 CH3`；与 RGB LCD 共线。 |
+| 8 | `OMCU_TN9K_GPIO8` | 8 | L16（J5.16） | 42 | 三态 GPIO | `TIMER1 A` 输入；与 RGB LCD 共线。 |
+| 9 | `OMCU_TN9K_GPIO9` | 9 | L17（J5.17） | 51 | 三态 GPIO | `TIMER1 B` 输入；与 RGB LCD 共线。 |
+| 10 | `OMCU_TN9K_GPIO10` | 10 | L18（J5.18） | 53 | 三态 GPIO | `UART1 TX`；与 RGB LCD 共线。 |
+| 11 | `OMCU_TN9K_GPIO11` | 11 | L19（J5.19） | 54 | 三态 GPIO | `UART1 RX`；与 RGB LCD 共线。 |
 
 GPIO0..2 是当前档案中无 RGB LCD 共线关系的基础扩展组。GPIO3..11 都与 RGB LCD FPC 的
 DE/VS/HS/CLK/B 信号组共线：**不得**在同一网络上同时连接 RGB LCD 和外部 MCU 外设。该互斥由
@@ -704,10 +709,11 @@ SDK API、示例工程和寄存器封装详见[外设与 SDK](peripherals-and-sd
 ### 8.1 当前资源事实
 
 ABI `0.9` 的最终产品 P&R 证据已写入
-`build/tangnano9k-mcu-abi09-independent-history-filter-packed/omcu_tn9k_mcu_manifest.json`：LUT4 `7184 / 8640`
-（83.15%）、DFF `2610 / 6480`（40.28%）、BSRAM `24 / 26`（92.31%）、ALU `1336 / 6480`、
-MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束下实现 44.295 MHz，
-裕量 14.461 ns。该记录证明同一源码、约束、ROM 和目标器件可完成开源 P&R/packing，不能把它写成实板通过证据。
+`build/tangnano9k-mcu-release-drain/omcu_tn9k_mcu_manifest.json`：LUT4 `7188 / 8640`
+（83.19%）、DFF `2620 / 6480`（40.43%）、BSRAM `24 / 26`（92.31%）、ALU `1310 / 6480`、
+MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束下实现 51.319 MHz，
+裕量 17.551 ns。该记录证明同一源码、约束、ROM 和目标器件可完成开源 P&R/packing；实板 HIL
+由单独的下载、更新和自检记录证明，不能从资源表本身推导。
 
 虽显示两个 BSRAM 余量，但极小的单块 BSRAM 记录器把产品推至 25/26 后也无法得到合法布局/布线；因此
 不能在本基线中承诺大 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP。后续每项 RTL 扩展都必须独立重新 P&R，

@@ -27,8 +27,9 @@ IO_PORT "led_n_o[4]" PULL_MODE=UP DRIVE=8;
 IO_LOC "led_n_o[5]" 16;
 IO_PORT "led_n_o[5]" PULL_MODE=UP DRIVE=8;
 
-// These assignments use the 3.3 V J5/TF-card signal group published in the
-// Tang Nano 9K reference design.  They are covered by digital P&R and remain
+// These assignments use the official Pinmap's exposed left-header L1..L19
+// positions (schematic-internal J5.1..19). They are 3.3 V signals published
+// in the Tang Nano 9K reference design, covered by digital P&R, and remain
 // explicitly subject to the physical-board validation checklist in docs.
 // SPI0 shares J5/TF-card signals: do not use a microSD card concurrently.
 IO_LOC "spi0_cs_n_o" 38;
@@ -53,7 +54,7 @@ IO_PORT "gpio_io[1]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
 IO_LOC "gpio_io[2]" 30;
 IO_PORT "gpio_io[2]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
 
-// J5 pins 11..19 are 3.3 V signals shared with the RGB-LCD connector.  They
+// Left-header L11..L19 (schematic J5.11..19) are 3.3 V signals shared with the RGB-LCD connector. They
 // are intentionally exposed only through the explicit 12-pad GPIO profile;
 // do not attach an RGB LCD and an external MCU device to the same net.  Their
 // electrical behavior remains subject to the HIL matrix for the exact board

@@ -90,6 +90,10 @@ jobs:
           (Get-Item -LiteralPath $compilerPath).DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Build every RV32IM SDK target and verify the immutable Boot ROM fixture
         run: sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
+      - name: Build an application outside the SDK source tree
+        env:
+          OMCU_SDK_PATH: ${{ github.workspace }}/sdk
+        run: sh ./templates/omcu-app/build.sh
       - name: Execute all compiled-firmware RTL smoke tests
         shell: pwsh
         run: |
@@ -167,8 +171,12 @@ jobs:
 
           if ($IsWindows) {
             ./scripts/build-sdk.ps1 -BuildDirectory build/sdk-host -RiscvPrefix riscv-none-elf-
+            $env:OMCU_SDK_PATH = Join-Path $env:GITHUB_WORKSPACE 'sdk'
+            ./templates/omcu-app/build.ps1
           } else {
             sh ./scripts/build-sdk.sh --build-dir build/sdk-host --riscv-prefix riscv-none-elf-
+            $env:OMCU_SDK_PATH = Join-Path $env:GITHUB_WORKSPACE 'sdk'
+            sh ./templates/omcu-app/build.sh
           }
 
   fpga-product-pnr:

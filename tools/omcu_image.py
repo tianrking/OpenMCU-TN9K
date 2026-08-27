@@ -19,15 +19,15 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 
 MAGIC = 0x4F4D4355
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 HEADER_BYTES = 64
 HEADER_STRUCT = struct.Struct("<IHHIIIIIIII6I")
 STATE_OFFSET = 32
 HEADER_CRC_OFFSET = 36
 
-STATE_ERASED = 0xFFFFFFFF
-STATE_STAGING = 0xFFFFFFFE
-STATE_COMMITTED = 0xFFFFFFFC
+STATE_ERASED = 0x00000000
+STATE_STAGING = 0x00000001
+STATE_COMMITTED = 0x00000002
 
 USER_FLASH_BYTES = 77824
 USER_FLASH_PAGE_BYTES = 2048
@@ -89,8 +89,8 @@ def crc32(data: bytes) -> int:
 def header_crc32(header: ImageHeader) -> int:
     """CRC the header while logical state and its CRC field are zero.
 
-    State is intentionally excluded so the bootloader can atomically change
-    STAGING to COMMITTED with a final 1-to-0 User Flash word program.
+    State is intentionally excluded so the bootloader can atomically publish
+    COMMITTED with one final zero-to-one User Flash word program.
     """
 
     raw = bytearray(header.pack())

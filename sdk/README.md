@@ -24,12 +24,15 @@ C 源码 -> RV32IM ELF -> BIN -> .omcu -> UART0 -> User Flash A/B -> SRAM 执行
 当前构建链经过验证的语言是 C 与启动汇编；C++ 运行库、异常、RTTI 和动态分配不属于已交付 SDK
 能力，应用请按裸机 C 约束设计。
 
-## 唯一的应用目标
+## 仓库外独立应用（推荐）
 
-在 `sdk/CMakeLists.txt` 中声明自己的应用：
+复制 [`templates/omcu-app`](../templates/omcu-app/) 到自己的代码仓库，设置
+`OMCU_SDK_PATH=<OpenMCU-TN9K>/sdk`，即可在不修改 OpenMCU 仓库的情况下构建。模板通过公开的
+`sdk/cmake/OpenMCUSDK.cmake` 引用 SDK：
 
 ```cmake
-omcu_add_application(my_product_app examples/my_product_app/main.c)
+include("${OMCU_SDK_PATH}/cmake/OpenMCUSDK.cmake")
+omcu_add_application(my_omcu_app src/main.c)
 ```
 
 该函数会自动：
@@ -39,7 +42,9 @@ omcu_add_application(my_product_app examples/my_product_app/main.c)
 3. 生成 `<target>.elf` 与 `<target>.bin`；
 4. 以硬件 ABI、长度和 CRC 封装为 `<target>.omcu`。
 
-不要手写镜像头，应用升级时只把 `.omcu` 交给 `tools/omcu_flash.py`。
+macOS/Linux 执行 `./build.sh` 与 `./flash.sh <串口>`；Windows 执行 `./build.ps1` 与
+`./flash.ps1 -Port COM5`。不要手写镜像头，应用升级时只把 `.omcu` 交给
+`tools/omcu_flash.py`。仓库内的 `sdk/CMakeLists.txt` 只负责官方示例与回归，不再是客户添加源码的入口。
 
 ## 官方产品应用示例
 
@@ -47,6 +52,8 @@ omcu_add_application(my_product_app examples/my_product_app/main.c)
 | --- | --- |
 | `omcu_mcu_hello` | UART0 周期输出 Hello World；最小的端到端编译、烧录和日志检查。 |
 | `omcu_mcu_blink` | 板载 LED0 闪烁；最小 GPIO 输出应用。 |
+| `omcu_mcu_selftest` | 无外接夹具板测：真实 WDT 复位、SRAM/RV32IM、UART0 双向及片内/空载 pad 路径。 |
+| `omcu_mcu_loopback_selftest` | 按固定跳线夹具自动验收 UART1/SPI/PWM/TIMER1/PULSE/FAULT 的外部闭环。 |
 | `omcu_uart1_loopback` | UART1 回显模板；UART0 保留给升级，UART1 使用 J5.18/J5.19。 |
 | `omcu_pwm1_demo` | 四路共享计数器 PWM 模板。 |
 | `omcu_timer1_encoder_demo` | TIMER1 捕获与正交编码器模板。 |
@@ -58,36 +65,38 @@ omcu_add_application(my_product_app examples/my_product_app/main.c)
 
 所有表中目标均生成 `.omcu`，可在产品位流上独立烧录。
 
+自检的证据等级、接线和判据见[《MCU 外设实体板验收》](../docs/zh-CN/mcu-peripheral-qualification.md)。
+
 ## 编译与产物
 
 Windows：
 
 ```powershell
-.\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
-python .\tools\omcu_image.py validate --image .\build\sdk\my_product_app.omcu
+$env:OMCU_SDK_PATH = 'C:\src\OpenMCU-TN9K\sdk'
+.\build.ps1
 ```
 
 Linux：
 
 ```sh
-sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
-python3 ./tools/omcu_image.py validate --image ./build/sdk/my_product_app.omcu
+export OMCU_SDK_PATH=/path/to/OpenMCU-TN9K/sdk
+./build.sh
 ```
 
 macOS：
 
 ```sh
-sh ./scripts/build-sdk.sh --riscv-prefix riscv-none-elf-
-python3 ./tools/omcu_image.py validate --image ./build/sdk/my_product_app.omcu
+export OMCU_SDK_PATH=/path/to/OpenMCU-TN9K/sdk
+./build.sh
 ```
 
 构建后常见文件为：
 
 | 文件 | 用途 |
 | --- | --- |
-| `my_product_app.elf` | 调试、反汇编和链接 map 分析。 |
-| `my_product_app.bin` | 原始应用载荷。 |
-| `my_product_app.omcu` | 客户升级、现场部署和 A/B 槽写入的唯一镜像。 |
+| `my_omcu_app.elf` | 调试、反汇编和链接 map 分析。 |
+| `my_omcu_app.bin` | 原始应用载荷。 |
+| `my_omcu_app.omcu` | 客户升级、现场部署和 A/B 槽写入的唯一镜像。 |
 
 ## 外置器件驱动
 
@@ -95,8 +104,8 @@ python3 ./tools/omcu_image.py validate --image ./build/sdk/my_product_app.omcu
 TMP102、MCP3008、MCP4921 和 W5500 API。应用按需链接：
 
 ```cmake
-omcu_add_application(omcu_my_sensor examples/my_sensor/main.c)
-target_link_libraries(omcu_my_sensor PRIVATE omcu_device_drivers)
+omcu_add_application(my_omcu_app src/main.c)
+target_link_libraries(my_omcu_app PRIVATE OpenMCU::device_drivers)
 ```
 
 公开头文件为 `omcu_bus.h`、`omcu_devices.h`、`omcu.h` 与 `omcu_tn9k.h`。W5500、MCP3008、

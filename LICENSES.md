@@ -28,6 +28,21 @@ submodule, not a copied source tree:
 - licence: ISC, including the upstream copyright notice in
   `third_party/picorv32/COPYING`.
 
+The documentation includes one unmodified Tang Nano 9K Pinmap image from the
+Sipeed Wiki repository:
+
+- upstream: <https://github.com/sipeed/sipeed_wiki>;
+- upstream path:
+  `docs/hardware/zh/tang/Tang-Nano-9K/assets/clip_image010.gif`;
+- local path:
+  `docs/zh-CN/assets/sipeed-tang-nano-9k-official-pinmap.png`;
+- licence: MIT, with the upstream notice retained in
+  `docs/zh-CN/assets/LICENSE-Sipeed-Wiki-MIT.txt`.
+
+`docs/zh-CN/assets/openmcu-tn9k-loopback-physical-pinmap.png` is a
+project-authored test diagram derived from the published pin numbers,
+schematic nets and this repository's constraints.
+
 OpenMCU's own RTL in this initial local foundation has not been granted a
 publication licence yet. A release must retain this dependency record and add
 the chosen project licence before distribution.

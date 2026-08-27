@@ -84,12 +84,15 @@ SDK 入口为 omcu_irq_set_mask()、omcu_irq_wait()、omcu_irq_global_enable() �
 
 ## 5. 已公开 I/O
 
-| 功能 / 逻辑 GPIO | J5 | package pad | PINMUX 后用途 |
+| 功能 / 逻辑 GPIO | 实物左排（原理图 J5） | package pad | PINMUX 后用途 |
 | --- | --- | --- | --- |
-| GPIO0..2 | 8..10 | 28 / 29 / 30 | 普通 GPIO 或 PULSE0 单选输入。 |
-| GPIO3..7 | 11..15 | 33 / 34 / 40 / 35 / 41 | 普通 GPIO；GPIO3 是 FAULT0，GPIO4..7 是 PWM1 CH0..3。 |
-| GPIO8..9 | 16..17 | 42 / 51 | 普通 GPIO 或 TIMER1 A/B。 |
-| GPIO10..11 | 18..19 | 53 / 54 | 普通 GPIO 或 UART1 TX/RX。 |
+| SPI0 CS/MOSI/SCK/MISO | L1..L4（J5.1..4） | 38 / 37 / 36 / 39 | 固定 mode-0 主机，与 TF 卡共享。 |
+| PWM0 | L5（J5.5） | 25 | 固定单路逻辑 PWM 输出。 |
+| I2C0 SCL/SDA | L6..L7（J5.6..7） | 26 / 27 | 固定开漏主机，必须外部 3.3 V 上拉。 |
+| GPIO0..2 | L8..L10（J5.8..10） | 28 / 29 / 30 | 普通 GPIO 或 PULSE0 单选输入。 |
+| GPIO3..7 | L11..L15（J5.11..15） | 33 / 34 / 40 / 35 / 41 | 普通 GPIO；GPIO3 是 FAULT0，GPIO4..7 是 PWM1 CH0..3。 |
+| GPIO8..9 | L16..L17（J5.16..17） | 42 / 51 | 普通 GPIO 或 TIMER1 A/B。 |
+| GPIO10..11 | L18..L19（J5.18..19） | 53 / 54 | 普通 GPIO 或 UART1 TX/RX。 |
 
 这些路线仅代表 RTL、CST 和 P&R 已约束的公开合同。J6/HDMI/JTAG/配置 pin、板载配置 Flash、
 PSRAM、TF、RGB LCD 和“空闲 package pin”不因此成为可安全使用的 GPIO；仍须确认板卡 revision、
@@ -105,9 +108,10 @@ Bootloader 请求以及 DS3231/AT24Cxx/TMP102/MCP3008/MCP4921/W5500 外置器件
 # 平台/SDK 工程：构建 Boot ROM 和所有独立应用
 .\scripts\build-sdk.ps1 -RiscvPrefix riscv-none-elf-
 
-# 客户应用在 sdk/CMakeLists.txt 通过 omcu_add_application() 声明后，得到 .omcu：
+# 客户工程引用 sdk/cmake/OpenMCUSDK.cmake 并通过 omcu_add_application() 声明后：
 python -m pip install pyserial
-python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
+.\build.ps1
+.\flash.ps1 -Port COM5
 ~~~
 
 应用使用 RV32IM / ilp32 编译；旧 rv32imc 或旧 ABI 镜像会被产品 Bootloader 拒绝。SDK 的
@@ -115,8 +119,8 @@ python .\tools\omcu_flash.py --port COM5 --image .\build\sdk\my_product_app.omcu
 
 ## 7. 资源结论：为什么不把 DFF 强行拉到 5k
 
-已发布 ABI 0.9 的可 P&R 基线为 LUT4 7,184 / 8,640（83.15%）、DFF 2,610 / 6,480
-（40.28%）、BSRAM 24 / 26（92.31%）。DFF 是触发器数量，不是独立可兑换的“存储额度”：
+已发布 ABI 0.9 的可 P&R 基线为 LUT4 7,188 / 8,640（83.19%）、DFF 2,620 / 6,480
+（40.43%）、BSRAM 24 / 26（92.31%）。DFF 是触发器数量，不是独立可兑换的“存储额度”：
 一个可读、可触发、可停止的寄存器记录器还需要 LUT、选择/地址逻辑、控制扇出和可达布线。
 
 在同一完整产品（4 KiB ROM、44 KiB SRAM、全部 ABI 0.9 外设）的 GPIO 12-bit DFF 流式记录器探索中，
@@ -139,10 +143,10 @@ LUT/BSRAM/局部路由共同受限的产品；没有功能收益的 dummy DFF �
 | 层级 | 当前结论 |
 | --- | --- |
 | 规格、SDK、Boot ROM | 已自动化检查。 |
-| RTL / 编译固件仿真 | 36/36 smoke 目标通过；Python 镜像/协议测试 9/9 通过。 |
-| FPGA 产品 P&R / packing | 同一 ABI 0.9 源码已通过精确 GW1NR 目标器件；27 MHz 约束下报告 44.295 MHz、14.461 ns 裕量。 |
+| RTL / 编译固件仿真 | 36/36 smoke 目标通过；Python 镜像/协议/自检转录测试 12/12 通过。 |
+| FPGA 产品 P&R / packing | 同一 ABI 0.9 源码已通过精确 GW1NR 目标器件；27 MHz 约束下报告 51.319 MHz、17.551 ns 裕量。 |
 | GitHub Actions | 每次 push/PR 会执行规格、全部 RTL、全 SDK、已编译固件仿真、工具协议测试、跨主机 SDK 构建，以及 Windows 上的 YoWASP 产品 P&R/packing 并上传 manifest/报告/位流。 |
-| 实体板 HIL / 量产 | 尚未完成；不能用 CI 或 P&R 替代 UART、电平、Flash、外设、掉电、寿命、EMC/ESD 与安全认证。 |
+| 实体板 HIL / 量产 | 一块 Tang Nano 9K 的固化、UART/User Flash/A/B、仓库外模板应用和无夹具核心自检 24/24 已通过；固定跳线、目标模块、多板、断电注入、寿命、EMC/ESD 与安全认证仍未完成。 |
 
 完整证据、命令和 HIL 清单见[验证与发布状态](validation-and-release.md)及
 [测试计划](../../tests/README.md)。

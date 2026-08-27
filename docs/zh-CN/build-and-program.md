@@ -90,7 +90,37 @@ $fs = '.\build\tangnano9k-mcu\omcu_tn9k_mcu.fs'
   -Destination flash -ConfirmFlash
 ```
 
-下载脚本默认要求位流旁的 `omcu_tn9k_mcu_manifest.json`、目标器件和 SHA-256 都匹配。`-Destination flash` 改写的是 **FPGA 配置 Flash**，不是客户应用槽；稳定供电、不要中断下载。
+下载脚本默认要求位流旁的 `omcu_tn9k_mcu_manifest.json`、目标器件和 SHA-256 都匹配。`-Destination flash` 改写的是 **FPGA 配置 Flash**，不是客户日常应用升级接口；稳定供电、不要中断下载。Tang Nano 9K / `openFPGALoader -f` 实板验证还表明，该配置固化操作会把 GW1NR User Flash 应用区恢复为空白。因此生产顺序必须是：**先固化 `.fs`，复位确认 Bootloader，再经 UART 写最终 `.omcu`**。配置与 User Flash 在逻辑用途上独立，不代表配置下载器会保留后者内容。
+
+### 3.1 FPGA 固化后的 MCU 实物验证
+
+固化完成并不等于 MCU 的外部引脚已经验证。先确认手中板卡与 Sipeed 官方 Pinmap 一致：元件面朝上、
+USB-C 在顶部；官方图在孔位旁标的是 FPGA package pin，原理图内部的 `J5.x` 通常不会逐针印在 PCB 上。
+
+![Sipeed Tang Nano 9K 官方 Pinmap](assets/sipeed-tang-nano-9k-official-pinmap.png)
+
+先在没有 TF 卡、RGB LCD 和排针负载时运行 24/24 无夹具核心自检。随后完全拔掉 USB，只在左侧
+3.3 V 暴露排针安装下图六根临时回环线，再重新上电运行 8/8 回环；不要在上电状态插拔。
+
+![OpenMCU-TN9K 六线实物回环图](assets/openmcu-tn9k-loopback-physical-pinmap.png)
+
+```sh
+python3 ./tools/omcu_selftest.py \
+  --port /dev/cu.usbserial-XXXX \
+  --image ./build/sdk/omcu_mcu_selftest.omcu \
+  --log ./build/hil/core-selftest.log
+
+python3 ./tools/omcu_selftest.py \
+  --profile loopback \
+  --port /dev/cu.usbserial-XXXX \
+  --image ./build/sdk/omcu_mcu_loopback_selftest.omcu \
+  --log ./build/hil/loopback-selftest.log
+```
+
+只有第一项 `24/24`、第二项 `8/8` 且原始日志保存，才能声称当前板的核心与固定数字回环通过。
+接线位置、TF/RGB 共线关系、I2C 目标模块和仪器门禁见
+[《MCU 外设实体板验收》](mcu-peripheral-qualification.md)。图片来源与许可见
+[`assets/README.md`](assets/README.md)。
 
 ## 4. 客户构建并烧录 MCU 应用
 
@@ -101,11 +131,9 @@ FPGA / MCU 环境和端口差异见[《跨平台 FPGA / MCU 开发环境》](cro
 
 ```powershell
 python -m pip install pyserial
-python .\tools\omcu_image.py validate `
-  --image .\build\sdk\my_product_app.omcu
-python .\tools\omcu_flash.py `
-  --port COM5 `
-  --image .\build\sdk\my_product_app.omcu
+# 在复制出的 templates/omcu-app 客户工程中：
+.\build.ps1
+.\flash.ps1 -Port COM5
 ```
 
 使用 3.3 V TTL UART、`115200 / 8N1`、TX/RX 交叉和共地。先启动 PC 工具，再在默认连接窗口内按一次复位键。启动器会对帧、硬件 ABI、镜像头和载荷进行 CRC 校验，写入非当前 User Flash 槽，校验成功后才原子提交；掉电或传输中断发生在提交前时，旧的有效槽仍能启动。

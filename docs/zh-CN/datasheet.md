@@ -7,7 +7,7 @@
 > **目标器件：** Tang Nano 9K / `GW1NR-LV9QN88PC6/I5`（GW1N-9C）
 > **硬件 ABI：** `0x0000_0009`（0.9）
 > **定位：** 一次固化 FPGA 平台，之后以独立 MCU 固件持续升级应用
-> **证据状态：** RTL、SDK、数字回归与本 ABI 的目标器件 P&R/packing 已完成；实体 Tang Nano 9K HIL 尚待执行。
+> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化/User Flash 正常更新和无夹具核心自检已完成；固定跳线、外置目标、多板及长期可靠性 HIL 尚待执行。
 
 OpenMCU-TN9K 不是把客户 C 程序重新塞入 FPGA 的演示工程。产品位流只固化稳定的 CPU、外设、
 启动器和寄存器 ABI；客户程序构建为独立 `.omcu` 镜像，通过 UART0 写入 FPGA 的 User Flash A/B
@@ -20,7 +20,7 @@ OpenMCU-TN9K 不是把客户 C 程序重新塞入 FPGA 的演示工程。产品�
 | FPGA 平台 | `omcu_tn9k_mcu.fs` 中的 CPU、Boot ROM、SRAM、外设和 User Flash 控制器 | 客户程序已混入 FPGA 配置 |
 | 客户固件 | `rv32im` / `ilp32` 裸机应用，产物为 `.omcu` | Linux、RTOS、特权模式、压缩指令或安全启动 |
 | 应用更新 | UART0 → Bootloader → User Flash A/B → SRAM 运行 | 已完成掉电、寿命、温度或攻击面 HIL |
-| 平台证据 | RTL 仿真、SDK 构建、镜像工具、目标器件 P&R | 已下载到实体板或可量产 |
+| 平台证据 | RTL 仿真、SDK 构建、镜像工具、目标器件 P&R 与单板 HIL 记录 | 已完成多板、长期或量产认证 |
 
 ```mermaid
 flowchart TB
@@ -44,30 +44,31 @@ flowchart TB
 | 层级 | 结论 | 证据边界 |
 | --- | --- | --- |
 | P0 外置器件 SDK | 已实现 | DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 驱动和编译回归；目标器件总线 HIL 待做。 |
-| P1 GPIO/UART/PWM/TIMER | 已实现 | 12 路 GPIO（LED0..5 镜像 GPIO0..5）、UART1、四路 PWM1、TIMER1 捕获/正交 RTL、SDK、已编译固件和仿真已覆盖；引脚电平及共线 HIL 待做。 |
-| 可靠性与诊断扩展 | 已实现 | GPIO 两级同步、兼容共享滤波、按针 2/4/8 样本独立滤波/快照、两路 ALARM0、单选 PULSE0、FAULT0 门控/快照和增强 WDT 的 RTL、寄存器规范、SDK 与数字回归已覆盖；实体输入/输出 HIL 待做。 |
-| P1 诊断与返 Bootloader | 已实现 | RESET_CAUSE、RUN_TICKS、RESET_COUNT、软件请求/确认、Boot ROM、SDK 与顶层仿真已覆盖；实体复位与 UART 会话 HIL 待做。 |
-| FPGA 产品版 | 已完成 P&R（非 HIL） | 精确目标器件的同一 ABI 0.9 源码已完成综合、布局布线、时序、packing、ROM 指纹和 manifest；不能把这项证据替代为板级 HIL。 |
-| User Flash A/B | 逻辑与协议已实现 | 仿真模型、镜像校验、协议与回退路径已测试；真实 `FLASH608K` 擦写、断电、寿命仍待 HIL。 |
+| P1 GPIO/UART/PWM/TIMER | 已实现 + 核心 HIL | 12 路 GPIO、UART1 TX、四路 PWM1 及自时基已做 pad 回读；固定跳线的 UART1 RX、TIMER1、PULSE0、FAULT0 和 SPI 闭环待做。 |
+| 可靠性与诊断扩展 | 已实现 + 核心 HIL | GPIO 同步/滤波/快照、ALARM0、PULSE0、FAULT0 和增强 WDT 已覆盖 RTL/SDK；真实 WDT 整机复位通过，外部输入与仪器波形待做。 |
+| P1 诊断与返 Bootloader | 已实现 + 单板 HIL | RESET_CAUSE、RUN_TICKS、RESET_COUNT、软件请求/确认与 UART 更新会话已在单板验证。 |
+| FPGA 产品版 | 已完成 P&R + 单板 HIL | 精确目标构建、SRAM 下载、配置 Flash 固化、CRC 和固化后启动已通过；多板、冷启动矩阵和长期可靠性待做。 |
+| User Flash A/B | 正常路径单板 HIL 通过 | 空白恢复、A/B 轮换、逐字回读、CRC、原子提交和应用启动通过；分阶段断电、寿命、温度与损坏槽注入待做。 |
 | 安全启动 | 未实现 | CRC32 只检测偶发损坏，不认证来源，不能抵抗恶意镜像替换。 |
 
 **因此：** 可以把本仓库当作可综合、可构建、可生成 `.fs` 和独立 `.omcu` 的工程基线；
-在宣称“板卡已验证”“客户硬件可交付”或“量产芯片”前，必须完成
-[验证与发布状态](validation-and-release.md) 中的 HIL 门禁。
+可以宣称当前一块板的正常路径和无夹具核心自检已通过；在宣称“全部外设已验证”“客户硬件可交付”
+或“量产芯片”前，仍必须完成[验证与发布状态](validation-and-release.md) 中剩余的 HIL 门禁。
 
 ### 2.1 当前可追溯 FPGA 工件
 
-`build/tangnano9k-mcu-abi09-independent-history-filter-packed/omcu_tn9k_mcu_manifest.json` 是本 ABI 的可追溯 P&R/packing 构建证据：
+`build/tangnano9k-mcu-release-drain/omcu_tn9k_mcu_manifest.json` 是本 ABI 的可追溯 P&R/packing 构建证据：
 
 | 项目 | 记录值 |
 | --- | --- |
-| `.fs` SHA-256 | `36fc2a3d2e73b6399a92c74a88e2424759b00c6a8b01171ec11d9c6c182de67a` |
-| 时钟 | 27.000 MHz 约束，44.294827 MHz 实现，14.461037 ns 裕量 |
-| LUT4 / DFF | 7,184 / 8,640（83.15%）；2,610 / 6,480（40.28%） |
+| `.fs` SHA-256 | `3c2b9943bc93bcb8cb42f52006d8cf4b34e0a3ffb310b7bfc9b2aaa278386099` |
+| 时钟 | 27.000 MHz 约束，51.318897 MHz 实现，17.551038 ns 裕量 |
+| LUT4 / DFF | 7,188 / 8,640（83.19%）；2,620 / 6,480（40.43%） |
 | BSRAM / IOB | 24 / 26（92.31%）；15 / 276（5.43%） |
-| Boot ROM 链 | 2 个 BSRAM；综合与 P&R 初始化指纹均为 `e31384ff72254719fb25d553fb87070d300a76726eadb7247096b1dabca05e88`。 |
+| Boot ROM 链 | 2 个 BSRAM；综合与 P&R 初始化指纹均为 `e3d5e52effc71700d47918be95a0c72b1578c0d6cc709cd88b2f87d95b712f42`。 |
 
-这个 manifest 证明本版的开源 P&R/packing 可重现，**不是**实体板 HIL 或量产资格记录。
+这个 manifest 证明本版的开源 P&R/packing 可重现；实体板 HIL 证据另见
+[验证与发布状态](validation-and-release.md)，两者都不等于量产资格。
 
 ## 3. CPU 与指令集
 
@@ -162,7 +163,7 @@ GPIO IRQ 接线全部仍需目标板 HIL。
 ### 5.2 GPIO 与可复用引脚
 
 `GPIO0[0..5]` 同时镜像到板载低有效 LED；它们仍是公开逻辑 GPIO bit 0..5，并不是与外部引脚分离的私有位。
-GPIO0..11 分别对应寄存器 bit 0..11，其中 GPIO0..2 位于 J5.8..10，GPIO3..11 位于 J5.11..19，
+GPIO0..11 分别对应寄存器 bit 0..11，其中 GPIO0..2 位于实物左排 L8..L10（原理图 J5.8..10），GPIO3..11 位于 L11..L19（J5.11..19），
 且后者与 RGB LCD 共线。
 J6/HDMI 的低电压/高速路径、JTAG、配置相关 pin 和“未使用 IOB”不构成公开 GPIO 合同。
 

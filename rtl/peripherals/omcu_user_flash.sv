@@ -22,6 +22,10 @@ module omcu_user_flash #(
 ) (
   input  logic        clk_i,
   input  logic        rst_ni,
+  // The product connects TIMER0's tick and low count bits. Software selects
+  // the operation prescaler and resets COUNT before each destructive access.
+  input  logic        timebase_tick_i,
+  input  logic [16:0] timebase_count_i,
 
   input  logic        req_i,
   input  logic        write_i,
@@ -43,42 +47,21 @@ module omcu_user_flash #(
     (FLASH_WORDS < PAGE_WORDS) ? PAGE_WORDS : FLASH_WORDS;
   localparam integer FLASH_ADDR_BITS = $clog2(MODEL_WORDS);
 
-  // Timing follows the public FLASH608K programming sequence.  Rounded-up
-  // counters make the controller conservative if a platform chooses a clock
-  // that is not an exact MHz multiple.
-  localparam integer ERASE_SETUP_CYCLES = ((CLOCK_HZ * 6) + 999999) / 1000000;
-  localparam integer ERASE_NVSTR_CYCLES = ((CLOCK_HZ * 120) + 999) / 1000;
-  localparam integer ERASE_RELEASE_CYCLES = ((CLOCK_HZ * 6) + 999999) / 1000000;
-  localparam integer ERASE_FINISH_CYCLES = ((CLOCK_HZ * 11) + 999999) / 1000000;
-  localparam integer PROGRAM_SETUP_CYCLES = ((CLOCK_HZ * 6) + 999999) / 1000000;
-  localparam integer PROGRAM_NVSTR_CYCLES = ((CLOCK_HZ * 11) + 999999) / 1000000;
-  localparam integer PROGRAM_YE_CYCLES = ((CLOCK_HZ * 16) + 999999) / 1000000;
-  localparam integer PROGRAM_RELEASE_CYCLES = ((CLOCK_HZ * 6) + 999999) / 1000000;
-  localparam integer PROGRAM_FINISH_CYCLES = ((CLOCK_HZ * 11) + 999999) / 1000000;
-  // ERASE_NVSTR is the longest documented phase (120 ms).  A 32-bit delay
-  // counter wastes carry-chain LUTs on a 27 MHz implementation, where the
-  // largest value is only 3,240,000.  Keep exactly enough state bits for the
-  // parameterized timing profile; all comparisons below are sized to it.
-  localparam integer DELAY_COUNTER_BITS =
-    (ERASE_NVSTR_CYCLES <= 1) ? 1 : $clog2(ERASE_NVSTR_CYCLES);
-  localparam logic [DELAY_COUNTER_BITS-1:0] ERASE_SETUP_LAST =
-    ERASE_SETUP_CYCLES - 1;
-  localparam logic [DELAY_COUNTER_BITS-1:0] ERASE_NVSTR_LAST =
-    ERASE_NVSTR_CYCLES - 1;
-  localparam logic [DELAY_COUNTER_BITS-1:0] ERASE_RELEASE_LAST =
-    ERASE_RELEASE_CYCLES - 1;
-  localparam logic [DELAY_COUNTER_BITS-1:0] ERASE_FINISH_LAST =
-    ERASE_FINISH_CYCLES - 1;
-  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_SETUP_LAST =
-    PROGRAM_SETUP_CYCLES - 1;
-  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_NVSTR_LAST =
-    PROGRAM_NVSTR_CYCLES - 1;
-  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_YE_LAST =
-    PROGRAM_YE_CYCLES - 1;
-  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_RELEASE_LAST =
-    PROGRAM_RELEASE_CYCLES - 1;
-  localparam logic [DELAY_COUNTER_BITS-1:0] PROGRAM_FINISH_LAST =
-    PROGRAM_FINISH_CYCLES - 1;
+  // Absolute phase deadlines reuse TIMER0, avoiding a second 17-bit timer in
+  // the nearly full GW1NR-9C. The bootloader selects a documented operation
+  // prescaler before resetting COUNT: divide-by-21 for program and divide-by-26
+  // for erase. All values fit below the counter's low-17-bit wrap.
+  localparam logic [16:0] PROGRAM_SETUP_TERMINAL = 17'd9;
+  localparam logic [16:0] PROGRAM_NVSTR_TERMINAL = 17'd24;
+  localparam logic [16:0] PROGRAM_YE_TERMINAL = 17'd44;
+  localparam logic [16:0] PROGRAM_RELEASE_TERMINAL = 17'd54;
+  localparam logic [16:0] PROGRAM_FINISH_TERMINAL = 17'd69;
+  localparam logic [16:0] ERASE_SETUP_TERMINAL = 17'd9;
+  // At the erase prescaler these deadlines produce about 115.6 ms of high
+  // voltage, centered safely inside the documented 100--120 ms window.
+  localparam logic [16:0] ERASE_NVSTR_TERMINAL = 17'd120019;
+  localparam logic [16:0] ERASE_RELEASE_TERMINAL = 17'd120029;
+  localparam logic [16:0] ERASE_FINISH_TERMINAL = 17'd120044;
 
   localparam logic [4:0] STATE_IDLE = 5'd0;
   localparam logic [4:0] STATE_READ_ASSERT = 5'd1;
@@ -90,15 +73,16 @@ module omcu_user_flash #(
   localparam logic [4:0] STATE_PROGRAM_SETUP = 5'd7;
   localparam logic [4:0] STATE_PROGRAM_NVSTR = 5'd8;
   localparam logic [4:0] STATE_PROGRAM_YE = 5'd9;
-  localparam logic [4:0] STATE_PROGRAM_RELEASE = 5'd10;
-  localparam logic [4:0] STATE_PROGRAM_FINISH = 5'd11;
-  localparam logic [4:0] STATE_DONE = 5'd12;
+  localparam logic [4:0] STATE_PROGRAM_HOLD = 5'd10;
+  localparam logic [4:0] STATE_PROGRAM_RELEASE = 5'd11;
+  localparam logic [4:0] STATE_PROGRAM_FINISH = 5'd12;
+  localparam logic [4:0] STATE_DONE = 5'd13;
 
   logic [4:0] state_q;
   logic [31:0] addr_q;
   logic [31:0] write_data_q;
   logic [31:0] read_data_q;
-  logic [DELAY_COUNTER_BITS-1:0] delay_count_q;
+  logic [16:0] phase_terminal;
   logic error_q;
 
   logic flash_xe;
@@ -114,6 +98,7 @@ module omcu_user_flash #(
   wire [FLASH_ADDR_BITS-1:0] page_word_index =
     (word_index / PAGE_WORDS) * PAGE_WORDS;
   wire address_in_range = (addr_q < FLASH_BYTES);
+  wire phase_done = timebase_tick_i && (timebase_count_i == phase_terminal);
 
   generate
     if ((PRESENT != 0) && (USE_GOWIN_USER_FLASH != 0)) begin : physical_flash
@@ -148,32 +133,30 @@ module omcu_user_flash #(
       initial begin
         for (model_init_index = 0; model_init_index < MODEL_WORDS;
              model_init_index = model_init_index + 1) begin
-          flash_model[model_init_index] = 32'hffff_ffff;
+          flash_model[model_init_index] = 32'h0000_0000;
         end
       end
 
       assign flash_dout = address_in_range ? flash_model[word_index]
-                                            : 32'hffff_ffff;
+                                            : 32'h0000_0000;
 
       always_ff @(posedge clk_i) begin
-        if (rst_ni && state_q == STATE_ERASE_FINISH &&
-            delay_count_q == ERASE_FINISH_LAST) begin
+        if (rst_ni && state_q == STATE_ERASE_FINISH && phase_done) begin
           for (model_erase_index = 0;
                model_erase_index < PAGE_WORDS;
                model_erase_index = model_erase_index + 1) begin
             if ((page_word_index + model_erase_index) < FLASH_WORDS) begin
-              flash_model[page_word_index + model_erase_index] <= 32'hffff_ffff;
+              flash_model[page_word_index + model_erase_index] <= 32'h0000_0000;
             end
           end
         end
-        if (rst_ni && state_q == STATE_PROGRAM_YE &&
-            delay_count_q == PROGRAM_YE_LAST) begin
-          flash_model[word_index] <= flash_model[word_index] & write_data_q;
+        if (rst_ni && state_q == STATE_PROGRAM_YE && phase_done) begin
+          flash_model[word_index] <= flash_model[word_index] | write_data_q;
         end
       end
     end else begin : absent_flash
-      assign physical_flash_dout = 32'hffff_ffff;
-      assign flash_dout = 32'hffff_ffff;
+      assign physical_flash_dout = 32'h0000_0000;
+      assign flash_dout = 32'h0000_0000;
     end
   endgenerate
 
@@ -188,6 +171,7 @@ module omcu_user_flash #(
     flash_prog = 1'b0;
     flash_erase = 1'b0;
     flash_nvstr = 1'b0;
+    phase_terminal = PROGRAM_SETUP_TERMINAL;
 
     unique case (state_q)
       STATE_READ_ASSERT: begin
@@ -197,45 +181,59 @@ module omcu_user_flash #(
       STATE_READ_CAPTURE: begin
         flash_xe = 1'b1;
         flash_ye = 1'b1;
-        flash_se = 1'b1;
+        flash_se = !error_q;
       end
       STATE_ERASE_SETUP: begin
         flash_xe = 1'b1;
-        flash_erase = 1'b1;
+        flash_erase = error_q;
+        phase_terminal = ERASE_SETUP_TERMINAL;
       end
       STATE_ERASE_NVSTR: begin
         flash_xe = 1'b1;
         flash_erase = 1'b1;
         flash_nvstr = 1'b1;
+        phase_terminal = ERASE_NVSTR_TERMINAL;
       end
       STATE_ERASE_RELEASE: begin
         flash_xe = 1'b1;
         flash_nvstr = 1'b1;
+        phase_terminal = ERASE_RELEASE_TERMINAL;
       end
       STATE_ERASE_FINISH: begin
         flash_xe = 1'b1;
+        phase_terminal = ERASE_FINISH_TERMINAL;
       end
       STATE_PROGRAM_SETUP: begin
         flash_xe = 1'b1;
-        flash_prog = 1'b1;
+        flash_prog = error_q;
+        phase_terminal = PROGRAM_SETUP_TERMINAL;
       end
       STATE_PROGRAM_NVSTR: begin
         flash_xe = 1'b1;
         flash_prog = 1'b1;
         flash_nvstr = 1'b1;
+        phase_terminal = PROGRAM_NVSTR_TERMINAL;
       end
       STATE_PROGRAM_YE: begin
         flash_xe = 1'b1;
         flash_ye = 1'b1;
         flash_prog = 1'b1;
         flash_nvstr = 1'b1;
+        phase_terminal = PROGRAM_YE_TERMINAL;
+      end
+      STATE_PROGRAM_HOLD: begin
+        flash_xe = 1'b1;
+        flash_prog = 1'b1;
+        flash_nvstr = 1'b1;
       end
       STATE_PROGRAM_RELEASE: begin
         flash_xe = 1'b1;
         flash_nvstr = 1'b1;
+        phase_terminal = PROGRAM_RELEASE_TERMINAL;
       end
       STATE_PROGRAM_FINISH: begin
         flash_xe = 1'b1;
+        phase_terminal = PROGRAM_FINISH_TERMINAL;
       end
       default: begin
       end
@@ -248,13 +246,11 @@ module omcu_user_flash #(
       addr_q <= 32'h0000_0000;
       write_data_q <= 32'h0000_0000;
       read_data_q <= 32'h0000_0000;
-      delay_count_q <= '0;
       error_q <= 1'b0;
     end else begin
       unique case (state_q)
         STATE_IDLE: begin
           error_q <= 1'b0;
-          delay_count_q <= '0;
           if (req_i) begin
             addr_q <= addr_i;
             write_data_q <= write_data_i;
@@ -279,84 +275,76 @@ module omcu_user_flash #(
           state_q <= STATE_READ_CAPTURE;
         end
         STATE_READ_CAPTURE: begin
-          read_data_q <= flash_dout;
-          state_q <= STATE_DONE;
+          if (!error_q) begin
+            error_q <= 1'b1;
+          end else begin
+            read_data_q <= flash_dout;
+            error_q <= 1'b0;
+            state_q <= STATE_DONE;
+          end
         end
 
         STATE_ERASE_SETUP: begin
-          if (delay_count_q == ERASE_SETUP_LAST) begin
-            delay_count_q <= '0;
+          if (!error_q) begin
+            // FLASH608K requires XE to precede ERASE/PROG by at least 5 ns.
+            // At 27 MHz this phase supplies a conservative full clock.
+            error_q <= 1'b1;
+          end else if (phase_done) begin
             state_q <= STATE_ERASE_NVSTR;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
           end
         end
+
         STATE_ERASE_NVSTR: begin
-          if (delay_count_q == ERASE_NVSTR_LAST) begin
-            delay_count_q <= '0;
+          if (phase_done) begin
             state_q <= STATE_ERASE_RELEASE;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_ERASE_RELEASE: begin
-          if (delay_count_q == ERASE_RELEASE_LAST) begin
-            delay_count_q <= '0;
+          if (phase_done) begin
             state_q <= STATE_ERASE_FINISH;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_ERASE_FINISH: begin
-          if (delay_count_q == ERASE_FINISH_LAST) begin
-            delay_count_q <= '0;
+          if (phase_done) begin
+            error_q <= 1'b0;
             state_q <= STATE_DONE;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
           end
         end
 
         STATE_PROGRAM_SETUP: begin
-          if (delay_count_q == PROGRAM_SETUP_LAST) begin
-            delay_count_q <= '0;
+          if (!error_q) begin
+            error_q <= 1'b1;
+          end else if (phase_done) begin
             state_q <= STATE_PROGRAM_NVSTR;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_PROGRAM_NVSTR: begin
-          if (delay_count_q == PROGRAM_NVSTR_LAST) begin
-            delay_count_q <= '0;
+          if (phase_done) begin
             state_q <= STATE_PROGRAM_YE;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
           end
         end
         STATE_PROGRAM_YE: begin
-          if (delay_count_q == PROGRAM_YE_LAST) begin
-            delay_count_q <= '0;
-            state_q <= STATE_PROGRAM_RELEASE;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
-          end
-        end
-        STATE_PROGRAM_RELEASE: begin
-          if (delay_count_q == PROGRAM_RELEASE_LAST) begin
-            delay_count_q <= '0;
-            state_q <= STATE_PROGRAM_FINISH;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
-          end
-        end
-        STATE_PROGRAM_FINISH: begin
-          if (delay_count_q == PROGRAM_FINISH_LAST) begin
-            delay_count_q <= '0;
-            state_q <= STATE_DONE;
-          end else begin
-            delay_count_q <= delay_count_q + 1'b1;
+          if (phase_done) begin
+            state_q <= STATE_PROGRAM_HOLD;
           end
         end
 
+        STATE_PROGRAM_HOLD: begin
+          // FLASH608K requires address/data to remain stable for at least
+          // 20 ns after YE falls. One 27 MHz product clock is about 37 ns.
+          state_q <= STATE_PROGRAM_RELEASE;
+        end
+        STATE_PROGRAM_RELEASE: begin
+          if (phase_done) begin
+            state_q <= STATE_PROGRAM_FINISH;
+          end
+        end
+        STATE_PROGRAM_FINISH: begin
+          if (phase_done) begin
+            error_q <= 1'b0;
+            state_q <= STATE_DONE;
+          end
+        end
         STATE_DONE: begin
           state_q <= STATE_IDLE;
         end

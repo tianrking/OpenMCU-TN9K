@@ -13,7 +13,7 @@
 
 ## 这是什么
 
-OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 `RV32IM` CPU、ROM/SRAM、12 路受约束 J5 GPIO、UART0/1、TIMER0/1、SPI、I2C、增强看门狗、PWM0/四路 PWM1、IRQCTRL、ALARM0、PULSE0、FAULT0、PINMUX、诊断 SYSCTRL 和 User Flash 控制器组合成固定硬件 ABI `0.9` 的 MCU 平台。GPIO0 除保留兼容的共享稳定滤波外，还提供按针选择的 2/4/8 样本独立数字滤波；板载 LED0..5 镜像 GPIO0..5 的输出/OE，不再占用独立的 GPIO 编号。
+OpenMCU-TN9K 是一个以 Tang Nano 9K（`GW1NR-LV9QN88PC6/I5` / `GW1N-9C`）为目标的 RISC-V FPGA MCU 工程。它把 PicoRV32 `RV32IM` CPU、ROM/SRAM、左侧暴露排针上的 12 路受约束 GPIO、UART0/1、TIMER0/1、SPI、I2C、增强看门狗、PWM0/四路 PWM1、IRQCTRL、ALARM0、PULSE0、FAULT0、PINMUX、诊断 SYSCTRL 和 User Flash 控制器组合成固定硬件 ABI `0.9` 的 MCU 平台。GPIO0 除保留兼容的共享稳定滤波外，还提供按针选择的 2/4/8 样本独立数字滤波；板载 LED0..5 镜像 GPIO0..5 的输出/OE，不再占用独立的 GPIO 编号。
 
 PicoRV32 是 FPGA 配置内部使用的 CPU IP 依赖；它不是客户每次开发应用都要“引用”的库。对应用开发者而言，本项目提供的是普通的裸机 SDK、链接脚本、应用镜像格式和串口升级工具。
 
@@ -39,7 +39,7 @@ flowchart TB
 | 角色 | 要做什么 | 产物 | 是否会改 FPGA 配置 Flash |
 | --- | --- | --- | --- |
 | 硬件工程师 / 工厂 | 构建并验证 MCU 平台、首次固化 | `omcu_tn9k_mcu.fs` + manifest | 会；仅平台发布、生产或维修时 |
-| 客户 / 应用工程师 | 编译业务程序、串口升级 | `my_product_app.omcu` | 不会；只改独立 User Flash 槽 |
+| 客户 / 应用工程师 | 编译业务程序、串口升级 | `my_omcu_app.omcu` | 不会；只改独立 User Flash 槽 |
 | 测试工程师 | 运行 RTL、SDK、P&R、实板矩阵 | 日志、报告、可追溯证据 | 视测试场景而定 |
 
 ### 正常客户流程
@@ -97,7 +97,10 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
   -Destination sram
 ```
 
-完成实板检查后，才执行 `-Destination flash -ConfirmFlash`。下载脚本会核对相邻的 `omcu_tn9k_mcu_manifest.json` 和位流 SHA-256。
+完成实板检查后，才执行 `-Destination flash -ConfirmFlash`。下载脚本会核对相邻的 `omcu_tn9k_mcu_manifest.json` 和位流 SHA-256。实测配置 Flash 固化会清空 GW1NR User Flash；工厂流程必须先固化 `.fs`，再通过 UART 写入最终 `.omcu`，不要反过来。
+
+平台固化后的 24/24 MCU 核心自检、Sipeed 官方实物 Pinmap、六线回环图和 8/8 外设闭环步骤见
+[MCU 外设实体板验收](docs/zh-CN/mcu-peripheral-qualification.md)。
 
 ### 2. 客户开发并更新 MCU 应用
 
@@ -113,7 +116,7 @@ python .\tools\omcu_flash.py --port COM5 `
 
 若业务应用复用了 UART0，应用先结束关键写入并调用 `omcu_tn9k_request_bootloader()`；平台会记录软件原因、复位进入 Bootloader，并保持 UART0 更新会话，无需抢启动窗口。该机制仍需要本板实机 HIL；外部复位始终保留为独立恢复路径。
 
-复制 Hello World 为自己的 C 应用、声明 `omcu_add_application()` 目标、Windows、Ubuntu 与 macOS 环境和排错步骤，
+复制独立应用模板、从仓库外引用 SDK、声明 `omcu_add_application()` 目标、Windows、Ubuntu 与 macOS 环境和排错步骤，
 统一见[客户应用开发指南](docs/zh-CN/mcu-application-development.md)。
 
 ## 产品级应用存储模型
@@ -127,7 +130,7 @@ python .\tools\omcu_flash.py --port COM5 `
 | 单应用最大载荷 | 36,800 B | 64 B 头部之外，按 32 位对齐 |
 | 镜像完整性 | 头部 CRC32 + 载荷 CRC32 | 拒绝损坏、错误 ABI 或未提交镜像 |
 
-升级必须经历 `STAGING → 载荷写入与回读校验 → COMMITTED`。只有最后的状态字写入使新槽可启动，因此更新中掉电不会让半写入的应用替代旧的有效应用。
+升级必须经历逻辑上的 `STAGING → 载荷写入与回读校验 → COMMITTED`。v2 镜像在写入期间让物理状态字保持擦除态 `0`，校验完成后才一次性编程 `COMMITTED`；因此更新中掉电不会让半写入的应用替代旧的有效应用。
 
 **MMIO 写入约定：** 除 User Flash 的擦除命令（规定的低字节命令）和 SRAM 的普通字节/半字访问外，所有外设的配置、命令和 W1C 寄存器均要求一次完整的 32-bit 写入（`wstrb=1111`）。SDK 使用自然对齐的 `volatile uint32_t` 访问；字节或半字 MMIO 写会被硬件忽略，避免把控制状态更新成半个值。
 
@@ -156,6 +159,7 @@ arm/                         ARM 后端授权边界（不含 ARM IP）
 - [中文开发总览](docs/zh-CN/README.md)
 - [Windows / Ubuntu / macOS 跨平台 FPGA 与 MCU 开发环境](docs/zh-CN/cross-platform-fpga-development.md)
 - [从零开发与烧录 OpenMCU 应用](docs/zh-CN/mcu-application-development.md)
+- [MCU 外设实体板验收与固定回环夹具](docs/zh-CN/mcu-peripheral-qualification.md)
 - [独立 MCU 固件开发与升级](docs/zh-CN/mcu-firmware-update.md)
 - [构建与烧录](docs/zh-CN/build-and-program.md)
 - [硬件与引脚](docs/zh-CN/hardware-and-pins.md)

@@ -16,7 +16,7 @@ module FLASH608K (
   input  wire [5:0]  YADR,
   input  wire [31:0] DIN
 );
-  assign DOUT = 32'hffff_ffff;
+  assign DOUT = 32'h0000_0000;
 endmodule
 
 `default_nettype wire

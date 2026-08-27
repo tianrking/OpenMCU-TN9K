@@ -51,9 +51,10 @@ ABI 0.9 的 P&R 指纹、资源和时序必须记录在同一源码构建产生�
 历史 manifest 替代本版证据。生成目录是构建产物，不纳入 Git；发布时应把该 manifest、报告、日志和位流
 SHA-256 作为可追溯工件保存。
 
-当前可复核产品构建为 `build/tangnano9k-mcu-abi09-independent-history-filter-packed/`：4 KiB ROM、44 KiB SRAM、
-27 MHz 约束下 44.295 MHz 实现频率和 14.461 ns 裕量；资源为 LUT4 `7184/8640`、DFF `2610/6480`、
-BSRAM `24/26`。这组数字仅对应同一源码的开源 P&R/packing，不是实体板时钟、电气或 Flash HIL 结果。
+当前可复核产品构建为 `build/tangnano9k-mcu-release-drain/`：4 KiB ROM、44 KiB SRAM、
+27 MHz 约束下 51.319 MHz 实现频率和 17.551 ns 裕量；资源为 LUT4 `7188/8640`、DFF `2620/6480`、
+BSRAM `24/26`。这组数字证明同一源码的开源 P&R/packing；实体板下载、固化和正常更新路径的独立证据
+见[验证与发布状态](zh-CN/validation-and-release.md)，不能由 P&R 数字本身推导电气或长期可靠性。
 
 Yosys 目前会对顶层 I2C/GPIO 三态 Pad 报告已知的有限支持警告；P&R/packing 成功不应被描述成
 “零警告签核”。更重要的是：开源 P&R 不能证明实体板下载、USB/供电、复位、Bank 电压、UART

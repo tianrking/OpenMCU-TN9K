@@ -38,7 +38,7 @@ Tang Nano 9K 的 GW1NR-9C User Flash 共有 76 KiB。本产品保留两个 36 Ki
 2. 如果有可用应用且没有软件请求，启动器给 UART 更新器约 750 ms 的连接窗口；没有连接则复制镜像到 SRAM 并跳转到应用复位向量。
 3. 如果没有任何有效应用，启动器会持续监听 UART，便于空白设备恢复。
 4. 已运行的应用可通过 `SYSCTRL.BOOT_CTRL` 请求回到启动器。顶层记录 `SOFTWARE` 原因并复位；启动器确认该请求后不会走 750 ms 自动启动分支，而是持续保持 UART 会话，直到主机发出正常的 `BOOT` 命令或用户执行外部复位。
-5. 更新时，启动器先擦除**非当前有效槽**，写入 `STAGING` 镜像和全部载荷，回读 CRC；最后仅把状态字从 `STAGING` 改为 `COMMITTED`。这个最后写入是唯一不可逆的提交点。
+5. 镜像格式 v2 匹配 FLASH608K 的实测极性：页擦除为 `0`，编程只能把所选 bit 置 `1`。更新时，启动器先擦除**非当前有效槽**，验证全页为 `0`，写入除状态字外的镜像头和全部载荷并回读 CRC；状态字一直保持擦除态，最后只编程一次 `COMMITTED`。这个单次状态字写入是唯一不可逆的提交点，禁止手工复用旧版镜像头常量。
 6. 因此，擦除、传输、掉电或 USB 串口中断发生在提交前，旧槽仍能启动；新镜像不会被误认为可启动。
 
 这提供了完整性检查和掉电回退，不是安全启动：CRC32 不能证明镜像来自受信任的发布者。面向不可信物理接口或远程攻击模型的产品，必须在后续版本加入签名验证、密钥保护、调试锁定和回滚策略。
@@ -79,7 +79,7 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
   -Destination flash -ConfirmFlash
 ```
 
-`-Destination flash` 覆盖的是 FPGA 的持久配置，不是应用槽。不要把它当作客户日常应用升级命令。
+`-Destination flash` 覆盖的是 FPGA 的持久配置，不是客户日常应用升级命令。实板上该操作还会清空 User Flash 应用区；工厂固化后必须再执行 B 节生成镜像、C 节 UART 烧录的流程。
 
 ## B. 客户编译 MCU 应用
 
@@ -99,14 +99,15 @@ C 源码 -> RV32IM ELF -> 原始 SRAM 二进制 -> 带校验头的 .omcu
 python .\tools\omcu_image.py validate --image .\build\sdk\omcu_mcu_hello.omcu
 ```
 
-创建自己的目标时，在 `sdk/CMakeLists.txt` 增加一行：
+创建自己的工程时复制 `templates/omcu-app`，在客户工程 `CMakeLists.txt` 引用公开 SDK 模块：
 
 ```cmake
-omcu_add_application(my_product_app examples/my_product_app/main.c)
+include("${OMCU_SDK_PATH}/cmake/OpenMCUSDK.cmake")
+omcu_add_application(my_omcu_app src/main.c)
 ```
 
-然后重新运行 `build-sdk`，得到 `build\sdk\my_product_app.omcu`。客户应用只使用这一类目标和
-`.omcu` 镜像。
+然后运行模板的 `build.ps1` 或 `build.sh`，得到 `build/my_omcu_app.omcu`。客户应用只使用这一类
+目标和 `.omcu` 镜像，不修改 SDK 或 FPGA 工程。
 
 应用的编译 ABI 必须与目标匹配：当前为 `rv32im` / `ilp32`，硬件 ABI 为 `0x00000009`。压缩指令 `C` 未启用；旧 `rv32imc`、ABI 0.7 或 ABI 0.8 镜像不兼容。镜像工具和启动器都会拒绝 ABI、入口地址、长度或 CRC 不匹配的文件。
 
@@ -121,9 +122,7 @@ python -m pip install pyserial
 开始更新。`COM5` 仅为示例，改成 Windows 设备管理器实际显示的端口：
 
 ```powershell
-python .\tools\omcu_flash.py `
-  --port COM5 `
-  --image .\build\sdk\my_product_app.omcu
+.\flash.ps1 -Port COM5
 ```
 
 主机工具会在默认 8 秒内反复发送 `HELLO`。如果设备已有应用，请在这段时间内按一次复位键；启动器成功连接后依次完成 `BEGIN`、若干 `DATA`、`END` 和 `BOOT`。工具采用停等协议：每帧含 CRC32 和序号，收到超时会重发同一帧；启动器对重复 `DATA` 和重复 `END` 进行幂等处理，避免“设备已经写入但确认包丢失”导致升级失败。

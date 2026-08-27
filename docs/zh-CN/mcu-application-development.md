@@ -148,29 +148,49 @@ python3 ./tools/omcu_image.py validate \
 
 ## 4. 写自己的应用
 
-1. 复制 `sdk/examples/mcu_hello/` 为 `sdk/examples/my_product_app/`，编辑其中的 `main.c`。
-2. 在 `sdk/CMakeLists.txt` 增加一个产品应用目标：
+推荐把客户业务代码放在 OpenMCU 仓库之外。复制完整模板，而不是修改 SDK 的示例清单：
 
-   ```cmake
-   omcu_add_application(my_product_app examples/my_product_app/main.c)
-   ```
+macOS / Linux：
 
-3. 按上一节重新运行 `build-sdk`。生成物为 `build/sdk/my_product_app.omcu`。
+```sh
+cp -R /path/to/OpenMCU-TN9K/templates/omcu-app ~/my-omcu-app
+cd ~/my-omcu-app
+export OMCU_SDK_PATH=/path/to/OpenMCU-TN9K/sdk
+export PATH=/path/to/riscv-none-elf/bin:$PATH
+./build.sh
+```
+
+Windows PowerShell：
+
+```powershell
+Copy-Item -Recurse C:\src\OpenMCU-TN9K\templates\omcu-app C:\src\my-omcu-app
+Set-Location C:\src\my-omcu-app
+$env:OMCU_SDK_PATH = 'C:\src\OpenMCU-TN9K\sdk'
+$env:PATH = "C:\toolchains\riscv-none-elf\bin;$env:PATH"
+.\build.ps1
+```
+
+模板的 `CMakeLists.txt` 只声明自己的源码，并引用公开 SDK 模块：
+
+```cmake
+include("${OMCU_SDK_PATH}/cmake/OpenMCUSDK.cmake")
+omcu_add_application(my_omcu_app src/main.c)
+```
+
+生成物位于客户工程自己的 `build/`：`my_omcu_app.elf`、`.map`、`.bin` 与 `.omcu`。需要外置器件
+驱动时增加 `target_link_libraries(my_omcu_app PRIVATE OpenMCU::device_drivers)`。
 
 `omcu_add_application()` 会自动选择正确的启动代码、链接脚本、`rv32im` / `ilp32` 编译参数、
 ELF 到 BIN 转换及 `.omcu` 的 CRC 封装。应用开发者不应手写镜像头，也不应把应用源码加入 FPGA
 位流构建输入。
 
-初次配置完成后，想只重编一个目标可使用：
-
-```powershell
-cmake --build .\build\sdk --target my_product_app --parallel
-```
-
-或在 Ubuntu/Linux/macOS 上：
+模板脚本每次只构建该应用并调用 `omcu_image.py validate`。若直接使用 CMake，等效命令是：
 
 ```sh
-cmake --build ./build/sdk --target my_product_app --parallel
+cmake -S . -B build -G Ninja \
+  -DOMCU_SDK_PATH="$OMCU_SDK_PATH" \
+  -DOMCU_RISCV_PREFIX=riscv-none-elf-
+cmake --build build --target my_omcu_app --parallel
 ```
 
 ## 5. 通过 UART0 烧录
@@ -179,9 +199,7 @@ cmake --build ./build/sdk --target my_product_app --parallel
 
 ```powershell
 python -m pip install pyserial
-python .\tools\omcu_flash.py `
-  --port COM5 `
-  --image .\build\sdk\my_product_app.omcu
+.\flash.ps1 -Port COM5
 ```
 
 Linux 建议放入虚拟环境：
@@ -191,9 +209,7 @@ mkdir -p ~/.venvs
 python3 -m venv ~/.venvs/openmcu-host
 . ~/.venvs/openmcu-host/bin/activate
 python -m pip install pyserial
-python ./tools/omcu_flash.py \
-  --port /dev/ttyUSB0 \
-  --image ./build/sdk/my_product_app.omcu
+./flash.sh /dev/ttyUSB0
 ```
 
 macOS 同样建议放入虚拟环境：
@@ -203,10 +219,11 @@ mkdir -p ~/.venvs
 python3 -m venv ~/.venvs/openmcu-host
 . ~/.venvs/openmcu-host/bin/activate
 python -m pip install pyserial
-python ./tools/omcu_flash.py \
-  --port /dev/cu.usbserial-XXXX \
-  --image ./build/sdk/my_product_app.omcu
+./flash.sh /dev/cu.usbserial-XXXX
 ```
+
+这些模板脚本调用 SDK 仓库中的 `tools/omcu_flash.py`，并选择客户工程自己的
+`build/my_omcu_app.omcu`。
 
 将 `COM5`、`/dev/ttyUSB0` 或 `/dev/cu.usbserial-XXXX` 换为系统实际串口。下载器默认在 8 秒内反复发送 `HELLO`；运行命令后，
 如果板子正在运行应用，按一次外部复位键。它会擦除非当前槽、传输、回读 CRC、原子提交并默认启动新应用。

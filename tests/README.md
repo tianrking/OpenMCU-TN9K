@@ -69,9 +69,9 @@ flowchart LR
 - `system`：小型 RV32I 程序经过 PicoRV32、真实 MMIO 和 GPIO 的首个 CPU/总线/外设集成门。
 - `system-uart`：经 CPU/MMIO 配置 UART0 后验证真实串行字节。
 - `tn9k-wdt` / `tn9k-peripherals` / `tn9k`：经过 Tang 顶层的复位释放、看门狗、SPI/PWM/GPIO/I2C Pad 连通性和低有效 LED 逻辑检查；不等同于实际 Gowin 板。
-- `tn9k-pwm1`：已编译 PWM1 固件经 PicoRV32/MMIO/PINMUX 到 J5.12..15 四个最终 pad 的
+- `tn9k-pwm1`：已编译 PWM1 固件经 PicoRV32/MMIO/PINMUX 到左排 L12..L15（原理图 J5.12..15）四个最终 pad 的
   高低波形检查；不验证实际 RGB-LCD 共线、电压或功率级。
-- `tn9k-timer1`：已编译 TIMER1 固件经 PicoRV32/MMIO/PINMUX 到 J5.16/J5.17 最终 pad 的
+- `tn9k-timer1`：已编译 TIMER1 固件经 PicoRV32/MMIO/PINMUX 到左排 L16/L17（原理图 J5.16/17）最终 pad 的
   四步 Gray 序列计数检查；不验证真实编码器、电压、线缆噪声或 RGB-LCD 共线。
 - `tn9k-boot-request`：已编译固件写入完整 `SYSCTRL.BOOT_CTRL` 命令后，验证 Tang 顶层只复位
   一次、保留 `SOFTWARE` 原因/计数/pending，并在下一轮启动恢复运行 tick；不验证实体板复位键或串口。
@@ -135,6 +135,33 @@ CI 必须保持这些任务全部绿色才可合并 FPGA/SDK 变更。artifact �
 ```
 
 审阅输出中的顶层名称、`mcu_mode`、User Flash 几何、时序、资源、Boot ROM 初始化指纹和 `omcu_tn9k_mcu_manifest.json` 的 SHA-256。P&R 成功只能证明该次工具运行的网表/约束结果；还不能证明板卡连接、下载、复位或持久存储行为。
+
+## 自动板级自检
+
+产品位流和 `.omcu` 正常路径通过后，先在没有 TF/RGB LCD/J5 外接负载的板上运行：
+
+```powershell
+python .\tools\omcu_selftest.py `
+  --port COM5 `
+  --image .\build\sdk\omcu_mcu_selftest.omcu `
+  --log .\build\hil\core-selftest.log
+```
+
+它必须经历一次真实 WDT 复位并逐项得到 **24/24**，包括 UART0 主机 `PING/PONG`。随后按
+[固定回环夹具](../docs/zh-CN/mcu-peripheral-qualification.md)断电连接六根跳线，再运行：
+
+![OpenMCU-TN9K 六线实物回环图](../docs/zh-CN/assets/openmcu-tn9k-loopback-physical-pinmap.png)
+
+```powershell
+python .\tools\omcu_selftest.py `
+  --profile loopback `
+  --port COM5 `
+  --image .\build\sdk\omcu_mcu_loopback_selftest.omcu `
+  --log .\build\hil\loopback-selftest.log
+```
+
+只有收到 **8/8** 和最终 `RESULT PASS` 才算当前板/跳线的外设闭环通过。I2C 目标 ACK/数据、
+ADC/DAC、W5500、波形精度和功率/安全负载仍须目标模块与仪器 HIL，不能由这两项自检替代。
 
 ## 必做实板 HIL 矩阵
 

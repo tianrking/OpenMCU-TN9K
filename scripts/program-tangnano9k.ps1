@@ -75,9 +75,23 @@ if ($Destination -eq 'sram') {
 $action = "program $bitstreamPath"
 if ($PSCmdlet.ShouldProcess("Tang Nano 9K ($Destination)", $action)) {
     $programmerPath = Resolve-Programmer $OpenFPGALoader
-    & $programmerPath @programmerArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "openFPGALoader failed with exit code $LASTEXITCODE."
+    $programmerOutput = @(& $programmerPath @programmerArguments 2>&1)
+    $programmerExitCode = $LASTEXITCODE
+    $programmerOutput | ForEach-Object { Write-Output $_ }
+    if ($programmerExitCode -ne 0) {
+        throw "openFPGALoader failed with exit code $programmerExitCode."
+    }
+    # Some openFPGALoader/Gowin paths have returned zero after printing a CRC
+    # failure. Treat the programmer's verification result as authoritative too;
+    # strip terminal colour/control sequences before matching it.
+    $programmerText = ($programmerOutput | ForEach-Object { $_.ToString() }) -join "`n"
+    $plainProgrammerText = [regex]::Replace(
+        $programmerText,
+        [char]27 + '\[[0-?]*[ -/]*[@-~]',
+        ''
+    )
+    if ($plainProgrammerText -match '(?im)CRC\s+check\s*:\s*fail(?:ed)?\b') {
+        throw 'openFPGALoader reported a failed CRC check despite returning exit code 0.'
     }
     Write-Output 'openFPGALoader completed. This confirms the host-side command result only; run the documented board-level functional checks before calling the MCU validated.'
 } else {

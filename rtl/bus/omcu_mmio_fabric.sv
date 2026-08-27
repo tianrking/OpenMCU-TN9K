@@ -50,6 +50,8 @@ module omcu_mmio_fabric #(
   output logic                  uart1_tx_o,
   output logic                  uart1_irq_o,
   output logic                  timer_irq_o,
+  output logic                  timer0_tick_o,
+  output logic [16:0]           timer0_count_low_o,
   input  logic                  timer1_capture_a_i,
   input  logic                  timer1_capture_b_i,
   output logic                  timer1_irq_o,
@@ -213,6 +215,8 @@ module omcu_mmio_fabric #(
   assign irq_sources[8] = (ALARM0_PRESENT != 0) ? alarm_irq_o : 1'b0;
   assign irq_sources[9] = (PULSE0_PRESENT != 0) ? pulse0_irq_o : 1'b0;
   assign irq_sources[10] = (FAULT0_PRESENT != 0) ? fault0_irq_o : 1'b0;
+  assign timer0_tick_o = timer0_tick;
+  assign timer0_count_low_o = timer0_count[16:0];
 
   omcu_gpio #(
     .GPIO_COUNT(GPIO_COUNT)

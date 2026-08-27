@@ -11,6 +11,12 @@ import omcu_image  # noqa: E402
 
 
 class OpenMcuImageTests(unittest.TestCase):
+    def test_state_encoding_matches_flash608k_program_polarity(self) -> None:
+        self.assertEqual(omcu_image.FORMAT_VERSION, 2)
+        self.assertEqual(omcu_image.STATE_ERASED, 0x00000000)
+        self.assertEqual(omcu_image.STATE_STAGING, 0x00000001)
+        self.assertEqual(omcu_image.STATE_COMMITTED, 0x00000002)
+
     def test_build_pads_payload_and_validates_all_integrity_fields(self) -> None:
         image = omcu_image.build_image(b"\x01\x02\x03\x04\x05")
         header, payload = omcu_image.parse_image(

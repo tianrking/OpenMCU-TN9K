@@ -15,14 +15,15 @@
 #include <stdint.h>
 
 #define OMCU_IMAGE_MAGIC                 UINT32_C(0x4F4D4355)
-#define OMCU_IMAGE_FORMAT_VERSION        1u
+#define OMCU_IMAGE_FORMAT_VERSION        2u
 #define OMCU_IMAGE_HEADER_BYTES          64u
 #define OMCU_IMAGE_HEADER_STATE_OFFSET   32u
 #define OMCU_IMAGE_HEADER_CRC_OFFSET     36u
 
-#define OMCU_IMAGE_STATE_ERASED          UINT32_C(0xFFFFFFFF)
-#define OMCU_IMAGE_STATE_STAGING         UINT32_C(0xFFFFFFFE)
-#define OMCU_IMAGE_STATE_COMMITTED       UINT32_C(0xFFFFFFFC)
+/* FLASH608K erases cells to zero and programming sets selected bits to one. */
+#define OMCU_IMAGE_STATE_ERASED          UINT32_C(0x00000000)
+#define OMCU_IMAGE_STATE_STAGING         UINT32_C(0x00000001)
+#define OMCU_IMAGE_STATE_COMMITTED       UINT32_C(0x00000002)
 
 /* GW1NR-9C User Flash geometry exposed by the Tang Nano 9K product target. */
 #define OMCU_USER_FLASH_BYTES            77824u
