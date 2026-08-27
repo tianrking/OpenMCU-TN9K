@@ -163,6 +163,12 @@ python .\tools\omcu_selftest.py `
 只有收到 **8/8** 和最终 `RESULT PASS` 才算当前板/跳线的外设闭环通过。I2C 目标 ACK/数据、
 ADC/DAC、W5500、波形精度和功率/安全负载仍须目标模块与仪器 HIL，不能由这两项自检替代。
 
+参考执行：2026-08-27，macOS + 一块 Tang Nano 9K，产品 `.fs` SHA-256
+`3c2b9943bc93bcb8cb42f52006d8cf4b34e0a3ffb310b7bfc9b2aaa278386099`，回环 `.omcu` SHA-256
+`95e3a8e2c41cb4e3fbce4fb27184bd78b4707109f010c70605f8a976a1b80dde`，实板 **8/8 通过**。
+原始转录、首轮 7/8 的测试固件修正和证据边界见
+[六线回环实板记录](../docs/zh-CN/evidence/tangnano9k-loopback-2026-08-27.md)。该记录不能代替另一块板自己的日志。
+
 ## 必做实板 HIL 矩阵
 
 在对外宣称“可用 MCU”前，至少记录以下每项的板号、位流哈希、应用镜像哈希、工具版本、串口日志和结果：

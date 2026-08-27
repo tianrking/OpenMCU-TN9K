@@ -39,6 +39,13 @@ J5 网络到 FPGA pad 的映射以 2022-10-23 的
 复位、存储、UART0 和若干无夹具 pad 路径工作；它**没有**证明 UART1 RX、SPI 外部回环、I2C 目标器件、
 PWM0/1 波形精度、TIMER1 外部捕获、PULSE/FAULT 外部输入或外置器件驱动已通过。
 
+同日安装第 3 节六根跳线后，`omcu_mcu_loopback_selftest` 又完成 **8/8**，实际闭环 UART1 RX、
+SPI0、TIMER1 encoder/capture、PWM0/1、PULSE0 和 FAULT0。修正后回环镜像 SHA-256 为
+`95e3a8e2c41cb4e3fbce4fb27184bd78b4707109f010c70605f8a976a1b80dde`，原始成功转录 SHA-256 为
+`f6c74fadcb10c632b3d56d8853c150daceb3f0d89c9f0a57274a9d7ded91db3f`。逐项记录、首轮 7/8 的
+测试固件根因和更新异常边界见[2026-08-27 六线回环实板记录](evidence/tangnano9k-loopback-2026-08-27.md)。
+这仍不证明 I2C 目标模块、模拟/时序精度、最大速率、长线/负载或量产可靠性。
+
 ## 2. 无夹具核心自检
 
 确认没有 TF 卡、RGB LCD 或 J5/J6 外接负载，再构建：
@@ -111,9 +118,10 @@ PASS PWM0_PULSE0_LOOPBACK
 PASS FAULT0_GPIO_GATE_LOOPBACK
 ```
 
-当前镜像已通过交叉编译和 `.omcu` 校验，SHA-256 为
-`43b6a7e32e8ed9ae39e9b840dad3afde0feccd16e094ac82f7e86ab78efac2f4`；由于当前板没有安装上述跳线，
-本项状态仍是**待实体执行**，不能预填为通过。
+修正后镜像已通过交叉编译和 `.omcu` 校验，SHA-256 为
+`95e3a8e2c41cb4e3fbce4fb27184bd78b4707109f010c70605f8a976a1b80dde`。2026-08-27 当前单板安装上述
+跳线后实测 **8/8 通过**；成功后又在一次未提交的应用恢复超时之后从旧槽重新启动并再次得到 8/8。
+本结论只适用于[记录中的板、工件和接线](evidence/tangnano9k-loopback-2026-08-27.md)，不能预填到其他板。
 
 ## 4. I2C 与实际目标器件
 

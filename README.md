@@ -99,7 +99,8 @@ $tools = 'C:\toolchains\yowasp-gowin\Scripts'
 
 完成实板检查后，才执行 `-Destination flash -ConfirmFlash`。下载脚本会核对相邻的 `omcu_tn9k_mcu_manifest.json` 和位流 SHA-256。实测配置 Flash 固化会清空 GW1NR User Flash；工厂流程必须先固化 `.fs`，再通过 UART 写入最终 `.omcu`，不要反过来。
 
-平台固化后的 24/24 MCU 核心自检、Sipeed 官方实物 Pinmap、六线回环图和 8/8 外设闭环步骤见
+平台固化后的 24/24 MCU 核心自检、Sipeed 官方实物 Pinmap、六线回环图、8/8 外设闭环步骤及
+2026-08-27 单板 8/8 实测记录见
 [MCU 外设实体板验收](docs/zh-CN/mcu-peripheral-qualification.md)。
 
 ### 2. 客户开发并更新 MCU 应用

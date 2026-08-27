@@ -2,7 +2,7 @@
 
 > **当前产品基线：** ABI `0.9`、`rv32im` / `ilp32`、4 KiB Boot ROM、44 KiB SRAM、76 KiB User Flash A/B。<br>
 > **可追溯 FPGA 构建：** `build/tangnano9k-mcu-release-drain/`。<br>
-> **结论：** RTL、SDK、独立客户工程、镜像工具、精确目标 P&R/packing、单板固化/User Flash 更新和无夹具核心自检已通过；固定跳线、外置目标器件、多板/长期可靠性、安全启动和量产资格尚未完成。
+> **结论：** RTL、SDK、独立客户工程、镜像工具、精确目标 P&R/packing、单板固化/User Flash 正常更新、无夹具核心自检和六线固定回环已通过；外置 I2C/ADC/DAC/网络目标、仪器、多板/长期可靠性、安全启动和量产资格尚未完成。本轮结束时另有一次未提交的 `BEGIN` 恢复超时待冷启动复现。
 
 本页明确区分“源码存在”“数字仿真通过”“已生成目标位流”“实体板通过”和“可量产”。它们不能互相替代。对外发布时必须保存对应 Git commit、`.fs`、manifest、`.omcu`、工具版本与真实板记录。
 
@@ -15,8 +15,8 @@
 | RTL / 集成仿真 | 已通过 | 36 个 smoke 目标，覆盖全部公开外设、CPU、SDK、User Flash 模型、Tang 顶层及新原子 MMIO 合同 | 真实电平、异步噪声、功率级和真实 Flash |
 | 镜像 / 下载协议 | 已通过 + 正常路径 HIL | Python 单元测试 12/12；实体 UART 连续完成 A→B→A 更新、逐字回读、CRC、原子提交和 BOOT ACK | 丢包注入、各阶段断电和跨设备互操作 |
 | FPGA 产品构建 | 已通过 + 单板 HIL | `GW1NR-LV9QN88PC6/I5` 综合、P&R、packing、ROM BSRAM 指纹和 manifest；SRAM 与配置 Flash 下载 CRC 均成功 | 至少 10 次断电冷启动、多板、电气与长期可靠性 |
-| User Flash A/B | 单板正常路径已通过 | 实测擦除态 `0x00000000`、编程 `0→1`；空白恢复、A/B 轮换、回读 CRC 和应用启动通过 | 四阶段断电、擦写寿命、温度和损坏槽故障注入 |
-| 核心/空载外设 HIL | 单板 24/24 通过 | WDT 真实复位、16 KiB SRAM、RV32IM、UART0 PING/PONG、GPIO/PWM1/UART1 TX pad、自时基、SPI/I2C 空载 | 固定跳线回环、I2C/SPI 目标器件、仪器波形、多板 |
+| User Flash A/B | 单板正常路径已通过；一次异常待复现 | 实测擦除态 `0x00000000`、编程 `0→1`；空白恢复、A/B 轮换、回读 CRC 和应用启动通过；一次 `BEGIN` 无 ACK 后旧槽仍可启动 | 冷启动复现该超时、四阶段断电、擦写寿命、温度和损坏槽故障注入 |
+| 核心/数字回环 HIL | 单板 24/24 + 8/8 通过 | WDT 真实复位、16 KiB SRAM、RV32IM、UART0 PING/PONG；六线闭环 GPIO、UART1、SPI0、TIMER1、PWM0/1、PULSE0、FAULT0 | I2C/SPI 目标器件、仪器波形、速率/负载、多板 |
 | 安全启动 | 未实现 | CRC32 损坏检测、A/B 回退 | 签名、密钥、调试锁定、反回滚和安全生产 |
 
 ## 2. 本次自动化检查
@@ -99,15 +99,21 @@ Yosys 会对顶层 I2C/GPIO 三态 Pad 发出有限三态支持警告；P&R/pack
 当前一块板已完成：SRAM/配置 Flash 下载 CRC、配置固化后空白恢复、User Flash A→B→A、回读 CRC、
 原子提交、BOOT ACK；`omcu_mcu_selftest` 又完成 24/24，并以真实 WDT 复位验证
 `RESET_CAUSE=0x2`、`RESET_COUNT=1`。独立模板应用在仓库外编译得到 656 B 载荷，烧录后实板持续输出
-`my_omcu_app is running`。原始自检日志和固定回环步骤见[外设实体板验收](mcu-peripheral-qualification.md)。
+`my_omcu_app is running`。安装六线夹具后，回环应用又完成 8/8，覆盖 GPIO 线束、UART1、SPI0、
+TIMER1 encoder/capture、PWM0/1、PULSE0 和 FAULT0。原始结果、哈希和首轮测试固件修正见
+[2026-08-27 六线回环实板记录](evidence/tangnano9k-loopback-2026-08-27.md)。
+
+回环通过后尝试恢复 656 B 模板应用时，有一次 `BEGIN` 超过 180 秒未返回 ACK；事务未进入 DATA/END，
+旧有效槽在重新加载 FPGA SRAM 后再次启动并通过 8/8。当前板最新应用因此仍是回环自检槽 A/序号 5。
+必须在完全断电冷启动后复现并加入 BEGIN 分阶段诊断，不能用“旧槽安全恢复”替代异常根因关闭。
 
 剩余门禁：
 
 1. 先 SRAM 下载 `.fs`，检查 27 MHz、LED、UART0 和外部复位；核对 manifest 后再固化配置 Flash，至少做 10 次冷启动。
 2. 空白/有效/损坏的 A/B 镜像、正常升级、重复帧/重连，以及擦除、数据页写入、`END` 校验、最终提交四阶段断电。
-3. GPIO 电平/高阻、RGB LCD 共线、UART0/1、PWM0/1 波形、TIMER1 编码器/噪声、GPIO 共享和独立滤波（掩码、2/4/8 样本）及快照。
+3. GPIO 电平/高阻、RGB LCD 共线、UART0/1、PWM0/1 仪器波形、TIMER1 编码器噪声/最大速率、GPIO 共享和独立滤波（掩码、2/4/8 样本）及快照。
 4. ALARM0、PULSE0、FAULT0 门控/清除、WDT 预警/窗口/heartbeat/真实复位时序；故障试验只连接安全逻辑负载和人工受控条件。
-5. I2C 上拉、ACK/NACK/时钟拉伸；SPI 回环、TF 互斥及 DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 目标模块与链路。
+5. I2C 上拉、ACK/NACK/时钟拉伸；SPI 目标速率/TF 互斥及 DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 目标模块与链路。
 6. 温度、电压、长线、反复擦写和外部电源矩阵；按实际板卡 revision、模块和本次 `.fs` SHA-256 记录完整日志。
 
 ## 5. 对外发布卫生与安全缺口

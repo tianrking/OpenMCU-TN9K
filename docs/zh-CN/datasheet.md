@@ -7,7 +7,7 @@
 > **目标器件：** Tang Nano 9K / `GW1NR-LV9QN88PC6/I5`（GW1N-9C）
 > **硬件 ABI：** `0x0000_0009`（0.9）
 > **定位：** 一次固化 FPGA 平台，之后以独立 MCU 固件持续升级应用
-> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化/User Flash 正常更新和无夹具核心自检已完成；固定跳线、外置目标、多板及长期可靠性 HIL 尚待执行。
+> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化/User Flash 正常更新、无夹具核心自检和六线固定回环已完成；外置目标、仪器、多板及长期可靠性 HIL 尚待执行；一次未提交的更新 `BEGIN` 超时待冷启动复现。
 
 OpenMCU-TN9K 不是把客户 C 程序重新塞入 FPGA 的演示工程。产品位流只固化稳定的 CPU、外设、
 启动器和寄存器 ABI；客户程序构建为独立 `.omcu` 镜像，通过 UART0 写入 FPGA 的 User Flash A/B
@@ -44,15 +44,15 @@ flowchart TB
 | 层级 | 结论 | 证据边界 |
 | --- | --- | --- |
 | P0 外置器件 SDK | 已实现 | DS3231、AT24Cxx、TMP102、MCP3008、MCP4921、W5500 驱动和编译回归；目标器件总线 HIL 待做。 |
-| P1 GPIO/UART/PWM/TIMER | 已实现 + 核心 HIL | 12 路 GPIO、UART1 TX、四路 PWM1 及自时基已做 pad 回读；固定跳线的 UART1 RX、TIMER1、PULSE0、FAULT0 和 SPI 闭环待做。 |
-| 可靠性与诊断扩展 | 已实现 + 核心 HIL | GPIO 同步/滤波/快照、ALARM0、PULSE0、FAULT0 和增强 WDT 已覆盖 RTL/SDK；真实 WDT 整机复位通过，外部输入与仪器波形待做。 |
+| P1 GPIO/UART/PWM/TIMER | 已实现 + 单板回环 HIL | 12 路 GPIO、UART1 TX、四路 PWM1 及自时基已做 pad 回读；六线夹具的 UART1 RX、SPI0、TIMER1、PWM0/1、PULSE0、FAULT0 数字闭环 8/8 通过；仪器波形/速率/负载待做。 |
+| 可靠性与诊断扩展 | 已实现 + 单板回环 HIL | GPIO 同步/滤波/快照、ALARM0、PULSE0、FAULT0 和增强 WDT 已覆盖 RTL/SDK；真实 WDT 整机复位、PULSE0 与 FAULT0 外部闭环通过，仪器和边界待做。 |
 | P1 诊断与返 Bootloader | 已实现 + 单板 HIL | RESET_CAUSE、RUN_TICKS、RESET_COUNT、软件请求/确认与 UART 更新会话已在单板验证。 |
 | FPGA 产品版 | 已完成 P&R + 单板 HIL | 精确目标构建、SRAM 下载、配置 Flash 固化、CRC 和固化后启动已通过；多板、冷启动矩阵和长期可靠性待做。 |
-| User Flash A/B | 正常路径单板 HIL 通过 | 空白恢复、A/B 轮换、逐字回读、CRC、原子提交和应用启动通过；分阶段断电、寿命、温度与损坏槽注入待做。 |
+| User Flash A/B | 正常路径单板 HIL 通过；异常待复现 | 空白恢复、A/B 轮换、逐字回读、CRC、原子提交和应用启动通过；一次未提交的 `BEGIN` 超时后旧槽仍启动，冷启动复现、分阶段断电、寿命、温度与损坏槽注入待做。 |
 | 安全启动 | 未实现 | CRC32 只检测偶发损坏，不认证来源，不能抵抗恶意镜像替换。 |
 
 **因此：** 可以把本仓库当作可综合、可构建、可生成 `.fs` 和独立 `.omcu` 的工程基线；
-可以宣称当前一块板的正常路径和无夹具核心自检已通过；在宣称“全部外设已验证”“客户硬件可交付”
+可以宣称当前一块板的正常路径、无夹具核心自检和六线数字回环已通过；在宣称“全部外设已验证”“客户硬件可交付”
 或“量产芯片”前，仍必须完成[验证与发布状态](validation-and-release.md) 中剩余的 HIL 门禁。
 
 ### 2.1 当前可追溯 FPGA 工件

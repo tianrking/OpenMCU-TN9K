@@ -148,14 +148,21 @@ static bool test_spi0_loopback(void) {
 
 static void drive_encoder_state(uint32_t state) {
   const uint32_t outputs = OMCU_TN9K_GPIO4 | OMCU_TN9K_GPIO5;
+  uint32_t next = OMCU_GPIO0->out & ~outputs;
 
-  omcu_gpio_clear(outputs);
   if ((state & 2u) != 0u) {
-    omcu_gpio_set(OMCU_TN9K_GPIO4);
+    next |= OMCU_TN9K_GPIO4;
   }
   if ((state & 1u) != 0u) {
-    omcu_gpio_set(OMCU_TN9K_GPIO5);
+    next |= OMCU_TN9K_GPIO5;
   }
+  /*
+   * Change both quadrature phases with one MMIO write. Clearing and setting
+   * the phases separately creates real intermediate Gray-code states at the
+   * pins, so the encoder correctly counts transitions that the test did not
+   * intend to generate.
+   */
+  OMCU_GPIO0->out = next;
   delay_ticks(128u);
 }
 
