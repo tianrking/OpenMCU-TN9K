@@ -70,7 +70,10 @@ $tools = (Resolve-Path .\.venv\yowasp-gowin\Scripts).Path
 - `omcu_rom_image.hex`：填充后的 Boot ROM 初始化内容；
 - Yosys / nextpnr 日志、JSON 和报告。
 
-ROM 嵌入检查会比较综合网表与 P&R 网表的 Boot ROM 初始化指纹。这个检查证明本次启动器输入保留到了网表，不证明实体板已通过。
+MCU 模式在综合前还会把所选 `RomInitFile` 与已提交 Boot ROM fixture 逐 token 比较；
+`build/sdk` 没有重建或 fixture 过期时会立即失败，不会继续生成嵌入旧 ROM 的位流。
+ROM 嵌入检查再比较综合网表与 P&R 网表的 Boot ROM 初始化指纹。这些检查证明本次
+启动器输入保留到了网表，不证明实体板已通过。
 
 ## 3. 安全固化 FPGA 配置
 
@@ -90,7 +93,12 @@ $fs = '.\build\tangnano9k-mcu\omcu_tn9k_mcu.fs'
   -Destination flash -ConfirmFlash
 ```
 
-下载脚本默认要求位流旁的 `omcu_tn9k_mcu_manifest.json`、目标器件和 SHA-256 都匹配。`-Destination flash` 改写的是 **FPGA 配置 Flash**，不是客户日常应用升级接口；稳定供电、不要中断下载。Tang Nano 9K / `openFPGALoader -f` 实板验证还表明，该配置固化操作会把 GW1NR User Flash 应用区恢复为空白。因此生产顺序必须是：**先固化 `.fs`，复位确认 Bootloader，再经 UART 写最终 `.omcu`**。配置与 User Flash 在逻辑用途上独立，不代表配置下载器会保留后者内容。
+下载脚本默认要求位流旁的 `omcu_tn9k_mcu_manifest.json`、目标器件和 SHA-256 都匹配；即使
+`openFPGALoader` 错误返回 0，独立 `FAIL`、CRC FAIL、MPSSE/USB bulk 错误或 `unable to config pins`
+也会被判为失败。`-Destination flash` 改写的是 **FPGA 配置 Flash**，不是客户日常应用升级接口；
+稳定供电、不要中断下载。Tang Nano 9K / `openFPGALoader -f` 实板验证还表明，该配置固化操作会把
+GW1NR User Flash 应用区恢复为空白。因此生产顺序必须是：**先固化 `.fs`，复位确认 Bootloader，再经 UART 写最终 `.omcu`**。
+配置与 User Flash 在逻辑用途上独立，不代表配置下载器会保留后者内容。
 
 ### 3.1 FPGA 固化后的 MCU 实物验证
 

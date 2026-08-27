@@ -2,7 +2,7 @@
 
 > **适用基线：** `omcu_tn9k_mcu_top`、硬件 ABI `0.9`、
 > `GW1NR-LV9QN88PC6/I5`（GW1N-9C）
-> **状态：** P0/P1 与本页新增可靠性/诊断能力均已完成 RTL、SDK、数字回归和目标器件 P&R/packing；单板固化、User Flash 正常更新与无夹具核心自检已通过，固定跳线、外置总线目标、多板和长期 HIL 仍为发布门禁。
+> **状态：** P0/P1 与本页新增可靠性/诊断能力均已完成 RTL、SDK、数字回归和目标器件 P&R/packing；单板固化、User Flash A/B 正常更新、无夹具核心自检及六线固定回环已通过，外置总线目标、仪器、多板和长期 HIL 仍为发布门禁。
 
 本文件原本是候选能力清单；现在保留决策理由、记录本次实现的准确范围，并把后续高风险方向
 明确留在 P2/P3。它不把“芯片还有 IOB”误写成“开发板可以安全使用”，也不把“编译通过”误写成
@@ -10,17 +10,17 @@
 
 ## 1. 本次资源结论
 
-完整 P0/P1 加可靠性/诊断档案的最终产品构建已完成。真实哈希、工具版本、时序和资源以 ABI 0.9 的 `build/tangnano9k-mcu-release-drain/omcu_tn9k_mcu_manifest.json` 为准：
+完整 P0/P1 加可靠性/诊断档案的最终产品构建已完成。真实哈希、工具版本、时序和资源以 ABI 0.9 的 `build/tangnano9k-mcu-release-v11-final/omcu_tn9k_mcu_manifest.json` 为准：
 
 | 资源 | 已用 / 总量 | 结论 |
 | --- | ---: | --- |
-| LUT4 | 7,188 / 8,640（83.19%） | 已成功 P&R；仍须把每项新增组合逻辑作为独立资源与时序变更复验，不能从百分比推断“必定放得下”。 |
-| DFF | 2,620 / 6,480（40.43%） | 本次将 96 个产品 GPIO 历史位转为可见的独立输入条件化；仍有数量余量，但 DFF 不能单独替代 LUT、扇出、布线和时序预算。 |
+| LUT4 | 7,211 / 8,640（83.46%） | 已成功 P&R；仍须把每项新增组合逻辑作为独立资源与时序变更复验，不能从百分比推断“必定放得下”。 |
+| DFF | 2,631 / 6,480（40.60%） | 本次将 96 个产品 GPIO 历史位转为可见的独立输入条件化；仍有数量余量，但 DFF 不能单独替代 LUT、扇出、布线和时序预算。 |
 | BSRAM | 24 / 26（92.31%） | 极小的第 25 块 BSRAM 记录器也无合法 P&R；显示余量不是 FIFO/DMA/帧缓冲承诺。新增存储架构仍须重新 P&R 与 HIL。 |
-| ALU | 1,310 / 6,480（20.22%） | 记录用，不应替代 LUT/时序/布局决策。 |
+| ALU | 1,316 / 6,480（20.31%） | 记录用，不应替代 LUT/时序/布局决策。 |
 | MULT36X36 | 1 / 5（20.00%） | 快速乘法器保留。 |
 | IOB | 15 / 276（5.43%） | 封装余量不等于 Tang 板上可安全暴露的引脚数。 |
-| 时序 | 27.000 MHz 约束 | 51.319 MHz 实现频率，17.551 ns 裕量；只证明本次开源 P&R，不能替代实体板测量。 |
+| 时序 | 27.000 MHz 约束 | 43.050 MHz 实现频率，13.808 ns 裕量；只证明本次开源 P&R，不能替代实体板测量。 |
 
 ### 1.1 为什么与初始估算不同
 
@@ -64,15 +64,15 @@ UART1、PWM1、TIMER1、诊断和产品 Bootloader 集成后，第一次直接�
 | SPI/I2C ADC、DAC、RTC、EEPROM、传感器 SDK | 无新 FPGA RTL | DS3231、AT24Cxx、TMP102、MCP3008、MCP4921 驱动与示例/SDK 构建 | 源码、编译、总线 RTL 回归；真实器件 HIL 待做 | **P0 完成（预 HIL）** |
 | W5500 外置 SPI 网络控制器 | 无新 FPGA RTL；可选 GPIO IRQ | W5500 初始化、寄存器、TCP/UDP socket API；SPI 连续 CS 帧支持 | 驱动/RTL 回归；模块链路、TF 互斥、IRQ HIL 待做 | **P0 完成（预 HIL）**；不是片上 MAC/PHY |
 | GPIO 扩展档案 | 顶层/OE/IRQ 位宽，低 | 12 路 GPIO（寄存器 bit0..11），LED0..5 镜像 GPIO0..5，J5.8..19 受控映射 | RTL、CST、固件仿真、ABI 0.9 P&R 已完成；电压/RGB 共线 HIL 待做 | **P1 完成（预 HIL）** |
-| UART1 | 无大 FIFO，低到中 | RX/TX + RX IRQ，GPIO10/11 显式 PINMUX，UART0 未受影响 | RTL、固件仿真、P&R；串口实测待做 | **P1 完成（预 HIL）** |
-| PWM1 | 低 | 四路共享 16-bit 计数器/周期，独立 duty/invert，GPIO4..7 PINMUX | RTL、固件波形仿真、P&R；示波器/负载 HIL 待做 | **P1 完成（预 HIL）** |
-| TIMER1/输入捕获/正交编码器 | 低到中 | 双两级同步输入、0..255 稳定滤波、16-bit 捕获/比较、Gray 正交诊断 | RTL、编译固件、P&R；编码器/噪声 HIL 待做 | **P1 完成（预 HIL）** |
-| 复位/Bootloader/诊断 | 低，无新 I/O | RESET_CAUSE、RUN_TICKS、RESET_COUNT、`BOOT_CTRL`、Boot ROM 强制更新会话、SDK helper | RTL/Boot ROM/固件顶层回归、P&R；真实复位/UART HIL 待做 | **P1 完成（预 HIL）** |
+| UART1 | 无大 FIFO，低到中 | RX/TX + RX IRQ，GPIO10/11 显式 PINMUX，UART0 未受影响 | RTL、固件仿真、P&R、六线 115200 回环通过；仪器/长线待做 | **P1 单板数字 HIL 通过** |
+| PWM1 | 低 | 四路共享 16-bit 计数器/周期，独立 duty/invert，GPIO4..7 PINMUX | RTL、固件波形仿真、P&R、PWM1→TIMER1 回环通过；示波器/负载待做 | **P1 单板数字 HIL 通过** |
+| TIMER1/输入捕获/正交编码器 | 低到中 | 双两级同步输入、0..255 稳定滤波、16-bit 捕获/比较、Gray 正交诊断 | RTL、编译固件、P&R、实体 Gray/捕获回环通过；噪声/最大速率待做 | **P1 单板数字 HIL 通过** |
+| 复位/Bootloader/诊断 | 低，无新 I/O | RESET_CAUSE、RUN_TICKS、RESET_COUNT、`BOOT_CTRL`、Boot ROM 强制更新会话、SDK helper | RTL/Boot ROM/固件顶层回归、P&R、真实 WDT 复位和板载 UART A/B 更新通过 | **P1 单板正常路径 HIL 通过** |
 | GPIO 两级同步 / 独立滤波 / 事件快照 | LUT 低到中；不加 BRAM | 全部 12 路同步；兼容共享 N+1 窗口，或按 `FILTER_MASK` 为选中 pin 提供 2/4/8 连续样本独立确认；边沿 IRQ、普通/FAULT 强制快照 | RTL、SDK、寄存器、示例与 ABI 0.9 P&R 已覆盖；按键/传感器/噪声 HIL 待做 | **已实现（预 HIL）** |
 | 多路硬件比较定时器 | LUT 低到中；不加 BRAM | ALARM0 复用 TIMER0 时基，提供两路并行 16-bit compare、独立 enable/pending/periodic/IRQ | RTL、SDK、fabric 回归与 ABI 0.9 P&R 已覆盖；HIL 待做 | **已实现（预 HIL）** |
-| 脉冲计数 / 频率测量 | LUT 低到中；不加 BRAM | PULSE0 从 GPIO0..2 单选一路，16-bit count/period/last tick | RTL、SDK、pinmux 回归与 ABI 0.9 P&R 已覆盖；输入范围与前端 HIL 待做 | **已实现（预 HIL）** |
-| 硬件故障锁存 | LUT 低；不加 BRAM | FAULT0 锁存、PWM0/PWM1 low、全部 GPIO high-Z、共享快照 | RTL、SDK、fabric/top 回归与 ABI 0.9 P&R 已覆盖；不能称功能安全认证，HIL 待做 | **已实现（预 HIL）** |
-| 增强看门狗 | LUT 低；不加 BRAM | pretimeout、窗口、最多 8 heartbeat、拒绝喂狗状态 | RTL、SDK、监督状态回归与 ABI 0.9 P&R 已覆盖；真实复位时序 HIL 待做 | **已实现（预 HIL）** |
+| 脉冲计数 / 频率测量 | LUT 低到中；不加 BRAM | PULSE0 从 GPIO0..2 单选一路，16-bit count/period/last tick | RTL、SDK、P&R 和 PWM0→PULSE0 实体回环通过；输入范围与前端待做 | **单板数字 HIL 通过** |
+| 硬件故障锁存 | LUT 低；不加 BRAM | FAULT0 锁存、PWM0/PWM1 low、全部 GPIO high-Z、共享快照 | RTL、SDK、P&R 和实体门控/清除回环通过；不能称功能安全认证 | **单板数字 HIL 通过** |
+| 增强看门狗 | LUT 低；不加 BRAM | pretimeout、窗口、最多 8 heartbeat、拒绝喂狗状态 | RTL、SDK、监督状态回归和真实整机复位通过；时序仪器/边界待做 | **单板正常路径 HIL 通过** |
 
 ### P0 的真正含义
 
@@ -108,14 +108,14 @@ flowchart LR
   G --> H[可对外发布的板级证据]
 ```
 
-ABI 0.9 当前完成到 **C**。D 至 G 必须使用实际 Tang Nano 9K、所选外设模块、当前板卡 revision 和
-本次 manifest 的 `.fs` SHA-256 逐项记录。建议先完成：
+ABI 0.9 已在当前单板完成 D、配置固化、F 的正常 A/B 路径，以及 G 中六线数字回环；配置 Flash 的
+10 次冷启动矩阵、F 的分阶段断电和 G 的目标模块/仪器仍须使用当前 `.fs` SHA-256 逐项记录：
 
-1. SRAM 下载、LED、UART0、复位；
-2. 配置 Flash 固化并反复断电冷启动；
-3. 空白/有效/损坏 A/B 镜像、完整升级、四阶段断电；
-4. GPIO 电平与高阻、I2C 上拉与真实 ACK、SPI 回环与目标设备、W5500 链路；
-5. UART1、PWM1 示波器、TIMER1 编码器/滤波、RGB 共线边界；
+1. 用同一最终 `.fs` 完成至少 10 次完全断电冷启动及多板重复；
+2. 在已通过空白/有效 A/B 完整升级的基础上补损坏槽、重连和四阶段断电；
+3. 在已通过 SPI/UART1/TIMER1/PWM/PULSE/FAULT 数字回环的基础上补电平、高阻、仪器与目标设备；
+4. I2C 上拉与真实 ACK、SPI 目标设备、W5500 链路；
+5. UART1/PWM1 仪器波形、TIMER1 噪声/最大速率、RGB 共线边界；
 6. GPIO 共享与独立滤波（掩码、2/4/8 样本）/快照、ALARM 同 tick、PULSE 频率/输入选择、FAULT 门控/清除拒绝、WDT 预警/窗口/heartbeat；
 7. 温度、电压、长线和重复擦写矩阵。
 

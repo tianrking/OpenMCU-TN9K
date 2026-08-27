@@ -26,7 +26,7 @@ FPGA package pin，完整实物图与回环位置见[《MCU 外设实体板验�
 | --- | --- | ---: | --- |
 | 时钟 | `clk_27m_i` | 52 | 板载 27 MHz，SDC 约束为 27 MHz。 |
 | 外部复位 | `resetn_i` | 4 | 低有效；顶层异步断言、同步释放。 |
-| UART0 TX/RX | `uart_tx_o` / `uart_rx_i` | 17 / 18 | 3.3 V 逻辑，默认 SDK 115200 8-N-1。 |
+| UART0 TX/RX | `uart_tx_o` / `uart_rx_i` | 17 / 18 | 3.3 V 逻辑，默认 SDK 115200 8-N-1；PCB 已接板载 BL702 USB-UART，使用 USB-C 时无需外接跳线。 |
 | LED0..5 | GPIO0[0..5] / `led_n_o[0..5]` | 10,11,13,14,15,16 | 板上 LED 为低电平点亮；SDK 逻辑 GPIO 为高表示“点亮”。 |
 | SPI0 CS/MOSI/SCK/MISO | `spi0_*` | 38/37/36/39 | 左排 L1/L2/L3/L4（原理图 J5.1..4），与 TF-card 信号共享；使用时不得同时插入或访问 microSD。 |
 | I2C0 SCL/SDA | `i2c0_scl_io` / `i2c0_sda_io` | 26 / 27 | 左排 L6/L7（原理图 J5.6/7），真正开漏；外部必须提供合适的 3.3 V 上拉。 |
@@ -53,7 +53,8 @@ FPGA package pin，完整实物图与回环位置见[《MCU 外设实体板验�
 
 ## UART1、PWM1、TIMER1、PULSE0、FAULT0 与显式 pinmux
 
-UART0 始终保留给 Bootloader、下载和默认日志。需要第二路设备串口时，ABI 0.9 在 J5 的
+UART0 始终保留给 Bootloader、下载和默认日志，并通过板载 BL702 随 USB-C 枚举为主机串口；
+它不属于六线回环夹具。需要第二路设备串口时，ABI 0.9 在 J5 的
 两个已约束 3.3 V pad 上提供无 FIFO 的 UART1：TX 为 GPIO10 / J5.18 / package pad 53，RX
 为 GPIO11 / J5.19 / package pad 54。复位时这两个 pad 仍是普通高阻 GPIO，不会因为 FPGA
 中存在 UART1 而被暗中占用。

@@ -93,9 +93,11 @@ flowchart LR
 .\scripts\run-rtl-smoke.ps1 -Test tn9k-peripherals
 
 python -m unittest `
+  tools.tests.test_omcu_boot_policy `
   tools.tests.test_omcu_bootloader_fixture `
   tools.tests.test_omcu_image `
-  tools.tests.test_omcu_flash_protocol -v
+  tools.tests.test_omcu_flash_protocol `
+  tools.tests.test_program_tangnano9k -v
 ```
 
 - `sdk-isa`：编译器到硬件的 RV32IM、启动数据重定位和乘除法通路；产品配置明确不支持压缩指令。
@@ -105,7 +107,9 @@ python -m unittest `
 - `tn9k-wdt` / `tn9k-peripherals`：已编译 SDK 固件经 Tang 顶层验证看门狗复位和外设 Pad 连通性。
 - `test_omcu_image`：`.omcu` 头部、固定 ABI/地址、长度、对齐、CRC 和破坏检测。
 - `test_omcu_flash_protocol`：帧编码、CRC、长度限制和重传相关协议不变量。
+- `test_omcu_boot_policy`：按镜像实际占用范围计算需要擦除的 2 KiB 页数。
 - `test_omcu_bootloader_fixture`：SDK 刚生成的 Boot ROM 与产品 FPGA 顶层默认固化的 Boot ROM 逐字比较；允许注释和换行不同，但不允许指令内容漂移。
+- `test_program_tangnano9k`：用返回 0 的伪下载器确认 CRC FAIL、独立 FAIL、MPSSE/USB bulk 与 pin 配置错误都被主机脚本拒绝。
 
 这些测试不直接替代“启动器在真实 User Flash 上写入并重新启动应用”的端到端板级测试。
 

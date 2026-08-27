@@ -292,6 +292,9 @@ SRAM 下载后至少验证：时钟/复位、UART0 Bootloader 连接窗口、Hel
 ~~~
 
 这是配置 Flash 操作，不是 MCU 应用升级。供电必须稳定，不能在过程中拔线或断电；若下载失败，停在 SRAM 阶段排查，不要反复盲写 Flash。
+`program-tangnano9k.ps1` 会同时检查退出码和文本；独立 `FAIL`、CRC FAIL、MPSSE/USB bulk 错误和
+`unable to config pins` 都算失败。出现 FTDI bulk 连续错误时，先结束所有下载/串口进程，再完全拔掉 USB-C
+10 秒后重连；不要在同一个已失效的 FTDI 会话上无限重试。
 
 ## 8. MCU 应用：三种系统的构建与 UART0 烧录
 

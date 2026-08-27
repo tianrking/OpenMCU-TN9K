@@ -31,6 +31,7 @@ CMD_BOOT = 0x05
 RESP_HELLO = 0x81
 RESP_ACK = 0x82
 RESP_NACK = 0x83
+HELLO_CAP_BEGIN_IDEMPOTENT = 0x01
 
 
 class ProtocolError(RuntimeError):
@@ -101,7 +102,22 @@ class SerialTransport:
         written = self._serial.write(packet)
         if written != len(packet):
             raise ProtocolError(f"串口只写入了 {written}/{len(packet)} 字节")
-        self._serial.flush()
+        # Do not call pyserial.flush() here. POSIX implements it with
+        # tcdrain(), which can wait forever on AppleUSBFTDI after a Tang board
+        # power cycle. Stop-and-wait framing already supplies the required
+        # ordering: write() has a finite write_timeout and exchange() does not
+        # send another command until the matching response has arrived.
+        deadline = time.monotonic() + 2.0
+        while True:
+            try:
+                pending = self._serial.out_waiting
+            except (AttributeError, OSError):
+                break
+            if pending == 0:
+                break
+            if time.monotonic() >= deadline:
+                raise ProtocolError("串口发送队列在 2 秒内未排空")
+            time.sleep(0.001)
 
     def read_exact(self, length: int, timeout: float) -> bytes:
         deadline = time.monotonic() + timeout
@@ -236,6 +252,18 @@ def hello_text(response: Frame) -> str:
     return f"已连接：当前没有可启动应用，硬件 ABI=0x{hardware_abi:08x}"
 
 
+def hello_capabilities(response: Frame) -> int:
+    if len(response.payload) != 16:
+        raise ProtocolError("HELLO 响应长度错误")
+    return response.payload[3]
+
+
+def begin_retry_count(capabilities: int, requested_retries: int) -> int:
+    return (requested_retries
+            if capabilities & HELLO_CAP_BEGIN_IDEMPOTENT
+            else 1)
+
+
 def program_image(args: argparse.Namespace) -> int:
     raw_image = Path(args.image).read_bytes()
     header, payload = omcu_image.parse_image(
@@ -252,14 +280,28 @@ def program_image(args: argparse.Namespace) -> int:
         )
         print(hello_text(hello))
 
+        capabilities = hello_capabilities(hello)
+        begin_retries = begin_retry_count(capabilities, args.retries)
+        if (args.verify_begin_replay and not (
+            capabilities & HELLO_CAP_BEGIN_IDEMPOTENT
+        )):
+            raise ProtocolError(
+                "Bootloader 未声明 BEGIN 幂等能力，不能执行重放 HIL"
+            )
+        if begin_retries == 1 and args.retries > 1:
+            print("Bootloader 未声明 BEGIN 幂等能力；擦除阶段不自动重发。")
+        print("正在校验当前槽并擦除新镜像占用页…")
+
+        begin_frame = Frame(CMD_BEGIN, sequence.next(), header.pack())
         exchange(
             transport,
-            Frame(CMD_BEGIN, sequence.next(), header.pack()),
+            begin_frame,
             timeout=args.erase_timeout,
-            retries=args.retries,
+            retries=begin_retries,
         )
-        print("已擦除非活动槽，开始写入应用镜像…")
+        print("已擦除非活动槽的新镜像占用页，开始写入应用镜像…")
 
+        replay_begin = args.verify_begin_replay
         for offset in range(0, len(payload), DATA_BYTES_PER_FRAME):
             chunk = payload[offset:offset + DATA_BYTES_PER_FRAME]
             exchange(
@@ -269,6 +311,21 @@ def program_image(args: argparse.Namespace) -> int:
                 retries=args.retries,
             )
             print(f"\r写入 {offset + len(chunk)}/{len(payload)} 字节", end="", flush=True)
+            if replay_begin:
+                # Use a fresh sequence for the explicit HIL replay. Reusing
+                # the original sequence could accept a delayed first ACK and
+                # would not prove that the loader handled this second BEGIN.
+                replay_frame = Frame(
+                    CMD_BEGIN, sequence.next(), header.pack()
+                )
+                exchange(
+                    transport,
+                    replay_frame,
+                    timeout=args.erase_timeout,
+                    retries=1,
+                )
+                replay_begin = False
+                print("\nPASS: BEGIN 在 DATA 之后重放且保留写入进度。")
         print()
 
         exchange(
@@ -303,8 +360,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--connect-timeout", type=float, default=8.0,
                         help="等待用户按复位并进入 Bootloader 的秒数")
-    parser.add_argument("--erase-timeout", type=float, default=8.0,
-                        help="BEGIN 擦除 A/B 槽的单次等待秒数")
+    parser.add_argument("--erase-timeout", type=float, default=30.0,
+                        help="BEGIN 校验当前槽并擦除占用页的单次等待秒数")
     parser.add_argument("--data-timeout", type=float, default=3.0,
                         help="DATA/END/BOOT 单次等待秒数")
     parser.add_argument("--retries", type=int, default=3)
@@ -312,6 +369,8 @@ def build_parser() -> argparse.ArgumentParser:
                         default=omcu_image.DEFAULT_HARDWARE_ABI)
     parser.add_argument("--no-boot", action="store_true",
                         help="提交后保持在 Bootloader，方便诊断")
+    parser.add_argument("--verify-begin-replay", action="store_true",
+                        help="HIL：首个 DATA 后重放 BEGIN，验证进度不被擦除")
     return parser
 
 

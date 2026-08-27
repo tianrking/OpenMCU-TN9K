@@ -1,4 +1,5 @@
 #include "omcu.h"
+#include "omcu_boot_policy.h"
 #include "omcu_image.h"
 #include "omcu_tn9k.h"
 
@@ -16,13 +17,10 @@
 #define OMCU_BOOT_SESSION_TIMEOUT_US   10000000u
 #define OMCU_BOOT_UART_DRAIN_US         20000u
 
-/* TIMER0 is also the resource-efficient FLASH608K phase timebase. The normal
- * divide-by-27 setting is 1 MHz. Destructive operations temporarily select
- * prescalers that keep the fixed hardware deadlines inside every UG295 timing
- * window: program ~=15.6 us and page erase ~=115.6 ms. */
+/* TIMER0 remains the protocol/session timebase. The User Flash adapter uses
+ * the hardware-owned SYSCTRL run counter, so a blocking flash transaction
+ * cannot depend on firmware reconfiguring TIMER0 immediately beforehand. */
 #define OMCU_BOOT_TIMER_PRESCALE_US     26u
-#define OMCU_BOOT_TIMER_PRESCALE_PROGRAM 20u
-#define OMCU_BOOT_TIMER_PRESCALE_ERASE  25u
 
 #define OMCU_BOOT_CMD_HELLO            0x01u
 #define OMCU_BOOT_CMD_BEGIN            0x02u
@@ -32,7 +30,6 @@
 #define OMCU_BOOT_RESP_HELLO           0x81u
 #define OMCU_BOOT_RESP_ACK             0x82u
 #define OMCU_BOOT_RESP_NACK            0x83u
-
 enum omcu_boot_error {
   OMCU_BOOT_ERROR_NONE = 0,
   OMCU_BOOT_ERROR_BAD_FRAME = 1,
@@ -61,6 +58,7 @@ enum omcu_boot_error {
   OMCU_BOOT_ERROR_COMMIT_WRITE = 0x42,
   OMCU_BOOT_ERROR_COMMIT_DISCOVERY = 0x43,
   OMCU_BOOT_ERROR_ERASE_VERIFY = 0x44,
+  OMCU_BOOT_ERROR_UPDATE_ACTIVE = 0x45,
 };
 
 enum omcu_boot_frame_result {
@@ -295,17 +293,13 @@ static uint32_t omcu_boot_flash_read_word(uint32_t offset) {
 }
 
 static void omcu_boot_flash_program_word(uint32_t offset, uint32_t value) {
-  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_PROGRAM);
   *omcu_boot_flash_word(offset) = value;
-  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_US);
 }
 
 static void omcu_boot_flash_erase_page(uint32_t offset) {
   volatile uint8_t *page =
     (volatile uint8_t *)(uintptr_t)(OMCU_USER_FLASH_BASE + offset);
-  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_ERASE);
   *page = 0u;
-  omcu_boot_timer_configure(OMCU_BOOT_TIMER_PRESCALE_US);
 }
 
 static bool omcu_boot_flash_page_is_erased(uint32_t offset) {
@@ -472,20 +466,24 @@ static bool omcu_boot_find_valid_image(omcu_boot_image_t *selected) {
   return found;
 }
 
-static void omcu_boot_send_hello(uint16_t sequence) {
-  omcu_boot_image_t selected;
+static void omcu_boot_send_hello(uint16_t sequence, bool *valid,
+                                 omcu_boot_image_t *selected) {
   uint8_t response[16];
-  bool valid = omcu_boot_find_valid_image(&selected);
+  *valid = omcu_boot_find_valid_image(selected);
 
   response[0] = OMCU_BOOT_PROTOCOL_VERSION;
-  response[1] = valid ? 1u : 0u;
-  response[2] = valid ? (uint8_t)(selected.slot_offset / OMCU_IMAGE_SLOT_BYTES)
-                      : 0xffu;
+  response[1] = *valid ? 1u : 0u;
+  response[2] = *valid
+    ? (uint8_t)(selected->slot_offset / OMCU_IMAGE_SLOT_BYTES)
+    : 0xffu;
+  /* No destructive-BEGIN retry capability is advertised. DATA and END are
+   * replay-safe, but a lost BEGIN ACK requires a reset so the old committed
+   * slot remains the unambiguous recovery point. */
   response[3] = 0u;
   omcu_boot_write_le32(&response[4],
-                        valid ? selected.header.sequence : 0u);
+                        *valid ? selected->header.sequence : 0u);
   omcu_boot_write_le32(&response[8],
-                        valid ? selected.header.payload_bytes : 0u);
+                        *valid ? selected->header.payload_bytes : 0u);
   omcu_boot_write_le32(&response[12], OMCU_IMAGE_HARDWARE_ABI);
   omcu_boot_send_frame(OMCU_BOOT_RESP_HELLO, sequence, response,
                        (uint16_t)sizeof(response));
@@ -494,48 +492,68 @@ static void omcu_boot_send_hello(uint16_t sequence) {
 static enum omcu_boot_error omcu_boot_begin_update(
   const omcu_boot_frame_t *frame, omcu_boot_session_t *session
 ) {
+  omcu_image_header_t requested;
   omcu_boot_image_t selected;
-  uint8_t *header_bytes = (uint8_t *)(void *)&session->header;
+  uint8_t *requested_bytes = (uint8_t *)(void *)&requested;
+  uint8_t *session_bytes = (uint8_t *)(void *)&session->header;
   enum omcu_boot_error header_error;
+  uint32_t erase_pages;
   uint32_t page_index;
   uint32_t index;
+  uint32_t slot_offset;
   bool has_current;
 
   if (frame->length != OMCU_IMAGE_HEADER_BYTES) {
     return OMCU_BOOT_ERROR_BAD_HEADER;
   }
   for (index = 0u; index < OMCU_IMAGE_HEADER_BYTES; ++index) {
-    header_bytes[index] = frame->payload[index];
+    requested_bytes[index] = frame->payload[index];
   }
   header_error = omcu_boot_header_error(
-    &session->header, OMCU_IMAGE_STATE_STAGING
+    &requested, OMCU_IMAGE_STATE_STAGING
   );
   if (header_error != OMCU_BOOT_ERROR_NONE) {
     return header_error;
   }
 
+  /* Never start a second destructive erase while an update is active. The
+   * current product does not advertise BEGIN replay support; if its ACK is
+   * lost, the host resets and retries while the old committed slot remains
+   * bootable. */
+  if (session->active) {
+    return OMCU_BOOT_ERROR_UPDATE_ACTIVE;
+  }
+
   has_current = omcu_boot_find_valid_image(&selected);
-  session->slot_offset = has_current
+  slot_offset = has_current
     ? (selected.slot_offset ^ OMCU_IMAGE_SLOT_BYTES)
     : OMCU_IMAGE_SLOT_A_OFFSET;
-  session->header.sequence = has_current ? selected.header.sequence + 1u : 1u;
-  session->header.state = OMCU_IMAGE_STATE_STAGING;
-  session->header.header_crc32 = 0u;
-  session->header.header_crc32 = omcu_boot_header_crc32(&session->header);
+  requested.sequence = has_current ? selected.header.sequence + 1u : 1u;
+  requested.state = OMCU_IMAGE_STATE_STAGING;
+  requested.header_crc32 = 0u;
+  requested.header_crc32 = omcu_boot_header_crc32(&requested);
 
-  for (page_index = 0u; page_index < OMCU_IMAGE_SLOT_PAGES; ++page_index) {
+  /* Erasing the header invalidates the old inactive image. Pages beyond the
+   * new payload are unreachable and are erased later if a larger image needs
+   * them. This reduces BEGIN latency and page wear without weakening A/B. */
+  erase_pages = omcu_boot_erase_pages_for_payload(requested.payload_bytes);
+  for (page_index = 0u; page_index < erase_pages; ++page_index) {
     uint32_t page_offset =
-      session->slot_offset + page_index * OMCU_USER_FLASH_PAGE_BYTES;
+      slot_offset + page_index * OMCU_USER_FLASH_PAGE_BYTES;
     omcu_boot_flash_erase_page(page_offset);
     if (!omcu_boot_flash_page_is_erased(page_offset)) {
       return OMCU_BOOT_ERROR_ERASE_VERIFY;
     }
   }
-  omcu_boot_flash_write_header(session->slot_offset, &session->header);
-  if (!omcu_boot_flash_header_matches(session->slot_offset, &session->header)) {
+  omcu_boot_flash_write_header(slot_offset, &requested);
+  if (!omcu_boot_flash_header_matches(slot_offset, &requested)) {
     return OMCU_BOOT_ERROR_FLASH_VERIFY;
   }
 
+  for (index = 0u; index < OMCU_IMAGE_HEADER_BYTES; ++index) {
+    session_bytes[index] = requested_bytes[index];
+  }
+  session->slot_offset = slot_offset;
   session->next_payload_offset = 0u;
   session->active = true;
   return OMCU_BOOT_ERROR_NONE;
@@ -653,13 +671,18 @@ static void omcu_boot_start_application(const omcu_boot_image_t *image) {
 }
 
 static bool omcu_boot_handle_frame(const omcu_boot_frame_t *frame,
-                                   omcu_boot_session_t *session) {
+                                   omcu_boot_session_t *session,
+                                   bool *has_image,
+                                   omcu_boot_image_t *selected) {
   switch (frame->type) {
     case OMCU_BOOT_CMD_HELLO:
       if (frame->length != 0u) {
         omcu_boot_send_nack(frame->sequence, OMCU_BOOT_ERROR_BAD_COMMAND);
       } else {
-        omcu_boot_send_hello(frame->sequence);
+        /* Catalog reads happen before the response. Once HELLO is on the
+         * wire the host may immediately send BEGIN, and UART0 deliberately
+         * has only a single-byte receive register. */
+        omcu_boot_send_hello(frame->sequence, has_image, selected);
       }
       return false;
 
@@ -697,7 +720,15 @@ static bool omcu_boot_handle_frame(const omcu_boot_frame_t *frame,
       } else {
         enum omcu_boot_error finish_error = omcu_boot_finish_update(session);
         if (finish_error == OMCU_BOOT_ERROR_NONE) {
-          omcu_boot_send_ack(frame->sequence);
+          /* Refresh the cached catalog before ACK. Doing this after ACK can
+           * overrun UART0 when the host immediately sends BOOT. */
+          *has_image = omcu_boot_find_valid_image(selected);
+          if (*has_image && selected->slot_offset == session->slot_offset) {
+            omcu_boot_send_ack(frame->sequence);
+          } else {
+            omcu_boot_send_nack(frame->sequence,
+                                OMCU_BOOT_ERROR_COMMIT_DISCOVERY);
+          }
         } else {
           omcu_boot_send_nack(frame->sequence, finish_error);
         }
@@ -708,8 +739,8 @@ static bool omcu_boot_handle_frame(const omcu_boot_frame_t *frame,
       if (frame->length != 0u) {
         omcu_boot_send_nack(frame->sequence, OMCU_BOOT_ERROR_BAD_COMMAND);
       } else {
-        omcu_boot_image_t selected;
-        if (omcu_boot_find_valid_image(&selected)) {
+        *has_image = omcu_boot_find_valid_image(selected);
+        if (*has_image) {
           omcu_boot_send_ack(frame->sequence);
           return true;
         }
@@ -766,7 +797,7 @@ void omcu_bootloader_main(void) {
     }
 
     saw_valid_frame = true;
-    if (omcu_boot_handle_frame(&frame, &session)) {
+    if (omcu_boot_handle_frame(&frame, &session, &has_image, &selected)) {
       uint32_t drain_start_us;
 
       omcu_boot_uart_wait_tx_idle();
@@ -777,10 +808,12 @@ void omcu_bootloader_main(void) {
       while (!omcu_boot_timeout_elapsed(drain_start_us,
                                         OMCU_BOOT_UART_DRAIN_US)) {
       }
-      if (omcu_boot_find_valid_image(&selected)) {
+      if (has_image) {
         omcu_boot_start_application(&selected);
       }
     }
-    has_image = omcu_boot_find_valid_image(&selected);
+    /* Never perform a flash catalog scan after sending a response. UART0 has
+     * no FIFO, so the next stop-and-wait command may already be arriving.
+     * HELLO, END and BOOT refresh the cache before their response instead. */
   }
 }

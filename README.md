@@ -113,9 +113,13 @@ python .\tools\omcu_flash.py --port COM5 `
   --image .\build\sdk\omcu_mcu_hello.omcu
 ```
 
-工具默认在 8 秒内寻找启动器。若设备已经运行应用，先启动工具，再按一次复位键；串口使用 `115200 / 8N1`、3.3 V TTL 电平、TX/RX 交叉并共地。
+工具默认在 8 秒内寻找启动器。若设备已经运行应用，先启动工具，再按一次复位键。Tang Nano 9K
+已把 FPGA pad 17/18 接到板载 BL702 USB-UART，通常只需板上 USB-C 和系统枚举的 `COM*` / `/dev/cu.usbserial-*`；
+移植到直接引出 UART0 的派生板时才按 `115200 / 8N1`、3.3 V TTL、TX/RX 交叉并共地连接。
 
-若业务应用复用了 UART0，应用先结束关键写入并调用 `omcu_tn9k_request_bootloader()`；平台会记录软件原因、复位进入 Bootloader，并保持 UART0 更新会话，无需抢启动窗口。该机制仍需要本板实机 HIL；外部复位始终保留为独立恢复路径。
+若业务应用复用了 UART0，应用先结束关键写入并调用 `omcu_tn9k_request_bootloader()`；平台会记录软件原因、
+复位进入 Bootloader，并保持 UART0 更新会话，无需抢启动窗口。该路径已在本次单板 HIL 通过；外部复位
+始终保留为独立恢复路径。
 
 复制独立应用模板、从仓库外引用 SDK、声明 `omcu_add_application()` 目标、Windows、Ubuntu 与 macOS 环境和排错步骤，
 统一见[客户应用开发指南](docs/zh-CN/mcu-application-development.md)。

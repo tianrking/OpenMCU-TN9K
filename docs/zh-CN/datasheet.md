@@ -7,7 +7,7 @@
 > **目标器件：** Tang Nano 9K / `GW1NR-LV9QN88PC6/I5`（GW1N-9C）
 > **硬件 ABI：** `0x0000_0009`（0.9）
 > **定位：** 一次固化 FPGA 平台，之后以独立 MCU 固件持续升级应用
-> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化/User Flash 正常更新、无夹具核心自检和六线固定回环已完成；外置目标、仪器、多板及长期可靠性 HIL 尚待执行；一次未提交的更新 `BEGIN` 超时待冷启动复现。
+> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化/User Flash A/B 连续更新、无夹具核心自检和六线固定回环已完成；旧版 `BEGIN` 超时已定位、修复并在最终位流复测关闭；外置目标、仪器、多板及长期可靠性 HIL 尚待执行。
 
 OpenMCU-TN9K 不是把客户 C 程序重新塞入 FPGA 的演示工程。产品位流只固化稳定的 CPU、外设、
 启动器和寄存器 ABI；客户程序构建为独立 `.omcu` 镜像，通过 UART0 写入 FPGA 的 User Flash A/B
@@ -48,7 +48,7 @@ flowchart TB
 | 可靠性与诊断扩展 | 已实现 + 单板回环 HIL | GPIO 同步/滤波/快照、ALARM0、PULSE0、FAULT0 和增强 WDT 已覆盖 RTL/SDK；真实 WDT 整机复位、PULSE0 与 FAULT0 外部闭环通过，仪器和边界待做。 |
 | P1 诊断与返 Bootloader | 已实现 + 单板 HIL | RESET_CAUSE、RUN_TICKS、RESET_COUNT、软件请求/确认与 UART 更新会话已在单板验证。 |
 | FPGA 产品版 | 已完成 P&R + 单板 HIL | 精确目标构建、SRAM 下载、配置 Flash 固化、CRC 和固化后启动已通过；多板、冷启动矩阵和长期可靠性待做。 |
-| User Flash A/B | 正常路径单板 HIL 通过；异常待复现 | 空白恢复、A/B 轮换、逐字回读、CRC、原子提交和应用启动通过；一次未提交的 `BEGIN` 超时后旧槽仍启动，冷启动复现、分阶段断电、寿命、温度与损坏槽注入待做。 |
+| User Flash A/B | 正常路径单板 HIL 通过 | 空白恢复、A→B→A、固化后空白→A→B、逐字回读、CRC、原子提交和应用启动通过；旧版 `BEGIN` 超时源于响应后的冗余 Flash 扫描导致单字节 UART RX overrun，最终 Boot ROM 已修复并复测；分阶段断电、寿命、温度与损坏槽注入待做。 |
 | 安全启动 | 未实现 | CRC32 只检测偶发损坏，不认证来源，不能抵抗恶意镜像替换。 |
 
 **因此：** 可以把本仓库当作可综合、可构建、可生成 `.fs` 和独立 `.omcu` 的工程基线；
@@ -57,15 +57,16 @@ flowchart TB
 
 ### 2.1 当前可追溯 FPGA 工件
 
-`build/tangnano9k-mcu-release-drain/omcu_tn9k_mcu_manifest.json` 是本 ABI 的可追溯 P&R/packing 构建证据：
+`build/tangnano9k-mcu-release-v11-final/omcu_tn9k_mcu_manifest.json` 是本 ABI 的可追溯 P&R/packing 构建证据：
 
 | 项目 | 记录值 |
 | --- | --- |
-| `.fs` SHA-256 | `3c2b9943bc93bcb8cb42f52006d8cf4b34e0a3ffb310b7bfc9b2aaa278386099` |
-| 时钟 | 27.000 MHz 约束，51.318897 MHz 实现，17.551038 ns 裕量 |
-| LUT4 / DFF | 7,188 / 8,640（83.19%）；2,620 / 6,480（40.43%） |
+| `.fs` SHA-256 | `cdb0217f7c8a4caf03869aa6f9b08e957ea5b1c89b4289d43b783878f7152056` |
+| 时钟 | 27.000 MHz 约束，43.049637 MHz 实现，13.808037 ns 裕量 |
+| 布局器 | heap，beta `0.99`，seed `4` |
+| LUT4 / DFF | 7,211 / 8,640（83.46%）；2,631 / 6,480（40.60%） |
 | BSRAM / IOB | 24 / 26（92.31%）；15 / 276（5.43%） |
-| Boot ROM 链 | 2 个 BSRAM；综合与 P&R 初始化指纹均为 `e3d5e52effc71700d47918be95a0c72b1578c0d6cc709cd88b2f87d95b712f42`。 |
+| Boot ROM 链 | 输入 SHA-256 `41383f7271935bbbab46bac79df7a0c8c7c8b073428a637336cd2d4f6bf45df1`；2 个 BSRAM；综合与 P&R 初始化指纹均为 `c0f98c9f20762bd902b3b61ccefba6af5901722c4057878f44d9f574611029ee`。 |
 
 这个 manifest 证明本版的开源 P&R/packing 可重现；实体板 HIL 证据另见
 [验证与发布状态](validation-and-release.md)，两者都不等于量产资格。
@@ -134,7 +135,7 @@ Tang Nano 9K 产品顶层的 `SYSCTRL.FEATURES` 应报告 `0x000F_FFFF`：bit 0.
 | 外设 | 基址 | 核心能力 | 主要限制 |
 | --- | ---: | --- | --- |
 | GPIO0 | `0x4000_0000` | 12 路 GPIO、OE、高阻、两级同步、兼容共享滤波或掩码内按针 2/4/8 样本独立滤波、边沿 IRQ 和事件快照；LED0..5 镜像 GPIO0..5 | 不是 ADC/高速采样；采样深度不是毫秒级机械去抖承诺。 |
-| UART0 | `0x4000_1000` | 8N1 RX/TX、IRQ、默认 115200 | 保留给 Bootloader、恢复和默认日志。 |
+| UART0 | `0x4000_1000` | 8N1 RX/TX、IRQ、默认 115200；Tang Nano 9K pad 17/18 已接板载 BL702 USB-UART | 保留给 Bootloader、恢复和默认日志；使用板载 USB-C 时无需外接串口线。 |
 | TIMER0 | `0x4000_2000` | 比较定时、自动重装、IRQ | 基础软件定时器。 |
 | SPI0 | `0x4000_3000` | mode 0 字节传输、显式多字节 CS 保持 | 与 TF 信号组共享；不与 microSD 并用。 |
 | I2C0 | `0x4000_4000` | 开漏 START/STOP/读写字节 | 外部 3.3 V 上拉必须由板级提供。 |

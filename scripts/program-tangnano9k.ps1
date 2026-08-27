@@ -81,17 +81,26 @@ if ($PSCmdlet.ShouldProcess("Tang Nano 9K ($Destination)", $action)) {
     if ($programmerExitCode -ne 0) {
         throw "openFPGALoader failed with exit code $programmerExitCode."
     }
-    # Some openFPGALoader/Gowin paths have returned zero after printing a CRC
-    # failure. Treat the programmer's verification result as authoritative too;
-    # strip terminal colour/control sequences before matching it.
+    # Some openFPGALoader/Gowin/FTDI paths return zero after printing a CRC
+    # failure, a standalone FAIL, or an MPSSE USB transport failure. Treat the
+    # programmer's text result as authoritative too; strip terminal
+    # colour/control sequences before matching it.
     $programmerText = ($programmerOutput | ForEach-Object { $_.ToString() }) -join "`n"
     $plainProgrammerText = [regex]::Replace(
         $programmerText,
         [char]27 + '\[[0-?]*[ -/]*[@-~]',
         ''
     )
-    if ($plainProgrammerText -match '(?im)CRC\s+check\s*:\s*fail(?:ed)?\b') {
-        throw 'openFPGALoader reported a failed CRC check despite returning exit code 0.'
+    $programmerFailurePattern = @(
+        'CRC\s+check\s*:\s*fail(?:ed)?\b',
+        '^\s*FAIL(?:ED)?\s*$',
+        'mpsse_(?:write|read|store):[^\r\n]*\bfail',
+        'usb\s+bulk\s+(?:read|write)\s+failed',
+        'Loopback\s+failed',
+        'unable\s+to\s+config\s+pins'
+    ) -join '|'
+    if ($plainProgrammerText -match ('(?im)' + $programmerFailurePattern)) {
+        throw 'openFPGALoader reported a programming/USB transport failure despite returning exit code 0.'
     }
     Write-Output 'openFPGALoader completed. This confirms the host-side command result only; run the documented board-level functional checks before calling the MCU validated.'
 } else {

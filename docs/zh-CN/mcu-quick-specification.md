@@ -119,8 +119,8 @@ python -m pip install pyserial
 
 ## 7. 资源结论：为什么不把 DFF 强行拉到 5k
 
-已发布 ABI 0.9 的可 P&R 基线为 LUT4 7,188 / 8,640（83.19%）、DFF 2,620 / 6,480
-（40.43%）、BSRAM 24 / 26（92.31%）。DFF 是触发器数量，不是独立可兑换的“存储额度”：
+已发布 ABI 0.9 的最终可 P&R 基线为 LUT4 7,211 / 8,640（83.46%）、DFF 2,631 / 6,480
+（40.60%）、BSRAM 24 / 26（92.31%）。DFF 是触发器数量，不是独立可兑换的“存储额度”：
 一个可读、可触发、可停止的寄存器记录器还需要 LUT、选择/地址逻辑、控制扇出和可达布线。
 
 在同一完整产品（4 KiB ROM、44 KiB SRAM、全部 ABI 0.9 外设）的 GPIO 12-bit DFF 流式记录器探索中，
@@ -143,10 +143,10 @@ LUT/BSRAM/局部路由共同受限的产品；没有功能收益的 dummy DFF �
 | 层级 | 当前结论 |
 | --- | --- |
 | 规格、SDK、Boot ROM | 已自动化检查。 |
-| RTL / 编译固件仿真 | 36/36 smoke 目标通过；Python 镜像/协议/自检转录测试 12/12 通过。 |
-| FPGA 产品 P&R / packing | 同一 ABI 0.9 源码已通过精确 GW1NR 目标器件；27 MHz 约束下报告 51.319 MHz、17.551 ns 裕量。 |
+| RTL / 编译固件仿真 | 36/36 smoke 目标通过；Python 镜像/协议/自检转录测试 17/17 通过。 |
+| FPGA 产品 P&R / packing | 同一 ABI 0.9 源码已通过精确 GW1NR 目标器件；27 MHz 约束下报告 43.050 MHz、13.808 ns 裕量。 |
 | GitHub Actions | 每次 push/PR 会执行规格、全部 RTL、全 SDK、已编译固件仿真、工具协议测试、跨主机 SDK 构建，以及 Windows 上的 YoWASP 产品 P&R/packing 并上传 manifest/报告/位流。 |
-| 实体板 HIL / 量产 | 一块 Tang Nano 9K 的固化、UART/User Flash/A/B、仓库外模板应用和无夹具核心自检 24/24 已通过；固定跳线、目标模块、多板、断电注入、寿命、EMC/ESD 与安全认证仍未完成。 |
+| 实体板 HIL / 量产 | 一块 Tang Nano 9K 的配置固化、板载 UART0、User Flash A/B、仓库外模板应用、无夹具核心自检 24/24 和最终位流六线回环 8/8 已通过；目标模块、多板、分阶段断电、寿命、EMC/ESD 与安全认证仍未完成。 |
 
 完整证据、命令和 HIL 清单见[验证与发布状态](validation-and-release.md)及
 [测试计划](../../tests/README.md)。

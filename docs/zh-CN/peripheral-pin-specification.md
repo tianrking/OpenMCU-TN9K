@@ -3,7 +3,7 @@
 > **文档编号：** OMCU-TN9K-PS-0.9<br>
 > **适用工程：** `omcu_tn9k_mcu_top`，OpenMCU 硬件 ABI `0.9`<br>
 > **目标器件：** Tang Nano 9K，`GW1NR-LV9QN88PC6/I5`（`GW1N-9C`）<br>
-> **文档状态：** RTL、SDK、寄存器生成规范、Tang 顶层约束与 ABI 0.9 的目标器件 P&R/packing 已对齐；实体板 HIL、绝对最大额定值、长期可靠性和量产资格尚未完成。
+> **文档状态：** RTL、SDK、寄存器生成规范、Tang 顶层约束与 ABI 0.9 的目标器件 P&R/packing 已对齐；当前单板已完成配置固化、板载 UART0、User Flash 正常 A/B 更新、核心自检和六线数字回环；目标模块、仪器、多板、绝对最大额定值、长期可靠性和量产资格尚未完成。
 
 这是面向硬件、嵌入式软件和测试人员的**单一主规格书**。它集中描述当前 MCU 产品位流的 CPU、存储、
 全部可用外设、完整已约束顶层引脚、J5 扩展映射、PINMUX 所有权、电气边界和升级路径。应用开发者只需
@@ -46,7 +46,7 @@ flowchart TB
 | SDK / 规格同步 | 已验证 | ABI `0.9` JSON、生成头文件、Boot ROM 和 SDK 示例已做自动化检查。 |
 | 数字仿真 | 已验证 | 外设、PINMUX、已编译固件到 Tang 顶层 pad 的数字路径已有回归覆盖。 |
 | 目标器件 P&R | 已验证（非 HIL） | 精确 `GW1NR-LV9QN88PC6/I5` 的同一 ABI 0.9 源码已完成综合、P&R、packing、ROM 嵌入指纹和 manifest。 |
-| 实体板 HIL | 待完成 | 未在本规格书中把 UART 电平、I2C ACK、W5500 链路、PWM 波形、User Flash 擦写或引脚电气宣称为实测通过。 |
+| 实体板 HIL | 单板正常路径与数字回环通过 | 配置固化、板载 UART0、User Flash 空白/A/B 更新、应用运行、24/24 核心自检和六线 8/8 数字回环已有记录；I2C 目标 ACK、W5500 链路、仪器波形、速率/负载、多板和长期电气可靠性未宣称通过。 |
 | 量产 / 安全认证 | 未实现 | CRC32 与 A/B 回退不是签名安全启动；也没有温度、寿命、EMC、ESD 或认证结论。 |
 
 因此，“引脚已约束”表示 CST、RTL 和 P&R 使用了该 package pad；**不表示**其已经完成当前板卡、线缆、
@@ -195,8 +195,8 @@ MODE/DONE/配置相关引脚、板载配置 SPI Flash、PSRAM、RGB LCD 专用�
 | --- | --- | ---: | --- | --- |
 | `clk_27m_i` | 输入 | 52 | `LVCMOS33`、pull-up | 板载 27 MHz 时钟；不是用户 GPIO。 |
 | `resetn_i` | 输入 | 4 | pull-up | 低有效外部复位；不是用户 GPIO。 |
-| `uart_tx_o` | 输出 | 17 | `LVCMOS33`、pull-up、drive 8 | UART0 TX，默认 115200 8-N-1；Bootloader/恢复通道，建议始终保留。 |
-| `uart_rx_i` | 输入 | 18 | `LVCMOS33`、pull-up | UART0 RX；接 3.3 V TTL，必须 TX/RX 交叉并共地。 |
+| `uart_tx_o` | 输出 | 17 | `LVCMOS33`、pull-up、drive 8 | UART0 TX，默认 115200 8-N-1；PCB 已接板载 BL702 USB-UART，Bootloader/恢复通道始终保留。 |
+| `uart_rx_i` | 输入 | 18 | `LVCMOS33`、pull-up | UART0 RX；PCB 已接板载 BL702。派生板直接引出时才外接 3.3 V TTL、TX/RX 交叉并共地。 |
 | `led_n_o[0]` | 输出 | 10 | pull-up、drive 8 | 板载 LED0，**低电平点亮**；GPIO bit0 逻辑高代表“点亮”。 |
 | `led_n_o[1]` | 输出 | 11 | pull-up、drive 8 | 板载 LED1，低有效。 |
 | `led_n_o[2]` | 输出 | 13 | pull-up、drive 8 | 板载 LED2，低有效。 |
@@ -709,10 +709,10 @@ SDK API、示例工程和寄存器封装详见[外设与 SDK](peripherals-and-sd
 ### 8.1 当前资源事实
 
 ABI `0.9` 的最终产品 P&R 证据已写入
-`build/tangnano9k-mcu-release-drain/omcu_tn9k_mcu_manifest.json`：LUT4 `7188 / 8640`
-（83.19%）、DFF `2620 / 6480`（40.43%）、BSRAM `24 / 26`（92.31%）、ALU `1310 / 6480`、
-MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束下实现 51.319 MHz，
-裕量 17.551 ns。该记录证明同一源码、约束、ROM 和目标器件可完成开源 P&R/packing；实板 HIL
+`build/tangnano9k-mcu-release-v11-final/omcu_tn9k_mcu_manifest.json`：LUT4 `7211 / 8640`
+（83.46%）、DFF `2631 / 6480`（40.60%）、BSRAM `24 / 26`（92.31%）、ALU `1316 / 6480`、
+MULT36X36 `1 / 5`、IOB `15 / 276`；`platform.clk_27m_i` 在 27.000 MHz 约束下实现 43.050 MHz，
+裕量 13.808 ns。该记录证明同一源码、约束、ROM 和目标器件可完成开源 P&R/packing；实板 HIL
 由单独的下载、更新和自检记录证明，不能从资源表本身推导。
 
 虽显示两个 BSRAM 余量，但极小的单块 BSRAM 记录器把产品推至 25/26 后也无法得到合法布局/布线；因此
@@ -726,8 +726,8 @@ P&R。故 ABI 0.9 不发布该记录器，也不加入没有可见产品价值�
 
 ### 8.2 仍需完成的实体板 HIL
 
-1. SRAM 下载、27 MHz、6 LED、UART0、外部复位；再固化配置 Flash 并至少重复 10 次冷启动。
-2. User Flash 空白/有效/损坏 A/B 镜像、完整升级、擦除/写入/校验/提交四阶段断电和重复擦写。
+1. 已完成 SRAM 下载、配置固化、板载 UART0 和正常启动；仍须以同一最终 `.fs` 至少重复 10 次完全断电冷启动并扩展到多板。
+2. 已完成 User Flash 空白/有效 A/B 完整升级；仍须补损坏槽、擦除/写入/校验/提交四阶段断电和重复擦写。
 3. GPIO 高/低/高阻、3.3 V 电平、RGB LCD 共线互斥；UART0/1 115200 8-N-1 的 TX/RX/overrun。
 4. PWM0/PWM1 频率、占空比、四路共同相位和 disable 后低电平；只接安全逻辑级负载或审核过的驱动级。
 5. GPIO 12 路输入的同步、共享与独立滤波（掩码和 2/4/8 样本）阈值、边沿 IRQ、普通快照与 FAULT 强制快照；再验证按键、慢速传感器、线缆与噪声条件。

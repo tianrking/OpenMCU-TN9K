@@ -153,7 +153,10 @@ def capture_selftest(
                     evaluator.accept(line)
                     if evaluator.ready_for_ping and not ping_sent:
                         connection.write(b"PING\r\n")
-                        connection.flush()
+                        # Do not call pyserial.flush()/POSIX tcdrain here.
+                        # AppleUSBFTDI can block in tcdrain indefinitely after
+                        # a Tang board power cycle; write_timeout plus the
+                        # request/response ordering is sufficient.
                         ping_sent = True
                     if evaluator.result_line is not None:
                         if log_path is not None:

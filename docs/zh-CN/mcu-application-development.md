@@ -23,8 +23,8 @@ flowchart LR
 | FPGA 平台 | 已烧录 `omcu_tn9k_mcu.fs` 产品位流；不是仅用于 RTL 验证的开发位流。 |
 | MCU 应用语言 | 当前经过构建链验证的是裸机 **C**；不要把 C++ 运行库、异常或动态分配当作已支持能力。 |
 | CPU ABI | `rv32im` / `ilp32`，硬件 ABI `0x00000009`；不支持压缩指令 `C`。 |
-| 下载线 | UART0，`115200 / 8-N-1`、3.3 V TTL、TX/RX 交叉、共地；不能接 RS-232 电平。 |
-| UART0 位置 | 顶层网络为 `uart_tx_o` / `uart_rx_i`，Tang 封装 pad 为 17 / 18；实际连接器位置以本板原理图为准。 |
+| 下载线 | Tang Nano 9K 板载 BL702 USB-UART，`115200 / 8-N-1`；通常只需连接板上 USB-C，不需要再接排针跳线。 |
+| UART0 位置 | 顶层网络为 `uart_tx_o` / `uart_rx_i`，FPGA package pad 为 17 / 18，PCB 已连接到 BL702；macOS 通常枚举为 `/dev/cu.usbserial-*`，Windows 为 `COM*`。派生板若直接引出这两个 pad，才按 3.3 V TTL、TX/RX 交叉、共地连接，不能接 RS-232 电平。 |
 | 存储上限 | 单个 `.omcu` 载荷最多 36,800 B；代码、数据、栈和中断帧共享 40 KiB 应用 SRAM。 |
 
 UART0 同时是更新和默认日志通道。烧录工具与串口终端不能同时打开同一端口。
@@ -226,7 +226,7 @@ python -m pip install pyserial
 `build/my_omcu_app.omcu`。
 
 将 `COM5`、`/dev/ttyUSB0` 或 `/dev/cu.usbserial-XXXX` 换为系统实际串口。下载器默认在 8 秒内反复发送 `HELLO`；运行命令后，
-如果板子正在运行应用，按一次外部复位键。它会擦除非当前槽、传输、回读 CRC、原子提交并默认启动新应用。
+如果板子正在运行应用，按一次外部复位键。它会擦除非当前槽中新镜像实际占用的页、传输、回读 CRC、原子提交并默认启动新应用。
 
 如果只想写入但暂不启动，增加 `--no-boot`；之后外部复位会按正常规则启动最新已提交镜像。
 
@@ -278,7 +278,7 @@ if (omcu_tn9k_request_bootloader()) {
 - 单个应用最多 36,800 B，且运行时的代码、全局数据、栈和中断帧共同占用 40 KiB SRAM。
 - CRC32 用于防传输损坏与断电一致性，不是签名安全启动。
 - 用户应用只能通过 Bootloader 管理 A/B 槽；不要直接改写 active/fallback 槽。
-- 当前仓库的 SDK、镜像协议和 P&R 已有自动化验证；UART0、User Flash 擦写、掉电恢复和电气行为仍须在目标板完成 HIL。
+- 当前仓库的 SDK、镜像协议和 P&R 已有自动化验证；本次单板的板载 UART0、User Flash 正常 A/B 更新、应用启动和六线数字回环已完成 HIL。分阶段断电、电气波形、外置目标、多板和长期可靠性仍须继续验收。
 
 下一步按需阅读：[外设与 SDK](peripherals-and-sdk.md)、[硬件与引脚](hardware-and-pins.md)、
 [中断开发约定](interrupts.md)和[完整外设与引脚规格书](peripheral-pin-specification.md)。

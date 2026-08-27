@@ -238,7 +238,8 @@ if (omcu_tn9k_timer1_configure(0u, UINT16_MAX, 4u, ctrl)) {
 是滤波后的观察值，`STATUS.ENCODER_DIRECTION` 表示最近一次有效步的方向。正向定义为
 `00 -> 01 -> 11 -> 10 -> 00`；`CTRL.QUADRATURE_REVERSE` 只翻转位置方向。它没有 DMA、FIFO、
 边沿排队、速度计算或异步高速计数能力；外部信号必须满足同步/滤波时序，且 GPIO8/9 与 RGB LCD
-共线。RTL 和编译固件仿真已覆盖，但真实编码器、电压、线缆与噪声 HIL 仍待完成。
+共线。六线夹具生成的实体 Gray 序列、capture 和 encoder 数字闭环已通过；真实机械编码器、电压、
+最大速率、长线与噪声 HIL 仍待完成。
 
 ### GPIO 可靠性、事件快照、ALARM0、PULSE0 与 FAULT0
 

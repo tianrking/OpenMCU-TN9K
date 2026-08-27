@@ -18,7 +18,11 @@ param(
     # chosen value explicit, reproducible and recorded in the manifest.
     [ValidateRange(0.50, 1.00)]
     [double]$PlacerHeapBeta = 0.99,
-    [int]$Seed = 1
+    # Seed 4 is the reviewed legal placement for the ABI 0.9 product image at
+    # its current 83% LUT / 92% BSRAM utilization. Keep CI and local release
+    # builds on the same deterministic placement unless a new seed is fully
+    # timed and qualified on hardware.
+    [int]$Seed = 4
 )
 
 Set-StrictMode -Version Latest
@@ -92,6 +96,21 @@ $sramBytes = $SramKiB * 1024
 $romInitFile = (Resolve-Path -LiteralPath $RomInitFile).Path
 if (-not $romInitFile.StartsWith($projectRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "RomInitFile must be inside the repository because the YoWASP WebAssembly tools require project-relative paths: $romInitFile"
+}
+if ($McuMode) {
+    $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue
+    if ($null -eq $pythonCommand) {
+        $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $pythonCommand) {
+        throw 'McuMode requires Python to verify the selected Boot ROM fixture before synthesis.'
+    }
+    $fixtureTool = Join-Path $projectRoot 'tools\omcu_bootloader_fixture.py'
+    $bootRomFixture = Join-Path $projectRoot 'rtl\platform\tangnano9k\firmware\bootloader.hex'
+    & $pythonCommand.Source $fixtureTool --generated $romInitFile --fixture $bootRomFixture
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Selected McuMode ROM does not match the checked-in Bootloader fixture. Rebuild the SDK and review/update the fixture before P&R.'
+    }
 }
 
 $artifactStem = if ($McuMode) { 'omcu_tn9k_mcu' } else { 'omcu_tn9k_bringup' }
