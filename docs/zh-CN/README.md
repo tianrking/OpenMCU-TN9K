@@ -28,10 +28,10 @@ flowchart LR
 
 1. [Windows、Ubuntu 与 macOS 的 FPGA / MCU 开发环境](cross-platform-fpga-development.md)：**三平台环境首读**；安装锁定工具链、产品位流构建、SRAM/配置 Flash 下载和 UART0 应用烧录。
 2. [从零开发与烧录 OpenMCU 应用](mcu-application-development.md)：**客户开发首读**；Windows、Ubuntu/macOS 环境、Hello World、编译、UART0 烧录、日志和恢复。
-3. [MCU 快速规格书](mcu-quick-specification.md)：CPU、存储、时钟、全部外设、中断、I/O、SDK 和资源边界的一页式摘要。
-4. [Tang Nano 9K 外露引脚与 OpenMCU 定义](tangnano9k-external-pin-contract.md)：**接线首读**；2×24 全部孔位、公开/保留/1.8 V/HDMI/电源分级，以及 SDK 物理别名。
-5. [外设与引脚完整规格书](peripheral-pin-specification.md)：**单一主规格书**；CPU、存储、全部外设、寄存器、29 个约束 pad、J5 映射、PINMUX、电气边界和 HIL 状态。
-6. [工程数据手册总览](datasheet.md)：产品定位、固件模型、资源和版本记录。
+3. [OpenMCU-TN9K MCU 中文规格书](datasheet.md)：**当前产品主入口**；CPU、存储、外设、中断、逐针定义、UART 接线、SDK 编译烧录、资源与验证状态。
+4. [MCU 快速规格书](mcu-quick-specification.md)：CPU、存储、时钟、全部外设、中断、I/O、SDK 和资源边界的一页式摘要。
+5. [Tang Nano 9K 外露引脚与 OpenMCU 定义](tangnano9k-external-pin-contract.md)：**接线速查**；2×24 全部孔位、公开/保留/1.8 V/HDMI/电源分级，以及 SDK 物理别名。
+6. [外设与引脚完整工程规格书](peripheral-pin-specification.md)：寄存器级工程合同；全部外设、29 个约束 pad、PINMUX、电气边界和 HIL 状态。
 7. [独立 MCU 固件开发与升级](mcu-firmware-update.md)：产品流程、A/B 槽、UART 协议、恢复和安全边界。
 8. [硬件与引脚实验指南](hardware-and-pins.md)：Tang Nano 9K 的电压、接线、示波器/逻辑分析仪实验和 HIL 清单。
 9. [MCU 外设实体板验收](mcu-peripheral-qualification.md)：Sipeed 官方 Pinmap、实物六线接线图、24 项无夹具自检、固定回环夹具、目标模块与仪器门禁。

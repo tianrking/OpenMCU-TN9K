@@ -5,7 +5,7 @@
 [`spec/omcu-v0.json`](../spec/omcu-v0.json)，C 头文件 [`sdk/include/omcu_regs.h`](../sdk/include/omcu_regs.h)
 由它生成。面向 Tang 产品的完整引脚、电气、复用和外设合同见
 [中文外设与引脚完整规格书](zh-CN/peripheral-pin-specification.md)；升级流程见
-[中文工程数据手册](zh-CN/datasheet.md)。
+[OpenMCU-TN9K MCU 中文规格书](zh-CN/datasheet.md)。
 
 `RW1C` 表示“写 1 清除”；未列出的位读为 0、写入时忽略，除非该外设另有说明。除 SRAM 的普通访问和 User Flash 明确列出的擦除命令外，**所有 MMIO 配置、命令和 RW1C 写均须使用完整自然对齐的 32-bit 写（`wstrb=1111`）**；字节或半字 MMIO 写被忽略。C SDK 的寄存器类型为 `volatile uint32_t`，不要把外设寄存器转换为 `uint8_t *` 或 `uint16_t *`。
 

@@ -38,7 +38,7 @@ UART1、PWM1、TIMER1、诊断和产品 Bootloader 集成后，第一次直接�
 | 禁用 PicoRV32 内部 `cycle/instret` 计数器 | 统一使用 64-bit SYSCTRL 运行 tick | 这些 CSR 不是公开 ABI。 |
 
 这不是隐藏的“性能优化”声明：P&R 只证明资源和时序；具体应用性能仍需在目标固件和实体板上
-测量。完整 CPU/外设合同见[工程数据手册](datasheet.md)。
+测量。完整 CPU/外设合同见[MCU 中文规格书](datasheet.md)。
 
 ### 1.2 DFF 拉到 5k 的可实现性实测
 

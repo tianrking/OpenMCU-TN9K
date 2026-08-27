@@ -5,7 +5,8 @@
 > **目标器件：** Tang Nano 9K，GW1NR-LV9QN88PC6/I5（GW1N-9C）<br>
 > **适用顶层：** omcu_tn9k_mcu_top
 
-这是给应用、硬件选型和测试快速查阅的摘要。寄存器字段、完整引脚和电气边界以
+这是给应用、硬件选型和测试快速查阅的摘要。完整中文产品定义先看
+[《OpenMCU-TN9K MCU 中文规格书》](datasheet.md)；寄存器字段、完整引脚和电气边界以
 [《外设与引脚完整规格书》](peripheral-pin-specification.md) 和
 [机器可读 ABI 规范](../../spec/omcu-v0.json) 为准。2×24 实物孔位与电气分级见
 [《Tang Nano 9K 外露引脚与 OpenMCU 定义》](tangnano9k-external-pin-contract.md)及

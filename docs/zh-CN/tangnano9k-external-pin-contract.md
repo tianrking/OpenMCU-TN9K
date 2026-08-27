@@ -4,6 +4,9 @@
 > 3.3 V I/O；其中 `L8..L19` 是完整 GPIO0..11。UART0 不在排针上，它通过板载 BL702 和 USB-C
 > 对外提供烧录、恢复与日志。右排的 1.8 V、HDMI 共线和当前未实现位置不能冒充可用 MCU GPIO。
 
+完整 CPU、存储、外设、中断及开发烧录参数见
+[《OpenMCU-TN9K MCU 中文规格书》](datasheet.md)。本页专注于实物孔位速查。
+
 本页是“实物孔位”和 OpenMCU 软件名称之间的快速合同。机器可读真相源为
 [`spec/tangnano9k-pins.json`](../../spec/tangnano9k-pins.json)，CI 使用
 [`scripts/check-tangnano9k-pinmap.py`](../../scripts/check-tangnano9k-pinmap.py)逐项核对 48 个孔位、

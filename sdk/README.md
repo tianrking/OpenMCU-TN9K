@@ -149,6 +149,7 @@ if (omcu_tn9k_request_bootloader()) {
 
 ## 继续阅读
 
+- [OpenMCU-TN9K MCU 中文规格书](../docs/zh-CN/datasheet.md)
 - [从零开发与烧录 OpenMCU 应用](../docs/zh-CN/mcu-application-development.md)
 - [Windows、Ubuntu 与 macOS 的 FPGA / MCU 开发环境](../docs/zh-CN/cross-platform-fpga-development.md)
 - [外设与 SDK](../docs/zh-CN/peripherals-and-sdk.md)

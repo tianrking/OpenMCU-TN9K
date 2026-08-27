@@ -1,13 +1,17 @@
-# OpenMCU-TN9K 工程数据手册
+# OpenMCU-TN9K MCU 中文规格书
 
-> **外设、寄存器和引脚的单一完整规格请优先阅读：**
-> [《OpenMCU-TN9K 外设与引脚完整规格书》](peripheral-pin-specification.md)。
-> 本页保留产品总览、交付模型、资源结论和版本记录；不再要求读者在多份指南中拼凑完整引脚合同。
+> **文档编号：** OMCU-TN9K-DS-0.9<br>
+> **文档版本：** 2026-08-27<br>
+> **目标器件：** Sipeed Tang Nano 9K / `GW1NR-LV9QN88PC6/I5`（GW1N-9C）<br>
+> **产品顶层：** `omcu_tn9k_mcu_top`<br>
+> **硬件 ABI：** `0x0000_0009`（0.9）<br>
+> **定位：** 一次固化 FPGA 平台，之后以独立 MCU 固件持续升级应用<br>
+> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化、User Flash A/B 连续更新、无夹具核心自检、UART0 双向回显和六线固定回环已完成；外置目标、仪器、多板及长期可靠性 HIL 尚待执行。
 
-> **目标器件：** Tang Nano 9K / `GW1NR-LV9QN88PC6/I5`（GW1N-9C）
-> **硬件 ABI：** `0x0000_0009`（0.9）
-> **定位：** 一次固化 FPGA 平台，之后以独立 MCU 固件持续升级应用
-> **证据状态：** RTL、SDK、数字回归、目标器件 P&R/packing、单板固化/User Flash A/B 连续更新、无夹具核心自检和六线固定回环已完成；旧版 `BEGIN` 超时已定位、修复并在最终位流复测关闭；外置目标、仪器、多板及长期可靠性 HIL 尚待执行。
+本文档是当前 OpenMCU-TN9K 的**中文产品主规格书**，面向应用开发、硬件接线和测试验收，集中给出
+CPU、时钟、存储、外设、中断、开发流程，以及 Tang Nano 9K 实物排针的逐针定义。寄存器每一位的
+工程级合同见[《外设与引脚完整规格书》](peripheral-pin-specification.md)，2×24 孔位的机器可读真相源为
+[`spec/tangnano9k-pins.json`](../../spec/tangnano9k-pins.json)。
 
 OpenMCU-TN9K 不是把客户 C 程序重新塞入 FPGA 的演示工程。产品位流只固化稳定的 CPU、外设、
 启动器和寄存器 ABI；客户程序构建为独立 `.omcu` 镜像，通过 UART0 写入 FPGA 的 User Flash A/B
@@ -21,6 +25,40 @@ OpenMCU-TN9K 不是把客户 C 程序重新塞入 FPGA 的演示工程。产品�
 | 客户固件 | `rv32im` / `ilp32` 裸机应用，产物为 `.omcu` | Linux、RTOS、特权模式、压缩指令或安全启动 |
 | 应用更新 | UART0 → Bootloader → User Flash A/B → SRAM 运行 | 已完成掉电、寿命、温度或攻击面 HIL |
 | 平台证据 | RTL 仿真、SDK 构建、镜像工具、目标器件 P&R 与单板 HIL 记录 | 已完成多板、长期或量产认证 |
+
+### 1.1 主要规格
+
+| 项目 | 当前 MCU 规格 |
+| --- | --- |
+| CPU | PicoRV32 适配器，RISC-V `RV32IM`、小端、`ilp32` |
+| 系统时钟 | 板载 27 MHz；当前产品不依赖 PLL |
+| 芯片标识 | `SYSCTRL.CHIP_ID = 0x4F4D4355`（ASCII `OMCU`） |
+| 硬件 ABI | `0.9`；应用镜像字段为 `0x00000009` |
+| Boot ROM | 4 KiB，固定 UART0 Bootloader |
+| SRAM | 44 KiB：40 KiB 客户应用区 + 4 KiB Bootloader 工作区 |
+| User Flash | 76 KiB，两个 36 KiB A/B 应用槽；单镜像载荷最大 36,800 B |
+| 通用 GPIO | 12 路，全部位于实物左排 `L8..L19`；复位为高阻输入 |
+| 公开排针信号 | 19 根，连续位于实物左排 `L1..L19`，全部属于 3.3 V Bank |
+| 串口 | UART0 板载 USB-UART；UART1 位于 `L18/L19` |
+| 总线 | SPI0 mode 0；I2C0 单主机真开漏 |
+| 定时/波形 | TIMER0、TIMER1、ALARM0、PULSE0、PWM0、四路 PWM1 |
+| 可靠性单元 | WDT0、GPIO 同步/滤波/快照、FAULT0 逻辑级门控 |
+| 应用产物 | `.elf` / `.bin` / `.omcu`；现场升级只使用 `.omcu` |
+| 更新接口 | UART0，默认 `115200 8-N-1`，写入非当前 A/B 槽后校验提交 |
+| 不支持 | ADC/DAC、USB 设备协议、DMA、缓存、片上以太网、RTC、安全启动、调试器 ABI、量产安全认证 |
+
+### 1.2 本文术语
+
+| 缩写/名称 | 中文含义 |
+| --- | --- |
+| ABI | 硬件与软件共同遵守的接口版本；包括寄存器、镜像和中断合同 |
+| MMIO | 内存映射外设寄存器 |
+| Boot ROM / Bootloader | 固化在 FPGA 配置中的启动只读存储器 / UART 应用更新器 |
+| User Flash | GW1NR 内部、独立于 FPGA 配置 Flash 的客户应用非易失存储区 |
+| PINMUX | 引脚复用与所有权控制；决定 GPIO 或替代外设谁驱动 pad |
+| CST | Gowin 物理引脚与电气约束文件 |
+| P&R | FPGA 布局布线；证明网表可放入目标器件，不等同于实体电气验证 |
+| HIL | 硬件在环测试；在真实开发板、线缆和外设上形成闭环证据 |
 
 ```mermaid
 flowchart TB
@@ -87,6 +125,18 @@ flowchart TB
 标准 RV32M 的除法边界已保留：除数为零时 `DIV/DIVU` 返回全 1，`REM/REMU` 返回被除数；
 有符号 `INT32_MIN / -1` 的商为 `INT32_MIN`、余数为 0。它是无缓存、无 DMA 的小型迭代单元，
 不应作为高吞吐 DSP 除法器使用。
+
+### 3.2 时钟与复位
+
+| 项目 | 行为 |
+| --- | --- |
+| 主时钟 | 板载 27 MHz 振荡器，经 FPGA pin 52 直接进入系统；当前产品不切换 PLL |
+| 外部复位 | `resetn_i` 低有效；异步断言，外部信号恢复高后等待 3 个干净时钟再释放 SoC |
+| 看门狗复位 | WDT0 到期且启用复位请求时重新启动 SoC，并保留 `WATCHDOG` 原因和计数 |
+| 软件返 Bootloader | 应用写入审核过的 SYSCTRL 请求后重启 SoC，保留 `SOFTWARE` 原因并让 Bootloader 持续监听 |
+| 运行计时 | `RUN_TICKS_LO/HI` 自复位释放后按 27 MHz 递增；不是 RTC，也不跨掉电保存 |
+
+外部复位始终作为独立恢复路径保留；客户应用不能关闭它。
 
 ## 4. 存储与客户固件模型
 
@@ -161,24 +211,114 @@ W5500 是**外置 SPI 以太网控制器**，内部含网络协议硬件；它�
 也不会使本 MCU 获得原生以太网 DMA/FIFO。真实 I2C ACK、SPI 波形、W5500 链路、TF 互斥和
 GPIO IRQ 接线全部仍需目标板 HIL。
 
-### 5.2 GPIO 与可复用引脚
+### 5.2 实物方向与板载专用信号
 
-`GPIO0[0..5]` 同时镜像到板载低有效 LED；它们仍是公开逻辑 GPIO bit 0..5，并不是与外部引脚分离的私有位。
-GPIO0..11 分别对应寄存器 bit 0..11，其中 GPIO0..2 位于实物左排 L8..L10（原理图 J5.8..10），GPIO3..11 位于 L11..L19（J5.11..19），
-且后者与 RGB LCD 共线。
-J6/HDMI 的低电压/高速路径、JTAG、配置相关 pin 和“未使用 IOB”不构成公开 GPIO 合同。
+观察方向固定为：**元件面朝上、板载下载器 USB-C 在顶部**。左排从上向下命名为 `L1..L24`，
+对应原理图 `J5.1..J5.24`；右排从上向下命名为 `R1..R24`，对应 `J6.1..J6.24`。
 
-| 功能 | 外部逻辑 GPIO | J5 | package pad | PINMUX 后的用途 |
+![Sipeed Tang Nano 9K 官方 Pinmap](assets/sipeed-tang-nano-9k-official-pinmap.png)
+
+下列信号由 MCU 平台使用，但不是客户排针 GPIO：
+
+| 板载信号 | FPGA package pin | OpenMCU 用途 | 对外使用方式 |
+| --- | ---: | --- | --- |
+| 27 MHz 时钟 | 52 | `clk_27m_i`，全系统时钟 | 板载晶振提供，不从排针接入。 |
+| 低有效复位 | 4 | `resetn_i`，异步断言、3 个时钟同步释放 | 使用板上复位路径；不是普通 GPIO。 |
+| UART0 TX / RX | TX=17，RX=18 | Bootloader、应用烧录、恢复、默认日志 | PCB 已连接 BL702 USB-UART，主机直接使用板载 USB-C。 |
+| LED0..5 | 10 / 11 / 13 / 14 / 15 / 16 | 低电平点亮；镜像 GPIO0..5 的 `OUT/OE` | 板载指示，不占用额外软件 GPIO bit。 |
+
+### 5.3 当前可开发的 19 根外露 MCU 信号
+
+`L1..L19` 是当前位流公开的全部排针信号，均为 3.3 V。复位时 SPI0 处于安全空闲状态、PWM0 为低、
+I2C0 释放总线、GPIO0..11 全部关闭输出驱动。表中的 FPGA 数字仅用于约束核对；应用代码只能使用
+SDK 名称，不能把 package pin 数字当成 GPIO bit。
+
+| 实物孔位 | 原理图 | FPGA pin | MCU 信号 | 复位后状态 | 复用与板级限制 |
+| --- | --- | ---: | --- | --- | --- |
+| L1 | J5.1 | 38 | SPI0 `CS_N` | 高电平、未选中 | 与 microSD `TF_CS` 共线；不得同时使用 TF 卡。 |
+| L2 | J5.2 | 37 | SPI0 `MOSI` | 低电平 | 与 microSD `TF_MOSI` 共线。 |
+| L3 | J5.3 | 36 | SPI0 `SCK` | 低电平 | 与 microSD `TF_SCLK` 共线。 |
+| L4 | J5.4 | 39 | SPI0 `MISO` | 输入、弱上拉 | 与 microSD `TF_MISO` 共线。 |
+| L5 | J5.5 | 25 | PWM0 | 低电平 | 只能接 3.3 V 逻辑输入或经过审核的外部驱动级。 |
+| L6 | J5.6 | 26 | I2C0 `SCL` | 高阻释放、弱上拉 | 真开漏；实际总线必须提供合适的外部 3.3 V 上拉。 |
+| L7 | J5.7 | 27 | I2C0 `SDA` | 高阻释放、弱上拉 | 真开漏；实际总线必须提供合适的外部 3.3 V 上拉。 |
+| L8 | J5.8 | 28 | GPIO0 | 高阻输入、弱上拉 | 可由 PINMUX 变为 PULSE0 候选输入0；同时镜像 LED0。 |
+| L9 | J5.9 | 29 | GPIO1 | 高阻输入、弱上拉 | 可由 PINMUX 变为 PULSE0 候选输入1；同时镜像 LED1。 |
+| L10 | J5.10 | 30 | GPIO2 | 高阻输入、弱上拉 | 可由 PINMUX 变为 PULSE0 候选输入2；同时镜像 LED2。 |
+| L11 | J5.11 | 33 | GPIO3 | 高阻输入、弱上拉 | 可变为 FAULT0 输入；与 RGB LCD `DE` 共线；镜像 LED3。 |
+| L12 | J5.12 | 34 | GPIO4 | 高阻输入、弱上拉 | 可变为 PWM1 CH0；与 RGB LCD `VS` 共线；镜像 LED4。 |
+| L13 | J5.13 | 40 | GPIO5 | 高阻输入、弱上拉 | 可变为 PWM1 CH1；与 RGB LCD `HS` 共线；镜像 LED5。 |
+| L14 | J5.14 | 35 | GPIO6 | 高阻输入、弱上拉 | 可变为 PWM1 CH2；与 RGB LCD `CK` 共线。 |
+| L15 | J5.15 | 41 | GPIO7 | 高阻输入、弱上拉 | 可变为 PWM1 CH3；与 RGB LCD `B7` 共线。 |
+| L16 | J5.16 | 42 | GPIO8 | 高阻输入、弱上拉 | 可变为 TIMER1 A 输入；与 RGB LCD `B6` 共线。 |
+| L17 | J5.17 | 51 | GPIO9 | 高阻输入、弱上拉 | 可变为 TIMER1 B 输入；与 RGB LCD `B5` 共线。 |
+| L18 | J5.18 | 53 | GPIO10 | 高阻输入、弱上拉 | 可变为 UART1 TX；与 RGB LCD `B4` 共线。 |
+| L19 | J5.19 | 54 | GPIO11 | 高阻输入、弱上拉 | 可变为 UART1 RX；与 RGB LCD `B3` 共线。 |
+
+SDK 中 `OMCU_TN9K_GPIO0..11` 分别对应寄存器 bit0..11；为了接线审阅，也可以使用完全等价的
+`OMCU_TN9K_L8_GPIO..OMCU_TN9K_L19_GPIO`。GPIO 总掩码为 `OMCU_TN9K_GPIO_MASK = 0x00000FFF`。
+
+### 5.4 GPIO 与 PINMUX 所有权
+
+复位后 `PINMUX.CTRL=0`，L8..L19 全部归普通 GPIO。替代功能只有在软件显式申请后才接管对应 pad：
+
+| PINMUX 功能 | 占用 GPIO | 实物孔位 | 接管后的方向/行为 | SDK 入口 |
 | --- | --- | --- | --- | --- |
-| 普通或 PULSE0 | GPIO0..2 | 8..10 | 28 / 29 / 30 | PULSE0 单选一路输入。 |
-| 普通或 FAULT0/PWM1 | GPIO3..7 | 11..15 | 33 / 34 / 40 / 35 / 41 | FAULT0 用 GPIO3；PWM1 CH0..3 使用 GPIO4..7。 |
-| 普通或 TIMER1 | GPIO8..9 | 16..17 | 42 / 51 | TIMER1 A/B 输入。 |
-| 普通或 UART1 | GPIO10..11 | 18..19 | 53 / 54 | UART1 TX/RX。 |
+| PULSE0 | GPIO0..2 | L8..L10 | 三根均强制高阻输入，再由 PULSE0 单选一路测量 | `omcu_tn9k_pulse0_configure()` |
+| FAULT0 | GPIO3 | L11 | 强制高阻输入；可锁存故障并门控 PWM/GPIO | `omcu_tn9k_fault0_configure()` |
+| PWM1 | GPIO4..7 | L12..L15 | 四路输出 CH0..3 | `omcu_tn9k_pwm1_configure()` |
+| TIMER1 | GPIO8..9 | L16..L17 | 强制高阻输入，作为 A/B 捕获或正交编码器 | `omcu_tn9k_timer1_configure()` |
+| UART1 | GPIO10..11 | L18/L19 | L18 为 TX 输出，L19 为 RX 输入 | `omcu_tn9k_uart1_init()` |
 
-所有这些 I/O 都必须先确认当前板卡 revision、3.3 V Bank、电流、接地和 RGB LCD 使用状态。P&R
-解析的 CST 不等于实际电平、电气安全或外设可用性。
+不得同时让普通 GPIO、替代外设和 RGB LCD 驱动同一网络。归还 pad 时先停止外设，再调用对应的
+`*_release_pins()`，最后才重新配置 GPIO `OUT/OE`。
 
-### 5.3 PWM1 与 TIMER1 的位宽合同
+### 5.5 UART 接口与 USB-TTL 接线
+
+| 接口 | 位置 | 默认参数 | 用途 |
+| --- | --- | --- | --- |
+| UART0 | 板载 USB-C → BL702 → FPGA 17/18 | 115200、8 数据位、无校验、1 停止位 | Bootloader、`.omcu` 烧录、恢复、默认日志；无需外接跳线。 |
+| UART1 | TX=L18，RX=L19 | 由应用配置，常用 115200 8-N-1 | 外部业务串口；必须先启用 UART1 PINMUX。 |
+
+外置 3.3 V USB-TTL 测试 UART1 时：适配器 `RXD → L18`、`TXD → L19`、`GND → R23`；
+`VCC/5V/3V3` 不连接。接线前完全断开板上 USB-C，拆掉 L18→L19 回环线。禁止使用 5 V TTL 或
+RS-232 电平，也不要把外置 USB-TTL TX 并接到已经由 BL702 驱动的 UART0 RX。
+
+### 5.6 未公开孔位、电源与禁止使用范围
+
+| 孔位 | 电压/网络 | 当前状态 | 原因与要求 |
+| --- | --- | --- | --- |
+| L20..L22 | 3.3 V，RGB G7/G6/G5 | **保留** | 实物存在，但 ABI 0.9 没有对应 GPIO bit，软件不可控制。 |
+| L23..L24 | 3.3 V，HDMI CK N/P | **禁用** | HDMI 共线且带板级上拉，不作为可靠普通 GPIO。 |
+| R1 | 3.3 V，RGB 初始化/触摸 | **保留** | 当前位流没有 MMIO 映射。 |
+| R2..R9 | Bank 3 | **1.8 V 禁用** | 绝不能连接 3.3 V/5 V 逻辑。 |
+| R10..R11 | 3.3 V，SPI LCD MOSI/CLK | **保留** | 当前位流没有 MMIO 映射。 |
+| R12..R17 | 3.3 V，HDMI D2/D1/D0 | **禁用** | HDMI 共线且带板级上拉。 |
+| R18 | +5 V | 电源 | 不是 GPIO；不要接 USB-TTL VCC 或反向供电。 |
+| R19..R20 | 3.3 V，SPI LCD CS/RS | **保留** | 当前位流没有 MMIO 映射。 |
+| R21..R22 | 3.3 V，RGB 初始化/触摸 | **保留** | 当前位流没有 MMIO 映射。 |
+| R23 | GND | 地 | 外部模块/USB-TTL 共地点。 |
+| R24 | +3.3 V | 电源 | 不是 GPIO；外部负载电流必须经过板级审核。 |
+
+JTAG、MODE、DONE、配置 Flash、PSRAM 和“工具显示未占用的 IOB”也不属于客户 MCU 引脚。完整 48 孔
+机器映射见[《Tang Nano 9K 外露引脚与 OpenMCU 定义》](tangnano9k-external-pin-contract.md)。
+
+### 5.7 排针电气规则
+
+| 项目 | 当前合同 |
+| --- | --- |
+| 公开信号电平 | `L1..L19` 使用 `LVCMOS33`；只能连接兼容的 3.3 V 数字逻辑 |
+| FPGA 输出驱动 | CST 配置 `DRIVE=8`；这是 I/O 驱动档位，不代表可以直接带电机、继电器或大电流 LED |
+| 默认偏置 | 公开输入/双向 pad 配置弱上拉；弱上拉不能替代 I2C 总线的外部上拉，也不能保证长线抗扰 |
+| 最大外部电压 | 不得向信号脚注入 5 V、RS-232 正负电压或高于 Bank 额定值的电平 |
+| 共地 | 外置模块、逻辑分析仪和 USB-TTL 必须与板上 `GND` 共地，可使用 R23 |
+| 接线顺序 | 完全断开 USB-C 和其他外部电源后接线；核对方向与电压，再重新上电 |
+| 功率/高压负载 | GPIO/PWM 只输出逻辑信号；电机、MOSFET、继电器、高压或大电流负载必须通过审核过的缓冲、隔离和保护级 |
+
+`R24 +3V3` 和 `R18 +5V` 是电源孔而不是 GPIO。能否从排针给外部模块供电、允许电流和反灌保护必须
+按目标板电源预算另行确认，不能从 FPGA `DRIVE=8` 推导。
+
+### 5.8 PWM1 与 TIMER1 的位宽合同
 
 为在 9K 器件的高 BSRAM 占用与高 LUT/路由密度下容纳完整 P0/P1 档案，PWM1 和 TIMER1 的共享计数路径明确采用
 资源受控的 16-bit 数据宽度。MMIO 仍为 32-bit word 地址，但读回的未定义高位均为零，编码器
@@ -232,7 +372,92 @@ IRQCTRL 把以下 11 个源映射到 PicoRV32 CPU IRQ bit 8..18：
 也不要在成功后继续依赖程序流程。Boot ROM 用确认命令清除 retained pending，但这一次启动会保持
 更新器监听，直到主机发出常规 `BOOT` 或外部复位发生。
 
-## 8. 已知限制与安全边界
+## 8. 客户应用开发、编译与烧录
+
+日常 MCU 开发固定为：**写裸机 C → 编译 `.omcu` → UART0 烧录 → 复位运行**。客户程序不加入
+Verilog，也不重新生成或烧写 FPGA `.fs`。
+
+### 8.1 推荐的仓库外应用结构
+
+复制 `templates/omcu-app` 到独立客户工程，通过环境变量引用 SDK：
+
+```cmake
+include("${OMCU_SDK_PATH}/cmake/OpenMCUSDK.cmake")
+
+omcu_add_application(my_omcu_app
+  src/main.c
+)
+```
+
+最小 GPIO 示例：
+
+```c
+#include "omcu_tn9k.h"
+
+int main(void) {
+  omcu_gpio_clear(OMCU_TN9K_L8_GPIO);
+  omcu_gpio_enable_output(OMCU_TN9K_L8_GPIO);
+
+  for (;;) {
+    omcu_gpio_toggle(OMCU_TN9K_L8_GPIO);
+    for (volatile uint32_t delay = 0; delay < 1000000u; ++delay) {
+    }
+  }
+}
+```
+
+这里的 `OMCU_TN9K_L8_GPIO` 与 `OMCU_TN9K_GPIO0` 完全等价。应用不要使用 FPGA package pin 数字。
+
+### 8.2 构建
+
+macOS / Linux：
+
+```sh
+export OMCU_SDK_PATH=/path/to/OpenMCU-TN9K/sdk
+export PATH=/path/to/riscv-none-elf/bin:$PATH
+./build.sh
+```
+
+Windows PowerShell：
+
+```powershell
+$env:OMCU_SDK_PATH = 'C:\src\OpenMCU-TN9K\sdk'
+$env:PATH = "C:\toolchains\riscv-none-elf\bin;$env:PATH"
+.\build.ps1
+```
+
+构建系统自动使用 `rv32im` / `ilp32`、正确启动代码和链接脚本，并生成：
+
+| 产物 | 用途 |
+| --- | --- |
+| `my_omcu_app.elf` | 调试、反汇编、符号与 map 审计 |
+| `my_omcu_app.bin` | 原始 SRAM 载荷；不直接交付下载器 |
+| `my_omcu_app.omcu` | 带 ABI、长度、序号和 CRC 的唯一现场升级镜像 |
+
+### 8.3 UART0 烧录
+
+先安装 `pyserial`。macOS / Linux：
+
+```sh
+python3 -m pip install pyserial
+./flash.sh /dev/cu.usbserial-XXXX
+```
+
+Linux 串口通常是 `/dev/ttyUSB0` 或 `/dev/ttyACM0`。Windows：
+
+```powershell
+python -m pip install pyserial
+.\flash.ps1 -Port COM5
+```
+
+把端口名替换为实际设备。下载器启动后若当前应用仍在运行，按一次板上复位；Bootloader 将新镜像写入
+非当前 A/B 槽，回读校验、原子提交并启动。串口终端与下载器不能同时占用 UART0。
+
+应用如果长期使用 UART0，可在完成业务安全收尾后调用 `omcu_tn9k_request_bootloader()`；调用成功后
+SoC 会复位并保持更新会话。完整环境、模板、恢复和排错步骤见
+[《从零开发与烧录 OpenMCU 应用》](mcu-application-development.md)。
+
+## 9. 已知限制与安全边界
 
 - DFF 的名义余量不能单独兑换为功能容量。完整 ABI 0.9 上的 12-bit GPIO DFF 记录器探索在 184 样本时已综合到 5,015 个 DFF，但同类 200/184/128/64/32 样本候选均无法完成合法 P&R；因此不以 dummy DFF 虚增利用率，也未向 ABI/SDK 发布该功能。准确试验表见[资源扩展路线图](resource-expansion-roadmap.md)。
 - BSRAM 当前产品 P&R 使用 24/26。已试验极小的一块额外 BSRAM 记录器（25/26）也无法得到合法布局/布线，因此不能把“面上还显示两个块”解释为可用 FIFO、缓存、DMA 缓冲、帧缓冲或 QSPI XIP；任何存储扩展都须重做 P&R、定义带宽/一致性合同并做 HIL。
@@ -244,7 +469,7 @@ IRQCTRL 把以下 11 个源映射到 PicoRV32 CPU IRQ bit 8..18：
   调试锁定、反回滚和安全生产流程。
 - FPGA P&R 通过不等于实体板下载、冷启动、UART 电平、User Flash 擦写、外设电气或量产资格。
 
-## 9. 版本记录
+## 10. 版本记录
 
 | ABI | 日期 | 变化 |
 | --- | --- | --- |
