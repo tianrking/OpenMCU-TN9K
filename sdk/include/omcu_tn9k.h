@@ -13,6 +13,31 @@
 #include "omcu.h"
 
 #define OMCU_TN9K_SYSCLK_HZ       UINT32_C(27000000)
+#define OMCU_TN9K_GPIO_COUNT      12u
+#define OMCU_TN9K_GPIO_MASK       UINT32_C(0x00000FFF)
+#define OMCU_TN9K_PUBLIC_HEADER_SIGNAL_COUNT 19u
+
+/*
+ * Physical header positions use the component-side orientation with USB-C at
+ * the top; L1/R1 are the uppermost holes. These numbers are board locations,
+ * not GPIO masks. UART0 is intentionally accessed through the onboard BL702
+ * USB-UART and therefore has no L/R header position.
+ */
+#define OMCU_TN9K_SPI0_CS_L       1u
+#define OMCU_TN9K_SPI0_MOSI_L     2u
+#define OMCU_TN9K_SPI0_SCK_L      3u
+#define OMCU_TN9K_SPI0_MISO_L     4u
+#define OMCU_TN9K_PWM0_L          5u
+#define OMCU_TN9K_I2C0_SCL_L      6u
+#define OMCU_TN9K_I2C0_SDA_L      7u
+#define OMCU_TN9K_GPIO_FIRST_L    8u
+#define OMCU_TN9K_GPIO_LAST_L     19u
+#define OMCU_TN9K_UART1_TX_L      18u
+#define OMCU_TN9K_UART1_RX_L      19u
+#define OMCU_TN9K_5V_R            18u
+#define OMCU_TN9K_GND_R           23u
+#define OMCU_TN9K_3V3_R           24u
+
 #define OMCU_TN9K_GPIO0           (UINT32_C(1) << 0)
 #define OMCU_TN9K_GPIO1           (UINT32_C(1) << 1)
 #define OMCU_TN9K_GPIO2           (UINT32_C(1) << 2)
@@ -25,6 +50,20 @@
 #define OMCU_TN9K_GPIO9           (UINT32_C(1) << 9)
 #define OMCU_TN9K_GPIO10          (UINT32_C(1) << 10)
 #define OMCU_TN9K_GPIO11          (UINT32_C(1) << 11)
+
+/* Physical aliases make wiring review possible without raw package numbers. */
+#define OMCU_TN9K_L8_GPIO         OMCU_TN9K_GPIO0
+#define OMCU_TN9K_L9_GPIO         OMCU_TN9K_GPIO1
+#define OMCU_TN9K_L10_GPIO        OMCU_TN9K_GPIO2
+#define OMCU_TN9K_L11_GPIO        OMCU_TN9K_GPIO3
+#define OMCU_TN9K_L12_GPIO        OMCU_TN9K_GPIO4
+#define OMCU_TN9K_L13_GPIO        OMCU_TN9K_GPIO5
+#define OMCU_TN9K_L14_GPIO        OMCU_TN9K_GPIO6
+#define OMCU_TN9K_L15_GPIO        OMCU_TN9K_GPIO7
+#define OMCU_TN9K_L16_GPIO        OMCU_TN9K_GPIO8
+#define OMCU_TN9K_L17_GPIO        OMCU_TN9K_GPIO9
+#define OMCU_TN9K_L18_GPIO        OMCU_TN9K_GPIO10
+#define OMCU_TN9K_L19_GPIO        OMCU_TN9K_GPIO11
 
 /* The six board LEDs mirror GPIO0..5; they are not private GPIO bits. */
 #define OMCU_TN9K_LED0            OMCU_TN9K_GPIO0

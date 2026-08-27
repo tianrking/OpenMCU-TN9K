@@ -14,6 +14,15 @@ flowchart LR
 
 ## 自动化 RTL 冒烟测试
 
+板级引脚合同先用机器可读映射核对：
+
+```sh
+python3 ./scripts/check-tangnano9k-pinmap.py
+```
+
+它检查 `L1..L24/R1..R24`、电压/HDMI 分级、CST package pin 和 SDK 的 `L8..L19`
+物理别名，防止把 1.8 V 或未实现排针误发布为 3.3 V MCU GPIO。
+
 安装 Icarus Verilog，或设置 `OMCU_IVERILOG_BIN` 指向其 `bin` 目录。从仓库根目录运行：
 
 ```powershell

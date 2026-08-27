@@ -152,6 +152,7 @@ if (omcu_tn9k_request_bootloader()) {
 - [从零开发与烧录 OpenMCU 应用](../docs/zh-CN/mcu-application-development.md)
 - [Windows、Ubuntu 与 macOS 的 FPGA / MCU 开发环境](../docs/zh-CN/cross-platform-fpga-development.md)
 - [外设与 SDK](../docs/zh-CN/peripherals-and-sdk.md)
+- [Tang Nano 9K 外露引脚与 OpenMCU 定义](../docs/zh-CN/tangnano9k-external-pin-contract.md)
 - [硬件与引脚](../docs/zh-CN/hardware-and-pins.md)
 - [中断开发约定](../docs/zh-CN/interrupts.md)
 - [外设与引脚完整规格书](../docs/zh-CN/peripheral-pin-specification.md)

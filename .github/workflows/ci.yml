@@ -33,6 +33,8 @@ jobs:
         run: |
           ./scripts/check-tangnano9k-project.ps1
           ./scripts/check-tangnano9k-project.ps1 -McuMode
+      - name: Check all Tang Nano 9K external header definitions
+        run: python3 ./scripts/check-tangnano9k-pinmap.py
       - name: Run all source-only RTL smoke tests
         shell: pwsh
         run: |

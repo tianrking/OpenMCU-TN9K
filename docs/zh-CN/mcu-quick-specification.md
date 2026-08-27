@@ -7,7 +7,9 @@
 
 这是给应用、硬件选型和测试快速查阅的摘要。寄存器字段、完整引脚和电气边界以
 [《外设与引脚完整规格书》](peripheral-pin-specification.md) 和
-[机器可读 ABI 规范](../../spec/omcu-v0.json) 为准。
+[机器可读 ABI 规范](../../spec/omcu-v0.json) 为准。2×24 实物孔位与电气分级见
+[《Tang Nano 9K 外露引脚与 OpenMCU 定义》](tangnano9k-external-pin-contract.md)及
+[`spec/tangnano9k-pins.json`](../../spec/tangnano9k-pins.json)。
 
 ## 1. 产品定义
 
@@ -97,6 +99,10 @@ SDK 入口为 omcu_irq_set_mask()、omcu_irq_wait()、omcu_irq_global_enable() �
 这些路线仅代表 RTL、CST 和 P&R 已约束的公开合同。J6/HDMI/JTAG/配置 pin、板载配置 Flash、
 PSRAM、TF、RGB LCD 和“空闲 package pin”不因此成为可安全使用的 GPIO；仍须确认板卡 revision、
 3.3 V bank、电流、接地和共线器件。
+
+当前公开信号在实物上是连续的左排 `L1..L19`；这 19 根都能从 2.54 mm 孔位接触。`L20..L22`
+以及右排若干 3.3 V 网络虽物理外露，但 ABI 0.9 没有对应 MMIO GPIO bit，属于保留而非可开发引脚；
+右排 `R2..R9` 为 1.8 V，HDMI 共线组还带板级上拉，均不得按普通 3.3 V GPIO 使用。
 
 ## 6. SDK 与应用开发
 

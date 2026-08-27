@@ -4,6 +4,11 @@
 > [《OpenMCU-TN9K 外设与引脚完整规格书》](peripheral-pin-specification.md)为准。
 > 本页专注于接线、电气注意事项、实验步骤和实体板 HIL，不重复维护另一份引脚真相源。
 
+需要按实物 `L1..L24 / R1..R24` 找孔位时，先看
+[《Tang Nano 9K 外露引脚与 OpenMCU 定义》](tangnano9k-external-pin-contract.md)。该页和
+[`spec/tangnano9k-pins.json`](../../spec/tangnano9k-pins.json)明确区分当前可编程 MCU 信号、
+保留 3.3 V 网络、Bank 3 的 1.8 V 脚、HDMI 共线脚及电源孔。
+
 ## 板级边界
 
 目标板是 `GW1NR-LV9QN88PC6/I5`（GW1N-9C）。Sipeed 的 Tang Nano 9K 产品资料列出

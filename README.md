@@ -159,6 +159,7 @@ arm/                         ARM 后端授权边界（不含 ARM IP）
 
 - [外设与引脚完整规格书（中文，单一主规格书）](docs/zh-CN/peripheral-pin-specification.md)
 - [MCU 快速规格书（中文，参数/中断/外设/时钟摘要）](docs/zh-CN/mcu-quick-specification.md)
+- [Tang Nano 9K 外露引脚与 OpenMCU 定义（2×24 全孔位）](docs/zh-CN/tangnano9k-external-pin-contract.md)
 - [工程数据手册总览（中文）](docs/zh-CN/datasheet.md)
 - [资源与外设扩展路线图（中文）](docs/zh-CN/resource-expansion-roadmap.md)
 - [中文开发总览](docs/zh-CN/README.md)

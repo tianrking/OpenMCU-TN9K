@@ -9,8 +9,10 @@
 全部可用外设、完整已约束顶层引脚、J5 扩展映射、PINMUX 所有权、电气边界和升级路径。应用开发者只需
 使用 SDK；不需要直接接触 PicoRV32、Verilog 或 FPGA 配置文件。
 
-机器可读寄存器规范仍以 [`spec/omcu-v0.json`](../../spec/omcu-v0.json) 为唯一生成源，
-[`sdk/include/omcu_regs.h`](../../sdk/include/omcu_regs.h) 由它生成。本页面向人的说明与这两个文件、
+机器可读寄存器规范仍以 [`spec/omcu-v0.json`](../../spec/omcu-v0.json) 为唯一生成源；2×24 排针
+物理位置、电压和公开/保留/禁用分级以
+[`spec/tangnano9k-pins.json`](../../spec/tangnano9k-pins.json) 为板级真相源。
+[`sdk/include/omcu_regs.h`](../../sdk/include/omcu_regs.h) 由 `spec/omcu-v0.json` 生成。本页面向人的说明与这两个文件、
 Tang 顶层和 CST 约束一起构成当前 ABI `0.9` 合同。
 
 ## 1. 阅读结论与证据边界
@@ -59,10 +61,11 @@ flowchart TB
 | 优先级 | 文件 | 决定内容 |
 | ---: | --- | --- |
 | 1 | [`spec/omcu-v0.json`](../../spec/omcu-v0.json) | 软件可见 MMIO 基址、寄存器布局、特性位、IRQ 位。 |
-| 2 | [`omcu_tn9k_bringup.cst`](../../rtl/platform/tangnano9k/project/omcu_tn9k_bringup.cst) | package pad、I/O 约束、驱动强度和 pull 设置。 |
-| 3 | [`omcu_tn9k_mcu_top.sv`](../../rtl/platform/tangnano9k/omcu_tn9k_mcu_top.sv) 与 [`omcu_tn9k_bringup_top.sv`](../../rtl/platform/tangnano9k/omcu_tn9k_bringup_top.sv) | 产品顶层、GPIO/PINMUX 实际连接与复位行为。 |
-| 4 | [`sdk/include/omcu_tn9k.h`](../../sdk/include/omcu_tn9k.h) | 客户软件应使用的 Tang Nano 9K 逻辑 GPIO 与安全 helper。 |
-| 5 | 本规格书及其链接的开发指南 | 面向人类的使用步骤、限制、示例和 HIL 清单。 |
+| 2 | [`spec/tangnano9k-pins.json`](../../spec/tangnano9k-pins.json) | L/R 实物孔位、原理图 J5/J6、package pin、电压和发布状态。 |
+| 3 | [`omcu_tn9k_bringup.cst`](../../rtl/platform/tangnano9k/project/omcu_tn9k_bringup.cst) | package pad、I/O 约束、驱动强度和 pull 设置。 |
+| 4 | [`omcu_tn9k_mcu_top.sv`](../../rtl/platform/tangnano9k/omcu_tn9k_mcu_top.sv) 与 [`omcu_tn9k_bringup_top.sv`](../../rtl/platform/tangnano9k/omcu_tn9k_bringup_top.sv) | 产品顶层、GPIO/PINMUX 实际连接与复位行为。 |
+| 5 | [`sdk/include/omcu_tn9k.h`](../../sdk/include/omcu_tn9k.h) | 客户软件应使用的 Tang Nano 9K 逻辑 GPIO、物理别名与安全 helper。 |
+| 6 | 本规格书及其链接的开发指南 | 面向人类的使用步骤、限制、示例和 HIL 清单。 |
 
 ## 2. 平台摘要
 
