@@ -16,7 +16,7 @@
 | 镜像 / 下载协议 | 已通过 + 正常路径 HIL | Python 单元测试 17/17；实体 UART 连续完成 A→B→A 和固化后空白→A→B 更新、逐字回读、CRC、原子提交和 BOOT ACK | 丢包注入、各阶段断电和跨设备互操作 |
 | FPGA 产品构建 | 已通过 + 单板 HIL | `GW1NR-LV9QN88PC6/I5` 综合、P&R、packing、ROM BSRAM 指纹和 manifest；SRAM 与配置 Flash 下载 CRC 均成功 | 至少 10 次断电冷启动、多板、电气与长期可靠性 |
 | User Flash A/B | 单板正常路径通过 | 实测擦除态 `0x00000000`、编程 `0→1`；空白恢复、A/B 双向轮换、回读 CRC 和应用启动通过；旧 `BEGIN` 超时根因已修复并复测 | 四阶段断电、擦写寿命、温度和损坏槽故障注入 |
-| 核心/数字回环 HIL | 单板 24/24 + 8/8 通过 | WDT 真实复位、16 KiB SRAM、RV32IM、UART0 PING/PONG；六线闭环 GPIO、UART1、SPI0、TIMER1、PWM0/1、PULSE0、FAULT0 | I2C/SPI 目标器件、仪器波形、速率/负载、多板 |
+| 核心/数字回环 HIL | 单板 24/24 + 8/8 + UART0 289/289 通过 | WDT 真实复位、16 KiB SRAM、RV32IM；UART0 PING/PONG 及全字节范围回显；六线闭环 GPIO、UART1、SPI0、TIMER1、PWM0/1、PULSE0、FAULT0 | I2C/SPI 目标器件、仪器波形、速率/负载、多板 |
 | 安全启动 | 未实现 | CRC32 损坏检测、A/B 回退 | 签名、密钥、调试锁定、反回滚和安全生产 |
 
 ## 2. 本次自动化检查
@@ -102,13 +102,14 @@ Yosys 会对顶层 I2C/GPIO 三态 Pad 发出有限三态支持警告；P&R/pack
 原子提交、BOOT ACK；`omcu_mcu_selftest` 又完成 24/24，并以真实 WDT 复位验证
 `RESET_CAUSE=0x2`、`RESET_COUNT=1`。独立模板应用在仓库外编译得到 656 B 载荷，烧录后实板持续输出
 `my_omcu_app is running`。安装六线夹具后，回环应用又完成 8/8，覆盖 GPIO 线束、UART1、SPI0、
-TIMER1 encoder/capture、PWM0/1、PULSE0 和 FAULT0。原始结果、哈希和首轮测试固件修正见
+TIMER1 encoder/capture、PWM0/1、PULSE0 和 FAULT0。最后编译并烧录 676 B UART0 回显应用，Mac 发送
+测试文字与 `0x00..0xFF` 后得到 289/289 完整回传。原始结果、哈希和首轮测试固件修正见
 [2026-08-27 六线回环实板记录](evidence/tangnano9k-loopback-2026-08-27.md)。
 
 旧版在已有应用时出现的 `BEGIN` 无 ACK 已关闭：HELLO 响应后主循环又做一次完整 Flash/CRC 扫描，
 而 UART0 只有单字节 RX 寄存器，主机紧随 HELLO 发出的 BEGIN 因 overrun 丢失。最终 Boot ROM 把必要扫描
 移到响应之前并缓存槽状态；END/BOOT 也在响应前刷新缓存。最终 `.fs` 已实测连续 A→B→A，固化并清空
-User Flash 后又完成空白→A→B；当前板运行 B 槽序号 2 的 656 B 模板应用。
+User Flash 后又完成空白→A→B；随后从 B 槽模板更新到 A 槽序号 3 的 UART0 回显应用，当前板正在运行该应用。
 
 剩余门禁：
 

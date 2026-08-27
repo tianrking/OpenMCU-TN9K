@@ -361,7 +361,7 @@ RX IRQ。实际速率为 `f_uart = 27,000,000 / (BAUDDIV + 1)`；`BAUDDIV=233` �
 | 项目 | UART0 | UART1 |
 | --- | --- | --- |
 | 基址 / IRQ | `0x4000_1000` / bit9 | `0x4000_8000` / bit14 |
-| 物理连接 | pad 17 TX、pad 18 RX | GPIO10/11，J5.18 TX / J5.19 RX，pad 53/54 |
+| 物理连接 | pad 17 TX、pad 18 RX，PCB 已接板载 BL702 USB-UART，不在 2×24 排针 | GPIO10/11，J5.18 TX / J5.19 RX，pad 53/54；USB-TTL RXD→J5.18、TXD→J5.19 |
 | 角色 | 固定 Bootloader、救砖和默认日志通道 | 客户设备的第二路串口 |
 | 使用前提 | 基础产品外设 | `FEATURES.UART1` 与 `FEATURES.PINMUX` 均存在，并显式启用 `PINMUX.CTRL.UART1_ENABLE` |
 | 限制 | 无 FIFO、无硬件流控、无自动 RS-485 | 同左，且与 RGB LCD 共线，必须保留 UART0 下载通道 |

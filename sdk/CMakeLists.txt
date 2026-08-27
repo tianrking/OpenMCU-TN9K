@@ -26,6 +26,7 @@ add_custom_command(TARGET omcu_bootloader POST_BUILD
 )
 omcu_add_application(omcu_mcu_blink examples/mcu_blink/main.c)
 omcu_add_application(omcu_mcu_hello examples/mcu_hello/main.c)
+omcu_add_application(omcu_mcu_uart_echo examples/mcu_uart_echo/main.c)
 omcu_add_application(omcu_mcu_selftest examples/mcu_selftest/main.c)
 omcu_add_application(omcu_mcu_loopback_selftest examples/mcu_loopback_selftest/main.c)
 omcu_add_application(omcu_uart1_loopback examples/uart1_loopback/main.c)

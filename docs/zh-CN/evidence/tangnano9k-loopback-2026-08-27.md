@@ -29,6 +29,7 @@ Tang Nano 9K PCB 已把它们接到板载 BL702 的 USB-UART；同一 USB-C 同�
 | 资源 | LUT4 7,211/8,640；DFF 2,631/6,480；BSRAM 24/26；ALU 1,316/6,480 |
 | 回环应用 | SHA-256 `95e3a8e2c41cb4e3fbce4fb27184bd78b4707109f010c70605f8a976a1b80dde`；3,808 B 载荷；CRC32 `0xa5403be7` |
 | 外部模板应用 | SHA-256 `7acccf502b0e74ef530b2c81ecdd1ebe79deee11fd441c11ff1252160506b3f4`；656 B 载荷；CRC32 `0x4acb2894` |
+| UART0 回显应用 | SHA-256 `06422eb64e163eb2e5246ac574fa3a0f1d813c84564d6b8e8200bd3058e2c598`；676 B 载荷；CRC32 `0xa9b42857` |
 
 正式 `.fs` 通过仓库下载脚本写入配置 Flash；openFPGALoader 报告擦除、写入 100% 和
 `CRC check: Success`。该操作实测会清空 User Flash，因此其后重新执行了应用 A/B 更新。
@@ -79,7 +80,22 @@ SHA-256 为 `60e5262a528f1ee112d6f3da360fc75e2a8e0e15e53fc17fb1b9101500dbd752`�
 编码器输出，让真实引脚出现额外中间 Gray 状态；修正为计算新值后对 `GPIO.OUT` 做一次 32-bit
 原子写入。相同两根线已在 GPIO 和 PWM1/TIMER1 回环中独立通过，修正后稳定得到上述 8/8。
 
-## 4. `BEGIN` 超时的定位与关闭
+## 4. macOS UART0 双向回显
+
+在最终配置和 B 槽序号 2 模板应用仍有效时，使用同一板载 UART0 把新编译的
+`omcu_mcu_uart_echo.omcu` 写入 A 槽序号 3。Bootloader 完成占用页擦除、逐字回读、载荷 CRC、原子提交
+和 BOOT ACK，随后启动回显应用。Mac 在 `/dev/cu.usbserial-11301`、115200 8N1 上以停等方式发送
+测试文字和全部 `0x00..0xFF` 字节；289 个发送字节全部逐字节原样返回：
+
+```text
+PASS: UART0 full-duplex stop-and-wait echo 289/289 bytes
+SHA256: 14605bc3632ad69fd2aa6fd6907dd2e98ec120e1ce91aac51a60102fb4d904a9
+```
+
+该测试同时证明 Mac→板载 BL702→FPGA UART0 RX→软 MCU→FPGA UART0 TX→BL702→Mac 的双向路径。
+它不需要外置 USB-TTL；当前板最新应用为 A 槽序号 3 的 UART0 回显程序。
+
+## 5. `BEGIN` 超时的定位与关闭
 
 旧版在已有有效应用时可返回 HELLO，但紧随其后的 `BEGIN` 无 ACK。旧槽始终保持可启动，事务未进入
 DATA/END；这证明回退有效，但当时不能算升级通过。分阶段 UART 诊断最终确认：
@@ -98,8 +114,8 @@ BOOT 同样先更新缓存、再响应，避免下一帧被耗时 Flash 访问�
 在 27 MHz 下保持至少 9.48 µs；RTL 回归新增不少于 256 周期的断言。页面 18（B 槽首地址）和
 页面 36 的独立 FLASH608K 擦/写/擦探针均返回 `UFLASH RESULT 0`，进一步排除了地址或宏单元故障。
 
-## 5. 证据边界
+## 6. 证据边界
 
-本次证明特定单板上的配置固化、板载 UART0、正常 A/B 更新、应用构建/启动和六线数字回环。
+本次证明特定单板上的配置固化、板载 UART0 双向收发、正常 A/B 更新、应用构建/启动和六线数字回环。
 它不覆盖 I2C 目标 ACK/读写、ADC/DAC/W5500 等外置模块、示波器/逻辑分析仪波形精度、最大速率、
 长线/负载、电压/温度、ESD/EMC、多板一致性、反复冷启动、擦写寿命、各阶段断电或量产资格。

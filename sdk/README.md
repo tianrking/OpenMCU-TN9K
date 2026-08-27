@@ -14,7 +14,7 @@ C 源码 -> RV32IM ELF -> BIN -> .omcu -> UART0 -> User Flash A/B -> SRAM 执行
 请先阅读[《从零开发与烧录 OpenMCU 应用》](../docs/zh-CN/mcu-application-development.md)。它包含：
 
 - Windows、Ubuntu/Linux 与 macOS 的工具链、环境变量和构建命令；
-- 可直接烧录的 `omcu_mcu_hello` Hello World；
+- 可直接烧录的 `omcu_mcu_hello` Hello World 和 `omcu_mcu_uart_echo` 双向回显；
 - 新建产品应用目标的 CMake 写法；
 - `.omcu` 校验、UART0 烧录、串口日志和 A/B 恢复；
 - UART0 电气要求、内存上限与实板 HIL 边界。
@@ -51,6 +51,7 @@ macOS/Linux 执行 `./build.sh` 与 `./flash.sh <串口>`；Windows 执行 `./bu
 | 目标 | 目的 |
 | --- | --- |
 | `omcu_mcu_hello` | UART0 周期输出 Hello World；最小的端到端编译、烧录和日志检查。 |
+| `omcu_mcu_uart_echo` | 板载 UART0 逐字节回显；验证 Mac/PC → BL702 → 软 MCU → BL702 → Mac/PC 双向链路。 |
 | `omcu_mcu_blink` | 板载 LED0 闪烁；最小 GPIO 输出应用。 |
 | `omcu_mcu_selftest` | 无外接夹具板测：真实 WDT 复位、SRAM/RV32IM、UART0 双向及片内/空载 pad 路径。 |
 | `omcu_mcu_loopback_selftest` | 按固定跳线夹具自动验收 UART1/SPI/PWM/TIMER1/PULSE/FAULT 的外部闭环。 |

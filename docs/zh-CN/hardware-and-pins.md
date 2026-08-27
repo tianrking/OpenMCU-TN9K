@@ -54,10 +54,23 @@ FPGA package pin，完整实物图与回环位置见[《MCU 外设实体板验�
 ## UART1、PWM1、TIMER1、PULSE0、FAULT0 与显式 pinmux
 
 UART0 始终保留给 Bootloader、下载和默认日志，并通过板载 BL702 随 USB-C 枚举为主机串口；
-它不属于六线回环夹具。需要第二路设备串口时，ABI 0.9 在 J5 的
+它不属于六线回环夹具，也不应再并接外置 USB-TTL 的 TX。需要第二路设备串口时，ABI 0.9 在 J5 的
 两个已约束 3.3 V pad 上提供无 FIFO 的 UART1：TX 为 GPIO10 / J5.18 / package pad 53，RX
 为 GPIO11 / J5.19 / package pad 54。复位时这两个 pad 仍是普通高阻 GPIO，不会因为 FPGA
 中存在 UART1 而被暗中占用。
+
+外置 3.3 V USB-TTL 测试 UART1 的接法如下。元件面朝上、USB-C 在顶部，`Lx` 为左排从上往下：
+
+| USB-TTL | Tang Nano 9K | 方向 |
+| --- | --- | --- |
+| `RXD` | 左排 `L18` / J5.18 / FPGA `53` | MCU UART1 TX → USB-TTL RX |
+| `TXD` | 左排 `L19` / J5.19 / FPGA `54` | USB-TTL TX → MCU UART1 RX |
+| `GND` | 任一 GND；可用右排倒数第 2 孔 `R23` | 必须共地 |
+| `VCC/5V/3V3` | **不连接** | 板子继续由自身 USB-C 供电 |
+
+接线前完全断开 USB-C，并至少拆掉现有 `L18 → L19` 回环线；转入普通开发时建议拆掉全部六根测试
+跳线。USB-TTL 必须是 3.3 V 逻辑，不能使用 5 V TTL 或 RS-232 电平。板载 UART0 与外接 UART1
+是两路不同串口：UART0 负责烧录/恢复，UART1 才用于这个外置适配器测试。
 
 ```c
 #include "omcu_tn9k.h"

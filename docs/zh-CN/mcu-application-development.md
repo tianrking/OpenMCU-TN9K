@@ -247,6 +247,22 @@ python -m serial.tools.miniterm /dev/cu.usbserial-XXXX 115200
 打开终端后按复位键，应持续看到 `Hello, OpenMCU-TN9K!`。若没有输出，先确认板级 UART0 连接、
 3.3 V 电平、TX/RX 方向、共地和端口占用情况。
 
+### 5.1 UART0 双向回显验收
+
+仓库提供只访问板载 UART0 的 `omcu_mcu_uart_echo`，不会驱动六线回环夹具中的 GPIO。构建并烧录：
+
+```sh
+cmake --build build/sdk --target omcu_mcu_uart_echo --parallel
+python3 tools/omcu_flash.py \
+  --port /dev/cu.usbserial-XXXX \
+  --image build/sdk/omcu_mcu_uart_echo.omcu
+```
+
+先打开 115200 8N1 终端再按一次板上复位键；Bootloader 的短监听窗口结束后应看到
+`OMCU_UART0_ECHO_READY`，之后键盘发送的每个字节应原样返回。
+UART0 只有单字节 RX 寄存器而没有 FIFO，压力测试应同时检查 `RX_OVERRUN`，不能把终端逐字节通过
+外推成任意波特率、任意长时间屏蔽中断都不会丢数据。
+
 ## 6. 正常迭代与恢复
 
 每次迭代只需：编辑 C 源码 → 构建 `.omcu` → 串口烧录。FPGA 配置保持不变。
